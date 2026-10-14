@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-为 P5 学生 Sophia 设计一个错题练习场（Exercise Arena）：录入/导入错题（文字或图片），定期复习重做，并组卷检验是否掌握。
+为 P5 学生 Sophia 设计一个练习场（Exercise Arena）：家长录入她的错题（文字或照片），她按复习阶梯重做，家长用检验卷确认她是否掌握。
 
 <!-- design-kernel:begin -->
 ## 内核
@@ -75,5 +75,6 @@
 | `architecture/RUNTIME.md` | 关键场景怎么协作 | 设计 |
 | `design/<topic>/` | 该主题怎么实现 | 设计 |
 | `CAPABILITIES.md` | 要建什么 | 设计 |
+| `app/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；与设计冲突时以设计为准 |
 
-读设计：模型问题先读 `domain/CONTEXT.md` 与 `domain/OVERVIEW.md`，涉及取舍再读相关 ADR；架构问题再读 `architecture/`，查待建能力读 `CAPABILITIES.md`；主题详设先读 `design/<topic>/README.md`。
+读设计：模型问题先读 `domain/CONTEXT.md` 与 `domain/OVERVIEW.md`，涉及取舍再读相关 ADR；架构问题再读 `architecture/`，查待建能力读 `CAPABILITIES.md`；主题详设先读 `design/<topic>/README.md`；改页面前先读 `design/arena/`。

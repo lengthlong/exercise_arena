@@ -1,0 +1,1085 @@
+<!--
+  Sophia's Exercise Arena — 练习场页面（实现）。
+  设计：design/arena/README.md、design/arena/TAXONOMY.md、domain/OVERVIEW.md。
+  发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
+  能力：db、assets、sample（images）、downloads。
+-->
+<title>Sophia's Exercise Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Patrick+Hand&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: an exercise book — ruled paper, a red margin line on each question, ticks and crosses in a marking-pen hand; Sophia writes in fountain-pen blue. */
+:root {
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f7;
+  --ink: #1b2231;
+  --muted: #5a6376;
+  --rule: #e1e6ef;
+  --line: #c8d0de;
+  --pen: #2547a8;
+  --pen-ink: #ffffff;
+  --pen-soft: #e3e9fb;
+  --red: #c42f27;
+  --red-soft: #fbe6e4;
+  --green: #1f7a4a;
+  --green-soft: #e0f2e8;
+  --amber: #a8690f;
+  --amber-soft: #fbefd9;
+  --hl: #ffe57a;
+  --hl-ink: #1b2231;
+  --font-body: "Lexend", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-hand: "Patrick Hand", "Lexend", "Noto Sans SC", cursive;
+  --font-zh: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Lexend", sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
+    --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
+    --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
+    --hl: #6b5a12; --hl-ink: #fff4c4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
+  --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
+  --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
+  --hl: #6b5a12; --hl-ink: #fff4c4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 400 15.5px/1.6 var(--font-body); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
+a { color: var(--pen); text-underline-offset: 2px; }
+[lang="zh"], .zh { font-family: var(--font-zh); }
+mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-radius: 3px; }
+
+.wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 64px; display: grid; gap: 18px; }
+@media (min-width: 720px) { .wrap { padding-inline: 28px; } }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.brand { display: grid; gap: 0; }
+.brand b { font: 600 20px/1.2 var(--font-body); letter-spacing: -.01em; text-wrap: balance; }
+.brand span { font: 400 13px/1.4 var(--font-body); color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font-zh); }
+.tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--pen); font-weight: 500; }
+
+/* generic */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.grow { flex: 1 1 auto; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.h2 { font: 600 17px/1.3 var(--font-body); margin: 0; text-wrap: balance; }
+.h3 { font: 500 12px/1.4 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px 14px; cursor: pointer; line-height: 1.3; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--pen); border-color: var(--pen); color: var(--pen-ink); font-weight: 500; }
+.btn.danger { color: var(--red); border-color: var(--red); background: none; }
+.btn.ghost { background: none; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; line-height: 1.3; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--rule); white-space: nowrap; }
+.chip.s-english { color: var(--pen); }
+.chip.s-math { color: var(--amber); }
+.chip.s-science { color: var(--green); }
+.chip.test { color: var(--red); border-color: var(--red); }
+.note { font-size: 13.5px; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); }
+.note.err { background: var(--red-soft); color: var(--red); }
+.note.ok { background: var(--green-soft); color: var(--green); }
+label.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+label.f > span { font-family: var(--font-zh); }
+input[type=text], input[type=number], input[type=date], select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 15px;
+}
+textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 12px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* home */
+.hello { display: grid; gap: 4px; }
+.hello .day { font: 400 13px var(--font-body); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.hello h1 { margin: 0; font: 600 clamp(24px, 4vw, 32px)/1.15 var(--font-body); letter-spacing: -.015em; text-wrap: balance; }
+.today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
+.today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
+.today .txt { display: grid; gap: 8px; min-width: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
+.stats b { color: var(--ink); font-weight: 600; }
+
+/* question sheet */
+.sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 16px 18px 30px; display: grid; gap: 12px; min-width: 0;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule) 31px 32px); background-position: 0 14px; }
+.sheet::before { content: ""; position: absolute; left: 18px; top: 0; bottom: 0; width: 1.5px; background: var(--red); opacity: .55; }
+.qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qno { font: 400 22px/1 var(--font-hand); color: var(--red); margin-right: 4px; }
+.stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
+.imgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.imgs img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+.imgs.thumbs img { max-height: 96px; }
+.opts { display: grid; gap: 6px; }
+.opt { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; align-items: start; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.opt .l { font: 600 14px/1.6 var(--font-body); color: var(--muted); }
+.opt[aria-pressed="true"] { border-color: var(--pen); background: var(--pen-soft); }
+.opt[aria-pressed="true"] .l { color: var(--pen); }
+.opt.is-right { border-color: var(--green); background: var(--green-soft); }
+.opt.is-wrong { border-color: var(--red); background: var(--red-soft); }
+.answer-in { font-family: var(--font-hand); font-size: 20px; color: var(--pen); }
+.mark { display: inline-flex; align-items: center; gap: 8px; font: 400 26px/1 var(--font-hand); }
+.mark.right { color: var(--green); }
+.mark.partial { color: var(--amber); }
+.mark.wrong { color: var(--red); }
+.solution { border-top: 1px dashed var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.solution .ans { font-weight: 500; }
+.solution .exp { white-space: pre-wrap; overflow-wrap: anywhere; }
+.selfmark { display: flex; flex-wrap: wrap; gap: 8px; }
+.selfmark button { font: 400 19px/1 var(--font-hand); padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; }
+.selfmark button[data-r="right"] { color: var(--green); border-color: var(--green); }
+.selfmark button[data-r="partial"] { color: var(--amber); border-color: var(--amber); }
+.selfmark button[data-r="wrong"] { color: var(--red); border-color: var(--red); }
+.selfmark button[aria-pressed="true"][data-r="right"] { background: var(--green-soft); }
+.selfmark button[aria-pressed="true"][data-r="partial"] { background: var(--amber-soft); }
+.selfmark button[aria-pressed="true"][data-r="wrong"] { background: var(--red-soft); }
+.progress { display: flex; align-items: center; gap: 12px; }
+.bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--pen); }
+.score { font: 400 48px/1 var(--font-hand); color: var(--red); }
+
+/* ladder dots */
+.ladder { font-family: var(--font-body); letter-spacing: 1px; color: var(--pen); font-size: 12px; white-space: nowrap; }
+.ladder.m { color: var(--green); letter-spacing: 0; }
+
+/* parent lists */
+.list { display: grid; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 14px; border: 0; border-top: 1px solid var(--rule); background: none; text-align: left; cursor: pointer; width: 100%; }
+.item:first-child { border-top: 0; }
+.item:hover { background: var(--surface-2); }
+.item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.item .side { display: grid; justify-items: end; gap: 2px; font-size: 12.5px; color: var(--muted); }
+.empty { padding: 22px 16px; text-align: left; color: var(--muted); display: grid; gap: 6px; }
+.tbl { overflow-x: auto; }
+.tbl table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.tbl th, .tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.tbl th { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.tbl select { padding: 4px 6px; font-size: 13px; width: auto; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); }
+.checks input { margin: 0; }
+.draft { border-left: 3px solid var(--pen); }
+.confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ---------- 归类体系（见 design/arena/TAXONOMY.md）---------- */
+const TAX = /*TAXONOMY:BEGIN*/{"english":{"layers":[["V","动词","Verbs"],["W","词类","Word classes"],["S","句子","Sentences"],["M","书写","Mechanics"],["X","词汇","Vocabulary"]],"topics":[["en-tense","V","时态","Tenses"],["en-sva","V","主谓一致","Subject-verb agreement"],["en-voice","V","主动与被动","Active & passive voice"],["en-verbforms","V","非谓语与情态","Gerunds, infinitives & modals"],["en-noun","W","名词与冠词","Nouns & articles"],["en-pron","W","代词","Pronouns"],["en-prep","W","介词","Prepositions"],["en-adj","W","形容词与副词","Adjectives & adverbs"],["en-conj","W","连接词","Connectors"],["en-qtag","S","反意疑问句","Question tags"],["en-cond","S","条件句","Conditionals"],["en-speech","S","直接与间接引语","Direct & reported speech"],["en-synth","S","句子合并与改写","Synthesis & transformation"],["en-spell","M","拼写","Spelling"],["en-punct","M","标点","Punctuation"],["en-vocab","X","词汇与搭配","Vocabulary & collocations"]],"concepts":[["en-t-simpres","en-tense","一般现在时","Simple present"],["en-t-prescont","en-tense","现在进行时","Present continuous"],["en-t-simpast","en-tense","一般过去时","Simple past"],["en-t-pastcont","en-tense","过去进行时","Past continuous"],["en-t-presperf","en-tense","现在完成时","Present perfect"],["en-t-pastperf","en-tense","过去完成时","Past perfect"],["en-t-future","en-tense","将来时","Future"],["en-sva-eithor","en-sva","either/neither…or/nor","Either/neither…or/nor"],["en-sva-each","en-sva","each/every/everyone","Each, every, everyone"],["en-sva-collective","en-sva","集合名词","Collective nouns"],["en-sva-oneof","en-sva","one of the…","One of the…"],["en-sva-distance","en-sva","远离主语的谓语","Verb far from subject"],["en-v-form","en-voice","被动语态的构成","Forming the passive"],["en-v-tense","en-voice","被动语态的时态","Passive in different tenses"],["en-vf-gerund","en-verbforms","动名词","Gerunds"],["en-vf-inf","en-verbforms","不定式","Infinitives"],["en-vf-modal","en-verbforms","情态动词","Modal verbs"],["en-n-count","en-noun","可数与不可数","Countable & uncountable"],["en-n-article","en-noun","a/an/the","Articles"],["en-n-quant","en-noun","量词","Quantifiers"],["en-p-personal","en-pron","人称与物主代词","Personal & possessive"],["en-p-reflexive","en-pron","反身代词","Reflexive"],["en-p-relative","en-pron","关系代词","Relative pronouns"],["en-pp-timeplace","en-prep","时间与地点介词","Time & place"],["en-pp-fixed","en-prep","固定搭配介词","Fixed prepositions"],["en-a-compare","en-adj","比较级与最高级","Comparatives & superlatives"],["en-a-wordform","en-adj","词形变化","Word forms"],["en-c-coord","en-conj","并列与转折","Adding & contrasting"],["en-c-cause","en-conj","原因与结果","Cause & effect"],["en-c-condition","en-conj","条件与让步","Condition & concession"],["en-q-pos","en-qtag","肯定句接否定尾","Positive → negative tag"],["en-q-special","en-qtag","否定词与特殊主语","Negative words & special subjects"],["en-cd-real","en-cond","真实条件","Real conditions"],["en-cd-unreal","en-cond","虚拟条件","Unreal conditions"],["en-s-backshift","en-speech","时态后移","Tense backshift"],["en-s-pronoun","en-speech","人称与时间地点词","Pronouns, time & place words"],["en-s-question","en-speech","间接疑问句","Reported questions"],["en-sy-despite","en-synth","Despite / In spite of","Despite / In spite of"],["en-sy-although","en-synth","Although / Even though","Although / Even though"],["en-sy-neither","en-synth","Neither…nor","Neither…nor"],["en-sy-notonly","en-synth","Not only…but also","Not only…but also"],["en-sy-nosooner","en-synth","No sooner…than","No sooner…than"],["en-sy-tooto","en-synth","too…to / so…that","Too…to / so…that"],["en-sy-unless","en-synth","Unless","Unless"],["en-sy-relative","en-synth","关系从句合并","Joining with relative clauses"],["en-sy-instead","en-synth","Instead of","Instead of"],["en-sy-passive","en-synth","被动改写","Rewriting in the passive"],["en-sy-reported","en-synth","间接引语改写","Rewriting as reported speech"],["en-sp-common","en-spell","常错拼写","Commonly misspelt words"],["en-sp-suffix","en-spell","加后缀的拼写","Adding suffixes"],["en-pu-quote","en-punct","引号与逗号","Quotation marks & commas"],["en-pu-apos","en-punct","撇号","Apostrophes"],["en-vo-phrasal","en-vocab","短语动词","Phrasal verbs"],["en-vo-idiom","en-vocab","习语","Idioms"],["en-vo-synonym","en-vocab","近义词辨析","Similar words"]],"qtypes":[["en-qt-gmcq","语法选择","Grammar MCQ"],["en-qt-vmcq","词汇选择","Vocabulary MCQ"],["en-qt-vcloze","词汇完形","Vocabulary cloze"],["en-qt-visual","图文理解","Visual text comprehension"],["en-qt-gcloze","语法完形","Grammar cloze"],["en-qt-editing","改错（拼写与语法）","Editing (spelling & grammar)"],["en-qt-ccloze","理解完形","Comprehension cloze"],["en-qt-synth","句子合并与改写","Synthesis & transformation"],["en-qt-compoe","阅读理解问答","Comprehension open-ended"]]},"math":{"layers":[["W","整数与钱","Whole numbers & money"],["F","分数与小数","Fractions & decimals"],["R","百分比、比与比率","Percentage, ratio & rate"],["A","规律与代数","Patterns & algebra"],["M","测量","Measurement"],["G","几何","Geometry"],["S","统计","Statistics"],["P","解题方法","Problem solving"]],"topics":[["W-num","W","数的认识","Numbers & place value"],["W-ops","W","四则运算","Four operations"],["W-fm","W","因数与倍数","Factors & multiples"],["W-money","W","钱","Money"],["F-frac","F","分数","Fractions"],["F-dec","F","小数","Decimals"],["R-pct","R","百分比","Percentage"],["R-ratio","R","比","Ratio"],["R-rate","R","比率","Rate"],["A-pat","A","规律","Patterns"],["A-alg","A","代数","Algebra"],["M-len","M","长度、质量与容量","Length, mass & volume"],["M-time","M","时间","Time"],["M-area","M","面积与周长","Area & perimeter"],["M-vol","M","体积","Volume"],["M-circ","M","圆","Circles"],["G-shape","G","平面与立体图形","2D & 3D shapes"],["G-angle","G","角与线","Angles & lines"],["G-poly","G","三角形与四边形","Triangles & quadrilaterals"],["G-sym","G","对称与展开图","Symmetry & nets"],["S-graph","S","统计图表","Graphs & tables"],["S-avg","S","平均数","Average"],["P-steps","P","解题步骤与书写","Steps & presentation"],["P-rep","P","画图与列表","Give a representation"],["P-guess","P","有根据地猜","Make a calculated guess"],["P-walk","P","走一遍过程","Walk through the process"],["P-change","P","改变问题","Change the problem"]],"concepts":[["w-place","W-num","数位与读写","Place value"],["w-round","W-num","四舍五入与估算","Rounding & estimation"],["w-addsub","W-ops","加法与减法","Addition & subtraction"],["w-muldiv","W-ops","乘法与除法","Multiplication & division"],["w-order","W-ops","运算顺序","Order of operations"],["w-factors","W-fm","因数与公因数","Factors"],["w-multiples","W-fm","倍数与公倍数","Multiples"],["w-money","W-money","钱","Money"],["f-meaning","F-frac","分数的意义","Fraction of a whole"],["f-compare","F-frac","比较分数","Comparing fractions"],["f-equiv","F-frac","等值分数与最简分数","Equivalent fractions"],["f-mixed","F-frac","带分数与假分数","Mixed numbers"],["f-ofset","F-frac","一组的几分之几","Fraction of a set"],["f-addsub","F-frac","分数加减","Adding & subtracting fractions"],["f-fracdiv","F-frac","分数与除法","Fractions as division"],["f-muldiv","F-frac","分数乘除","Multiplying & dividing fractions"],["f-decplace","F-dec","小数的数位","Decimal place value"],["f-fracdec","F-dec","分数与小数互化","Fractions ↔ decimals"],["f-decround","F-dec","小数的取近似值","Rounding decimals"],["f-decops","F-dec","小数四则运算","Operations on decimals"],["r-pct","R-pct","百分比的意义","Percentage"],["r-gst","R-pct","折扣、消费税与年利率","Discount, GST & interest"],["r-pctwhole","R-pct","已知部分求整体","Finding the whole"],["r-pctchange","R-pct","增加或减少的百分比","Percentage change"],["r-ratio","R-ratio","比的意义","Ratio"],["r-equiv","R-ratio","等值比与最简比","Equivalent ratios"],["r-divide","R-ratio","按比分配","Dividing in a ratio"],["r-fracratio","R-ratio","比与分数","Ratio & fraction"],["r-rate","R-rate","比率","Rate"],["a-numpattern","A-pat","数的规律","Number patterns"],["a-shapepattern","A-pat","图形的规律","Shape patterns"],["a-letter","A-alg","用字母表示数","Letters for unknowns"],["a-expr","A-alg","化简与代入","Simplifying & substituting"],["a-equation","A-alg","简单方程","Simple equations"],["m-units","M-len","单位与测量","Units of measurement"],["m-convert","M-len","单位换算（小数）","Converting units"],["m-clock","M-time","读钟与 24 小时制","Telling time"],["m-duration","M-time","经过的时间","Duration"],["m-perimeter","M-area","周长","Perimeter"],["m-area-rect","M-area","长方形与正方形面积","Area of rectangles"],["m-triangle-area","M-area","三角形面积","Area of triangles"],["m-composite","M-area","组合图形面积","Composite figures"],["m-cube","M-vol","正方体与长方体体积","Volume of cuboids"],["m-volliquid","M-vol","水箱里的液体","Liquid in a tank"],["m-dimension","M-vol","已知体积求边长","Finding a dimension"],["m-circum","M-circ","圆周长","Circumference"],["m-circle-area","M-circ","圆面积","Area of a circle"],["g-2d","G-shape","平面图形","2D shapes"],["g-3d","G-shape","立体图形","3D shapes"],["g-angle","G-angle","角与量角","Angles"],["g-lines","G-angle","垂直与平行","Perpendicular & parallel lines"],["g-anglerules","G-angle","角的关系","Angle properties"],["g-rectsq","G-poly","长方形与正方形的性质","Rectangles & squares"],["g-triangle","G-poly","三角形","Triangles"],["g-quad","G-poly","平行四边形、菱形和梯形","Special quadrilaterals"],["g-symmetry","G-sym","线对称","Line symmetry"],["g-nets","G-sym","展开图","Nets"],["s-picture","S-graph","象形统计图","Picture graphs"],["s-bar","S-graph","条形图","Bar graphs"],["s-table","S-graph","表格","Tables"],["s-line","S-graph","折线图","Line graphs"],["s-pie","S-graph","扇形图","Pie charts"],["s-average","S-avg","平均数","Average"],["p-star","P-steps","解题四步","Four steps"],["p-equation","P-steps","写清算式","Showing working"],["p-check","P-steps","检查答案","Checking"],["p-calc","P-steps","用计算器","Using a calculator"],["p-model-pw","P-rep","模型：部分与整体","Part-whole model"],["p-model-cmp","P-rep","模型：比较","Comparison model"],["p-units","P-rep","单位与份数","Units & parts"],["p-list","P-rep","系统列表","Systematic list"],["p-guess","P-guess","猜测与检验","Guess & check"],["p-suppose","P-guess","假设法","Make a supposition"],["p-pattern","P-guess","找规律","Look for patterns"],["p-backwards","P-walk","倒推","Work backwards"],["p-beforeafter","P-walk","变化前后","Before–after"],["p-simplify","P-change","简化、重述、分步解决","Simplify the problem"]],"qtypes":[["qt-calc","卷一基础计算","Paper 1 computation"],["qt-pw","部分与整体、比较","Part-whole & comparison"],["qt-remainder","剩余部分的几分之几","Fraction of the remainder"],["qt-total","变化前后：总数不变","Before–after: constant total"],["qt-diff","变化前后：差不变","Before–after: constant difference"],["qt-allchange","变化前后：都变了","Before–after: everything changes"],["qt-suppose","假设法：鸡兔同笼","Supposition"],["qt-excess","盈亏问题","Excess & shortage"],["qt-equalfrac","等量分数","Equal fractions of two quantities"],["qt-backwards","倒推题","Working backwards"],["qt-pattern","图形与数的规律","Patterns"],["qt-pct","百分比应用","Percentage in context"],["qt-rate","比率与收费","Rates & charges"],["qt-tank","水箱与水位","Water tanks"],["qt-shaded","阴影面积与周长","Shaded area & perimeter"],["qt-angles","图形中的未知角","Unknown angles"],["qt-spatial","立体、展开图与对称","Solids, nets & symmetry"],["qt-average","平均数变化","Average problems"],["qt-data","读统计图","Reading graphs"],["qt-algebra","代数式与方程","Algebra"],["qt-fm","因数、倍数的应用","Factors & multiples in context"],["qt-time","时间与时长","Time & duration"]]},"science":{"layers":[["D","多样性","Diversity"],["C","循环","Cycles"],["S","系统","Systems"],["I","相互作用","Interactions"],["E","能量","Energy"],["P","科学探究","Science Practices"]],"topics":[["D-living","D","生物与非生物","Living & non-living things"],["D-mat","D","材料","Materials"],["C-life","C","生命周期","Life cycles"],["C-matter","C","物质","Matter"],["C-water","C","水","Water"],["C-repro","C","繁殖","Reproduction"],["S-plant4","S","植物系统","Plant system"],["S-human4","S","人体系统","Human system"],["S-plant5","S","植物的运输与气体交换","Plant respiratory & circulatory systems"],["S-human5","S","人体呼吸与循环","Human respiratory & circulatory systems"],["S-elec","S","电系统","Electrical system"],["I-mag","I","磁铁","Magnets"],["I-force","I","力","Interaction of forces"],["I-env","I","环境中的相互作用","Interactions within the environment"],["E-light","E","光","Light"],["E-heat","E","热","Heat"],["E-photo","E","光合作用","Photosynthesis"],["E-conv","E","能量转换","Energy conversion"],["P-design","P","设计实验","Designing investigations"],["P-data","P","处理数据","Analysing data"],["P-comm","P","解释与决定","Explaining & deciding"]],"concepts":[["d-living","D-living","生物的特征","Living things"],["d-plants","D-living","开花与不开花植物","Flowering & non-flowering plants"],["d-animals","D-living","动物的六大类","Animal groups"],["d-fungi","D-living","真菌","Fungi"],["d-bacteria","D-living","细菌","Bacteria"],["d-classify","D-living","分类与检索表","Classification & keys"],["d-materials","D-mat","常见材料","Common materials"],["d-props","D-mat","材料的特性","Properties of materials"],["c-plantlc","C-life","植物的生命周期","Plant life cycle"],["c-3stage","C-life","三阶段生命周期","Three-stage life cycle"],["c-4stage","C-life","四阶段生命周期","Four-stage life cycle"],["c-matter","C-matter","物质","Matter"],["c-states","C-matter","物质的三态","Three states of matter"],["c-measure","C-matter","测量质量与体积","Measuring mass & volume"],["c-melt","C-water","熔化与凝固","Melting & freezing"],["c-evap","C-water","蒸发","Evaporation"],["c-boil","C-water","沸腾","Boiling"],["c-cond","C-water","凝结","Condensation"],["c-watercycle","C-water","水循环","Water cycle"],["c-waterimp","C-water","水的重要性","Importance of water"],["c-cell","C-repro","细胞是生命的基本单位","The cell"],["c-spores","C-repro","孢子与种子","Spores & seeds"],["c-flower","C-repro","花的结构","Parts of a flower"],["c-pollination","C-repro","传粉","Pollination"],["c-fert","C-repro","受精","Fertilisation"],["c-dispersal","C-repro","果实与种子的传播","Seed dispersal"],["c-germ","C-repro","种子萌发","Germination"],["c-human-repro","C-repro","人的繁殖","Human reproduction"],["s-plantparts","S-plant4","植物各部分的功能","Plant parts"],["s-organsys","S-human4","人体器官系统","Organ systems"],["s-digestive","S-human4","消化系统","Digestive system"],["s-planttransport","S-plant5","植物的运输管道","Transport in plants"],["s-plantgas","S-plant5","植物的气体交换","Gas exchange in plants"],["s-resp","S-human5","呼吸系统","Respiratory system"],["s-circ","S-human5","循环系统","Circulatory system"],["s-circuit","S-elec","闭合电路","Closed circuit"],["s-conductors","S-elec","电的导体与绝缘体","Electrical conductors"],["s-series","S-elec","串联与并联","Series & parallel"],["i-magnet","I-mag","磁铁的性质","Properties of magnets"],["i-makemagnet","I-mag","制作磁铁","Making magnets"],["i-magnetuse","I-mag","磁铁的用途","Uses of magnets"],["i-force","I-force","力的作用效果","Effects of forces"],["i-friction","I-force","摩擦力","Frictional force"],["i-gravity","I-force","重力与重量","Gravity & weight"],["i-spring","I-force","弹簧弹力","Elastic spring force"],["i-factors","I-env","影响生存的环境因素","Environmental factors"],["i-hierarchy","I-env","种群、群落与生境","Populations & communities"],["i-foodchain","I-env","食物链","Food chain"],["i-foodweb","I-env","食物网与种群变化","Food web"],["i-adapt-struct","I-env","结构适应","Structural adaptations"],["i-adapt-behav","I-env","行为适应","Behavioural adaptations"],["i-man","I-env","人类对环境的影响","Man’s impact"],["e-seeing","E-light","我们怎样看见物体","How we see"],["e-straight","E-light","光沿直线传播","Light travels straight"],["e-shadow","E-light","影子","Shadows"],["e-heattemp","E-heat","热与温度","Heat & temperature"],["e-heatflow","E-heat","热的流动","Heat flow"],["e-gainlose","E-heat","吸热与放热的效果","Expansion & contraction"],["e-conductors","E-heat","热的良导体与不良导体","Conductors of heat"],["e-sun","E-photo","太阳是主要能量来源","The Sun"],["e-photosyn","E-photo","光合作用","Photosynthesis"],["e-respiration","E-photo","呼吸作用与能量","Respiration"],["e-forms","E-conv","能量的形式","Forms of energy"],["e-convert","E-conv","能量转换","Energy conversion"],["e-resources","E-conv","能源与节约能源","Energy resources"],["p-question","P-design","实验目的与假设","Aims & hypotheses"],["p-variables","P-design","变量","Variables"],["p-fairtest","P-design","公平测试","Fair test"],["p-control","P-design","对照组","Control set-up"],["p-reliable","P-design","让结果更可靠","Reliability"],["p-measure","P-data","仪器与测量","Apparatus & measurement"],["p-graphs","P-data","读表格和图表","Tables & graphs"],["p-infer","P-data","推断与预测","Inferring & predicting"],["p-cer","P-comm","主张、证据、推理","Claim–Evidence–Reasoning"],["p-model","P-comm","用图和模型表达","Models & diagrams"],["p-decide","P-comm","做出有依据的决定","Informed decisions"],["p-keywords","P-comm","题干指令词","Command words"]],"qtypes":[["qt-fair","实验设计与公平测试","Experimental design & fair test"],["qt-graph","读图表与数据分析","Tables & graphs"],["qt-classify","分类图与检索表","Classification charts & keys"],["qt-material","材料选择","Choosing materials"],["qt-lifecycle","生命周期图","Life cycle diagrams"],["qt-phenomena","解释日常现象","Explaining everyday phenomena"],["qt-states","状态变化与温度曲线","Changes of state & temperature graphs"],["qt-heat","热传递与保温实验","Heat transfer & insulation"],["qt-light","光与影","Light & shadows"],["qt-pathway","系统路径追踪","Tracing paths through systems"],["qt-body","系统协作：运动后的身体","Systems working together"],["qt-circuit","电路分析","Circuit analysis"],["qt-magnet","磁铁实验","Magnet investigations"],["qt-forces","力的分析","Forces in action"],["qt-repro","繁殖与传播","Reproduction & dispersal"],["qt-photo","光合作用与呼吸实验","Photosynthesis & respiration experiments"],["qt-foodweb","食物网与种群变化","Food webs & population changes"],["qt-adapt","适应与生存","Adaptations & survival"],["qt-energy","能量转换链","Energy conversion chains"],["qt-water","水循环与水资源","Water cycle & water resources"],["qt-impact","人类影响与做决定","Human impact & decisions"]]}}/*TAXONOMY:END*/;
+</script>
+
+<script>
+/* LOGIC:BEGIN — 纯函数：复习阶梯、判对、每日清单、抽题（design/arena/README.md） */
+const GAPS = [0, 1, 2, 4, 7];
+function pad2(n) { return String(n).padStart(2, '0'); }
+function localToday(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function addDays(iso, n) {
+  const p = String(iso).split('-').map(Number);
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+}
+function deriveState(createdAt, attempts) {
+  let step = 1, due = addDays(createdAt, 1), mastered = false, wrongCount = 1, lastAttemptAt = null;
+  for (const a of attempts || []) {
+    lastAttemptAt = a.date;
+    if (mastered) {
+      if (a.result === 'wrong') { mastered = false; step = 1; due = addDays(a.date, 1); wrongCount++; }
+      continue;
+    }
+    if (a.result === 'right') {
+      if (step === 4) { mastered = true; due = null; }
+      else { step++; due = addDays(a.date, GAPS[step]); }
+    } else if (a.result === 'partial') {
+      due = addDays(a.date, GAPS[step]);
+    } else {
+      step = 1; due = addDays(a.date, 1); wrongCount++;
+    }
+  }
+  return { step, due, mastered, wrongCount, lastAttemptAt };
+}
+function normAnswer(s) {
+  return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ').replace(/\.$/, '').trim();
+}
+function asNumber(t) {
+  const u = t.replace(/(\d),(?=\d{3}(\D|$))/g, '$1').replace(/\s/g, '');
+  return /^[-+]?(\d+\.?\d*|\.\d+)$/.test(u) ? Number(u) : null;
+}
+function matchShort(response, accepted) {
+  const r = normAnswer(response);
+  if (!r) return false;
+  const rn = asNumber(r);
+  return (accepted || []).some(a => {
+    const n = normAnswer(a);
+    if (!n) return false;
+    if (n === r) return true;
+    const an = asNumber(n);
+    return rn !== null && an !== null && rn === an;
+  });
+}
+function judgeAuto(ex, response) {
+  if (ex.format === 'mcq') return String(response || '').trim().toUpperCase() === String(ex.answer || '').trim().toUpperCase() ? 'right' : 'wrong';
+  if (ex.format === 'short') {
+    const acc = ex.accepted && ex.accepted.length ? ex.accepted : [ex.answer];
+    return matchShort(response, acc) ? 'right' : 'wrong';
+  }
+  return null;
+}
+function dailyList(exs, today, limit) {
+  return exs.filter(e => !e.mastered && e.due && e.due <= today)
+    .sort((a, b) => a.due.localeCompare(b.due) || String(a.createdAt).localeCompare(String(b.createdAt)))
+    .slice(0, Math.max(0, limit));
+}
+function cmpLast(a, b) {
+  const x = a.lastAttemptAt, y = b.lastAttemptAt;
+  if (!x && !y) return 0;
+  if (!x) return -1;
+  if (!y) return 1;
+  return x.localeCompare(y);
+}
+function drawPaper(exs, opt) {
+  const topics = opt.topics || [];
+  const c = exs.filter(e => e.subject === opt.subject && (!topics.length || topics.includes(e.topic)));
+  c.sort((a, b) => (b.wrongCount - a.wrongCount) || ((b.mastered ? 1 : 0) - (a.mastered ? 1 : 0)) || cmpLast(a, b));
+  return c.slice(0, Math.max(0, opt.count));
+}
+function tally(results) {
+  const s = { right: 0, partial: 0, wrong: 0 };
+  for (const r of results) if (s[r] != null) s[r]++;
+  return s;
+}
+/* LOGIC:END */
+</script>
+
+<script>
+/* ---------- 常量与工具 ---------- */
+const SUBJECTS = [['english', 'English', '英文'], ['math', 'Math', '数学'], ['science', 'Science', '科学']];
+const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s[0], { en: s[1], zh: s[2] }]));
+const MAPS = { science: 'https://claude.ai/artifact/28476983-ebca-49fd-b882-f428e4e45012', math: 'https://claude.ai/artifact/8ujg7zbHmtuCPqTVMs3hvK' };
+const CAUSES = [['concept', '概念没懂', "Didn't get the idea"], ['misread', '审题错', 'Misread the question'], ['careless', '粗心', 'Careless slip'], ['incomplete', '答法不完整', 'Incomplete answer']];
+const CAUSE = Object.fromEntries(CAUSES.map(c => [c[0], { zh: c[1], en: c[2] }]));
+const FORMATS = [['mcq', '选择'], ['short', '短答'], ['open', '主观']];
+const RESULT = { right: { en: 'Right', zh: '对', sym: '✓' }, partial: { en: 'Partly', zh: '部分对', sym: '½' }, wrong: { en: 'Wrong', zh: '错', sym: '✗' } };
+const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+const IDX = {};
+for (const s of Object.keys(TAX)) {
+  const t = TAX[s];
+  IDX[s] = {
+    layer: Object.fromEntries(t.layers.map(l => [l[0], { zh: l[1], en: l[2] }])),
+    topic: Object.fromEntries(t.topics.map(x => [x[0], { layer: x[1], zh: x[2], en: x[3] }])),
+    concept: Object.fromEntries(t.concepts.map(x => [x[0], { topic: x[1], zh: x[2], en: x[3] }])),
+    qtype: Object.fromEntries(t.qtypes.map(x => [x[0], { zh: x[1], en: x[2] }]))
+  };
+}
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hl = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<mark>$1</mark>');
+const plain = s => String(s || '').replace(/\[\[(.+?)\]\]/g, '$1');
+const nameOf = (s, kind, id) => (IDX[s] && IDX[s][kind][id]) || null;
+const topicLabel = (s, id, lang) => { const t = nameOf(s, 'topic', id); return t ? (lang === 'zh' ? t.zh : t.en) : (id || '—'); };
+const blobUrl = id => '/_blob/' + id;
+const fmtDate = iso => { if (!iso) return '—'; const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
+const ladderHtml = e => e.mastered ? '<span class="ladder m" title="已掌握">★ mastered</span>' : `<span class="ladder" title="复习阶梯第 ${e.step} 级">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
+const subjChip = s => `<span class="chip s-${esc(s)}">${esc(SUBJ[s] ? SUBJ[s].en : s)}</span>`;
+function mapLink(subject, id, label) {
+  if (!id || !MAPS[subject]) return esc(label);
+  return `<a href="${MAPS[subject]}#${encodeURIComponent(id)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+}
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 无本地存储时忽略 */ } }
+};
+
+/* ---------- 状态 ---------- */
+const S = {
+  status: 'loading',            // loading | ready | nodb
+  side: 'practice',             // practice | parent
+  ptab: store.get('arena.ptab') || 'record',
+  db: null, assets: null, sample: null, downloads: null, imgLimits: null,
+  exercises: [], papers: [], settings: { dailyLimit: 10 },
+  run: null,                    // 练习侧正在做的每日重做或检验卷
+  drafts: [], recSubject: '', recText: '', recFiles: [], recBusy: false, recMsg: null,
+  filters: { subject: '', topic: '', cause: '', state: '' },
+  detailId: null, confirmDel: null,
+  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperEntry: null, paperMsg: null,
+  settingsMsg: null
+};
+let draftSeq = 1;
+
+/* ---------- 渲染 ---------- */
+function locked() {
+  if (S.run) return true;
+  if (S.side === 'parent') {
+    if (S.ptab === 'record' && S.drafts.length) return true;
+    if (S.ptab === 'exercises' && S.drafts.some(d => d.editId)) return true;
+    if (S.ptab === 'papers' && S.paperEntry) return true;
+  }
+  return false;
+}
+function softRender() { if (!locked()) render(); }
+
+function render() {
+  const app = $('#app');
+  let h = `<header class="top">
+    <div class="brand"><b>Sophia's Exercise Arena</b><span>${S.side === 'parent' ? '<span class="zh">家长侧 · 录入、改判、组检验卷</span>' : 'Redo the ones that tripped you up'}</span></div>
+    <div class="seg" role="group" aria-label="切换">
+      <button type="button" data-act="side" data-v="practice" aria-pressed="${S.side === 'practice'}">Sophia</button>
+      <button type="button" data-act="side" data-v="parent" aria-pressed="${S.side === 'parent'}" class="zh">家长</button>
+    </div>
+  </header>`;
+  if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
+  else if (S.status === 'nodb') h += `<div class="panel"><p class="h2 zh">数据不可用</p><p class="zh muted">请用家长的 claude.ai 账号打开本页。练习场的错题和作答都存在页面的数据库里，只有登录后才能读写。</p></div>`;
+  else h += S.side === 'practice' ? renderPractice() : renderParent();
+  app.innerHTML = h;
+}
+
+/* ---------- 练习侧 ---------- */
+function renderPractice() {
+  if (S.run) return S.run.kind === 'daily' ? renderDaily() : renderPaperRun();
+  const today = localToday();
+  const due = dailyList(S.exercises, today, S.settings.dailyLimit);
+  const allDue = S.exercises.filter(e => !e.mastered && e.due && e.due <= today).length;
+  const learning = S.exercises.filter(e => !e.mastered).length;
+  const mastered = S.exercises.length - learning;
+  const next = S.exercises.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
+  const open = S.papers.filter(p => p.status === 'open').sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
+  const d = new Date();
+  let h = `<section class="hello"><span class="day">${d.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })}</span><h1>Hi Sophia</h1></section>`;
+  if (!S.exercises.length) {
+    h += `<div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Ask your parent to add the questions from your last worksheet or test.</p></div>`;
+    return h;
+  }
+  h += `<section class="today">
+    <div class="big num" aria-hidden="true">${due.length}</div>
+    <div class="txt">
+      <p class="h2">${due.length ? `${due.length} question${due.length > 1 ? 's' : ''} to redo today` : 'Nothing due today'}</p>
+      <p class="muted small">${due.length ? (allDue > due.length ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
+      ${due.length ? `<div><button type="button" class="btn primary" data-act="start-daily">Start today's redo</button></div>` : ''}
+    </div>
+  </section>`;
+  if (open.length) {
+    h += `<section class="panel"><p class="h3">Check papers</p><div class="list">${open.map(p => `
+      <button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">
+        <span class="t">${esc(p.title)}</span>
+        <span class="side"><span>${p.exerciseIds.length} questions</span></span>
+        <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
+      </button>`).join('')}</div></section>`;
+  }
+  h += `<div class="stats"><span><b class="num">${learning}</b> on the ladder</span><span><b class="num">${mastered}</b> mastered</span><span>Ladder: day 1 → 3 → 7 → 14</span></div>`;
+  return h;
+}
+
+function exById(id) { return S.exercises.find(e => e.id === id); }
+
+function questionBody(e, opts) {
+  // opts: {no, name: input name prefix, response, locked, showCorrect}
+  const o = opts || {};
+  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${subjChip(e.subject)}<span class="chip">${esc(topicLabel(e.subject, e.topic, 'en'))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</div>`;
+  if (e.stem) h += `<div class="stem">${esc(e.stem)}</div>`;
+  if (e.images && e.images.length) h += `<div class="imgs">${e.images.map(id => `<img src="${blobUrl(id)}" alt="Question photo" loading="lazy">`).join('')}</div>`;
+  const r = o.response || '';
+  if (e.format === 'mcq') {
+    h += `<div class="opts" role="group" aria-label="Options">${(e.options || []).map((t, i) => {
+      const L = LETTERS[i];
+      let cls = '';
+      if (o.showCorrect) { if (L === String(e.answer).toUpperCase()) cls = ' is-right'; else if (L === r) cls = ' is-wrong'; }
+      return `<button type="button" class="opt${cls}" data-act="pick" data-key="${esc(o.key)}" data-v="${L}" aria-pressed="${r === L}" ${o.locked ? 'disabled' : ''}><span class="l">(${i + 1})</span><span>${esc(t)}</span></button>`;
+    }).join('')}</div>`;
+  } else if (e.format === 'short') {
+    h += `<label class="f"><span>Your answer</span><input type="text" class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" value="${esc(r)}" ${o.locked ? 'disabled' : ''} autocomplete="off"></label>`;
+  } else {
+    h += `<label class="f"><span>Your answer</span><textarea class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" rows="4" ${o.locked ? 'disabled' : ''}>${esc(r)}</textarea></label>`;
+  }
+  return h;
+}
+
+function solutionBlock(e) {
+  let ans = '';
+  if (e.format === 'mcq') { const i = LETTERS.indexOf(String(e.answer).toUpperCase()); ans = `(${i + 1}) ${e.options && e.options[i] != null ? e.options[i] : ''}`; }
+  else ans = e.answer;
+  const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
+  const links = [c ? 'Concept: ' + mapLink(e.subject, e.concept, c.en) : '', q ? 'Question type: ' + mapLink(e.subject, e.qtype, q.en) : ''].filter(Boolean).join(' · ');
+  return `<div class="solution">
+    <div><span class="muted small">${e.format === 'open' ? 'Model answer' : 'Correct answer'}</span><div class="ans">${e.format === 'open' ? hl(ans) : esc(ans)}</div></div>
+    ${e.solution ? `<div><span class="muted small">Why</span><div class="exp">${hl(e.solution)}</div></div>` : ''}
+    ${links ? `<div class="small muted">${links}</div>` : ''}
+  </div>`;
+}
+const markHtml = r => `<span class="mark ${r}">${RESULT[r].sym} ${RESULT[r].en}</span>`;
+
+function renderDaily() {
+  const R = S.run;
+  if (R.i >= R.ids.length) {
+    const s = tally(R.results);
+    return `<section class="panel"><p class="h3">Today's redo · done</p>
+      <div class="row"><span class="score num">${s.right}/${R.ids.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong</span></div>
+      <p class="muted small">Wrong ones come back tomorrow. Right ones climb the ladder.</p>
+      <div><button type="button" class="btn primary" data-act="exit-run">Back to today</button></div></section>`;
+  }
+  const e = exById(R.ids[R.i]);
+  if (!e) { R.i++; return renderDaily(); }
+  const pct = Math.round(R.i / R.ids.length * 100);
+  let h = `<div class="progress"><span class="small muted num">Question ${R.i + 1} of ${R.ids.length}</span><div class="bar"><i style="width:${pct}%"></i></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
+  h += `<article class="sheet">${questionBody(e, { key: 'd', response: R.response, locked: R.phase !== 'answer', showCorrect: R.phase !== 'answer' })}`;
+  if (R.phase === 'answer') {
+    h += `<div><button type="button" class="btn primary" data-act="check">${e.format === 'open' ? 'Show the model answer' : 'Check'}</button></div>`;
+  } else {
+    if (R.result) h += `<div>${markHtml(R.result)}</div>`;
+    h += solutionBlock(e);
+    if (!R.result) {
+      h += `<div class="grid2" style="gap:6px"><span class="small muted">How did you do? Compare with the highlighted keywords.</span></div>
+        <div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="selfmark" data-r="${r}">${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
+    } else {
+      h += `<div><button type="button" class="btn primary" data-act="next">${R.i + 1 < R.ids.length ? 'Next question' : 'Finish'}</button></div>`;
+    }
+  }
+  if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
+  h += `</article>`;
+  return h;
+}
+
+function renderPaperRun() {
+  const R = S.run;
+  const p = S.papers.find(x => x.id === R.paperId);
+  if (!p) return `<div class="panel"><p>That check paper is gone.</p><div><button class="btn" type="button" data-act="exit-run">Back</button></div></div>`;
+  const exs = p.exerciseIds.map(exById).filter(Boolean);
+  if (R.phase === 'done') {
+    const s = R.score;
+    return `<section class="panel"><p class="h3">${esc(p.title)} · result</p>
+      <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong</span></div>
+      <p class="muted small">Any you missed go back to the start of the ladder.</p>
+      <div><button type="button" class="btn primary" data-act="exit-run">Back to today</button></div></section>`;
+  }
+  let h = `<div class="progress"><span class="small muted">${esc(p.title)}</span><div class="grow"></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
+  h += exs.map((e, i) => {
+    const key = 'p' + i;
+    let x = `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review' })}`;
+    if (R.phase === 'review') {
+      const res = R.results[e.id];
+      if (e.format !== 'open' && res) x += `<div>${markHtml(res)}</div>`;
+      x += solutionBlock(e);
+      if (e.format === 'open') x += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${res === r}">${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
+    }
+    return x + '</article>';
+  }).join('');
+  if (R.phase === 'answer') h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit">Hand in</button><span class="small muted">Answers show after you hand in.</span></div>`;
+  else {
+    const pending = exs.filter(e => !R.results[e.id]).length;
+    h += `<div class="row"><button type="button" class="btn primary" data-act="paper-finish" ${pending ? 'disabled' : ''}>Finish and save</button><span class="small muted">${pending ? `Mark ${pending} more answer${pending > 1 ? 's' : ''} first.` : 'All marked.'}</span></div>`;
+  }
+  if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
+  return h;
+}
+
+/* ---------- 家长侧 ---------- */
+function renderParent() {
+  const tabs = [['record', '录入'], ['exercises', '错题'], ['papers', '检验卷'], ['settings', '设置']];
+  let h = `<nav class="tabs" aria-label="家长侧">${tabs.map(t => `<button type="button" data-act="ptab" data-v="${t[0]}" aria-pressed="${S.ptab === t[0]}">${t[1]}</button>`).join('')}</nav>`;
+  if (S.ptab === 'record') h += renderRecord();
+  else if (S.ptab === 'exercises') h += renderExercises();
+  else if (S.ptab === 'papers') h += renderPapers();
+  else h += renderSettings();
+  return `<div class="zh" style="display:grid;gap:16px">${h}</div>`;
+}
+
+function subjectOptions(sel, withAuto) {
+  return (withAuto ? `<option value="">由 Claude 判断</option>` : `<option value="">选科目</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[2]} ${s[1]}</option>`).join('');
+}
+
+function renderRecord() {
+  const canPhoto = !!(S.assets && S.imgLimits);
+  const canSample = !!S.sample;
+  let h = `<section class="panel">
+    <p class="h2">录入错题</p>
+    <p class="small muted">拍下或选择题目照片，或把题目文字贴进来，Claude 会拆成一道道草稿，自动填好专题、答案和错因建议。保存前请逐条核对，尤其是答案。</p>
+    <div class="grid2">
+      <label class="f"><span>科目</span><select id="rec-subject" data-bind="recSubject">${subjectOptions(S.recSubject, true)}</select></label>
+      ${canPhoto ? `<label class="f"><span>题目照片（可多张，最多 ${S.imgLimits.maxCount} 张）</span><input type="file" id="rec-files" accept="${esc((S.imgLimits.mediaTypes || ['image/*']).join(','))}" multiple></label>` : `<p class="small muted">${S.assets ? '本页无法把照片交给 Claude 识别。' : '本页不能存照片。'}可以贴文字，或手填。</p>`}
+    </div>
+    ${S.recFiles.length ? `<p class="small muted">已选 ${S.recFiles.length} 张照片：${esc(S.recFiles.map(f => f.name).join('、'))}</p>` : ''}
+    <label class="f"><span>或者贴题目文字</span><textarea id="rec-text" data-bind="recText" rows="4" placeholder="例：Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
+    <div class="row">
+      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || S.recBusy) ? 'disabled' : ''}>${S.recBusy ? '识别中…' : '识别成草稿'}</button>
+      <button type="button" class="btn" data-act="blank-draft">手填一题</button>
+      ${!canSample ? '<span class="small muted">识别不可用：只能手填。</span>' : ''}
+    </div>
+    ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
+  </section>`;
+  const newDrafts = S.drafts.filter(d => !d.editId);
+  if (newDrafts.length) {
+    h += `<div class="row"><p class="h2 grow">草稿 ${newDrafts.length} 道</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>`;
+    h += newDrafts.map(draftForm).join('');
+  }
+  return h;
+}
+
+function draftForm(d) {
+  const s = d.subject, T = TAX[s];
+  const k = d.key;
+  const topics = T ? T.layers.map(l => {
+    const ts = T.topics.filter(t => t[1] === l[0]);
+    return ts.length ? `<optgroup label="${esc(l[1] + ' ' + l[2])}">${ts.map(t => `<option value="${t[0]}" ${d.topic === t[0] ? 'selected' : ''}>${esc(t[2] + ' · ' + t[3])}</option>`).join('')}</optgroup>` : '';
+  }).join('') : '';
+  const concepts = T ? T.concepts.filter(c => c[1] === d.topic).map(c => `<option value="${c[0]}" ${d.concept === c[0] ? 'selected' : ''}>${esc(c[2] + ' · ' + c[3])}</option>`).join('') : '';
+  const qtypes = T ? T.qtypes.map(q => `<option value="${q[0]}" ${d.qtype === q[0] ? 'selected' : ''}>${esc(q[1] + ' · ' + q[2])}</option>`).join('') : '';
+  const f = (name, label, html) => `<label class="f"><span>${label}</span>${html}</label>`;
+  const inp = (field, v, ph) => `<input type="text" id="d${k}-${field}" data-d="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
+  const ta = (field, v, rows, ph) => `<textarea id="d${k}-${field}" data-d="${k}" data-f="${field}" rows="${rows}" placeholder="${esc(ph || '')}">${esc(v)}</textarea>`;
+  let h = `<section class="panel draft" id="draft-${k}">
+    <div class="row"><p class="h3 grow">${d.editId ? '编辑错题' : '草稿'}</p>${d.editId ? '' : `<button type="button" class="btn ghost small" data-act="drop-draft" data-k="${k}">放弃这道</button>`}</div>
+    <div class="grid2">
+      ${f('subject', '科目 *', `<select id="d${k}-subject" data-d="${k}" data-f="subject" data-rerender="1">${subjectOptions(s)}</select>`)}
+      ${f('topic', '专题 *', `<select id="d${k}-topic" data-d="${k}" data-f="topic" data-rerender="1"><option value="">选专题</option>${topics}</select>`)}
+      ${f('concept', '概念', `<select id="d${k}-concept" data-d="${k}" data-f="concept"><option value="">（不填）</option>${concepts}</select>`)}
+      ${f('qtype', '题型', `<select id="d${k}-qtype" data-d="${k}" data-f="qtype"><option value="">（不填）</option>${qtypes}</select>`)}
+      ${f('format', '作答形式', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
+      ${f('cause', '错因', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
+    </div>
+    ${f('stem', '题目文字', ta('stem', d.stem, 4))}`;
+  if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="题目照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
+  if (d.format === 'mcq') {
+    h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `选项 (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
+      <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">加一个选项</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">去掉最后一个</button>` : ''}</div>
+      <div class="grid2">${f('answer', '正确选项 *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
+      ${f('wrongAnswer', '她当时选的', inp('wrongAnswer', d.wrongAnswer, '例：(1)'))}</div>`;
+  } else if (d.format === 'short') {
+    h += `<div class="grid2">${f('answer', '正确答案 *', inp('answer', d.answer))}${f('accepted', '其他可接受答案（用 ; 分隔）', inp('accepted', d.accepted, '例：0.5; 1/2'))}${f('wrongAnswer', '她当时的答案', inp('wrongAnswer', d.wrongAnswer))}</div>`;
+  } else {
+    h += f('answer', '标准答法 *（得分关键词用 [[ ]] 括起来）', ta('answer', d.answer, 3, '例：Warmer [[water vapour]] in the surrounding air [[loses heat]] to the [[cooler surface]] and [[condenses]].'));
+    h += f('wrongAnswer', '她当时的答案', ta('wrongAnswer', d.wrongAnswer, 2));
+  }
+  h += f('solution', '讲解（关键词用 [[ ]]）', ta('solution', d.solution, 3));
+  h += `<div class="grid2">${f('source', '出处', inp('source', d.source, '例：2026 P5 SA2 卷二 Q7'))}</div>`;
+  if (d.error) h += `<p class="note err">${esc(d.error)}</p>`;
+  h += `<div class="row"><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">${d.editId ? '保存修改' : '保存这道'}</button>${d.editId ? `<button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">取消</button>` : ''}</div></section>`;
+  return h;
+}
+
+function newDraft(x) {
+  x = x || {};
+  const subject = SUBJ[x.subject] ? x.subject : (S.recSubject || '');
+  const topic = subject && nameOf(subject, 'topic', x.topic) ? x.topic : '';
+  const concept = topic && nameOf(subject, 'concept', x.concept) && IDX[subject].concept[x.concept].topic === topic ? x.concept : '';
+  const qtype = subject && nameOf(subject, 'qtype', x.qtype) ? x.qtype : '';
+  const format = ['mcq', 'short', 'open'].includes(x.format) ? x.format : 'open';
+  let options = Array.isArray(x.options) ? x.options.map(String) : [];
+  if (format === 'mcq') while (options.length < 4) options.push('');
+  return {
+    key: draftSeq++, editId: x.editId || null, subject, topic, concept, qtype, format,
+    stem: String(x.stem || ''), options: format === 'mcq' ? options : ['', '', '', ''],
+    answer: String(x.answer || (format === 'mcq' ? 'A' : '')),
+    accepted: Array.isArray(x.accepted) ? x.accepted.filter(a => normAnswer(a) !== normAnswer(x.answer)).join('; ') : String(x.accepted || ''),
+    solution: String(x.solution || ''), wrongAnswer: String(x.wrongAnswer || ''),
+    cause: CAUSE[x.cause] ? x.cause : 'concept', source: String(x.source || ''),
+    images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? 'Claude 给的专题不在体系里，请选一个。' : ''
+  };
+}
+
+function draftToDoc(d) {
+  const err = [];
+  if (!SUBJ[d.subject]) err.push('科目');
+  if (!d.topic) err.push('专题');
+  if (!d.stem.trim() && !d.images.length) err.push('题目文字或照片');
+  const options = d.format === 'mcq' ? d.options.map(o => o.trim()) : [];
+  if (d.format === 'mcq' && options.filter(Boolean).length < 2) err.push('至少两个选项');
+  if (!String(d.answer).trim()) err.push('答案');
+  if (err.length) return { error: '还缺：' + err.join('、') };
+  const accepted = d.format === 'short' ? [d.answer.trim()].concat(d.accepted.split(';').map(a => a.trim()).filter(Boolean)) : [];
+  return { doc: {
+    subject: d.subject, topic: d.topic, concept: d.concept || null, qtype: d.qtype || null, format: d.format,
+    stem: d.stem.trim(), images: d.images, options, answer: String(d.answer).trim(), accepted,
+    solution: d.solution.trim(), wrongAnswer: d.wrongAnswer.trim(), cause: d.cause, source: d.source.trim()
+  } };
+}
+
+function renderExercises() {
+  const editing = S.drafts.find(d => d.editId);
+  if (editing) return draftForm(editing);
+  if (S.detailId) return renderDetail();
+  const F = S.filters, today = localToday();
+  const list = S.exercises.filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
+    && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered)))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || a.id.localeCompare(b.id));
+  const topicOpts = F.subject ? TAX[F.subject].topics.map(t => `<option value="${t[0]}" ${F.topic === t[0] ? 'selected' : ''}>${esc(t[2])}</option>`).join('') : '';
+  const byCause = CAUSES.map(c => [c[1], S.exercises.filter(e => e.cause === c[0] && (!F.subject || e.subject === F.subject)).length]);
+  let h = `<section class="panel">
+    <div class="grid2">
+      <label class="f"><span>科目</span><select id="flt-subject" data-filter="subject"><option value="">全部</option>${SUBJECTS.map(s => `<option value="${s[0]}" ${F.subject === s[0] ? 'selected' : ''}>${s[2]}</option>`).join('')}</select></label>
+      <label class="f"><span>专题</span><select id="flt-topic" data-filter="topic" ${F.subject ? '' : 'disabled'}><option value="">全部</option>${topicOpts}</select></label>
+      <label class="f"><span>错因</span><select id="flt-cause" data-filter="cause"><option value="">全部</option>${CAUSES.map(c => `<option value="${c[0]}" ${F.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select></label>
+      <label class="f"><span>状态</span><select id="flt-state" data-filter="state"><option value="">全部</option><option value="learning" ${F.state === 'learning' ? 'selected' : ''}>在阶梯上</option><option value="due" ${F.state === 'due' ? 'selected' : ''}>今天到期</option><option value="mastered" ${F.state === 'mastered' ? 'selected' : ''}>已掌握</option></select></label>
+    </div>
+    <div class="stats">${byCause.map(c => `<span>${c[0]} <b class="num">${c[1]}</b></span>`).join('')}</div>
+  </section>`;
+  if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>还没有错题</b><span>到「录入」拍一张 Sophia 做错的题，或者在 Claude Code 对话里把题目发给 Claude。</span></div></div>`;
+  h += `<div class="list">${list.length ? list.map(e => `
+    <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
+      <span class="t">${esc(plain(e.stem) || '（只有照片）')}</span>
+      <span class="side">${ladderHtml(e)}<span class="num">${e.mastered ? '' : '到期 ' + fmtDate(e.due)}</span></span>
+      <span class="meta">${subjChip(e.subject)}<span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· ${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '')}</span><span>· 错 ${e.wrongCount} 次</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</span>
+    </button>`).join('') : '<div class="empty">没有符合筛选的错题。</div>'}</div>`;
+  return h;
+}
+
+function renderDetail() {
+  const e = exById(S.detailId);
+  if (!e) { S.detailId = null; return renderExercises(); }
+  const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← 返回列表</button></div>
+  <article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
+  <section class="panel">
+    <div class="grid2 small">
+      <div><span class="muted">专题</span><div>${esc(topicLabel(e.subject, e.topic, 'zh'))}</div></div>
+      <div><span class="muted">概念</span><div>${c ? mapLink(e.subject, e.concept, c.zh) : '—'}</div></div>
+      <div><span class="muted">题型</span><div>${q ? mapLink(e.subject, e.qtype, q.zh) : '—'}</div></div>
+      <div><span class="muted">错因</span><div>${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '—')}</div></div>
+      <div><span class="muted">她当时的答案</span><div>${esc(e.wrongAnswer || '—')}</div></div>
+      <div><span class="muted">出处</span><div>${esc(e.source || '—')}</div></div>
+      <div><span class="muted">录入</span><div class="num">${esc(e.createdAt)}</div></div>
+      <div><span class="muted">阶梯</span><div>${ladderHtml(e)} <span class="num muted">${e.mastered ? '' : '到期 ' + esc(e.due)}</span></div></div>
+    </div>
+  </section>
+  <section class="panel"><p class="h3">作答记录 · 可改判</p>`;
+  if (!e.attempts || !e.attempts.length) h += `<p class="small muted">还没有重做过。</p>`;
+  else h += `<div class="tbl"><table><thead><tr><th>日期</th><th>方式</th><th>她的回答</th><th>结果</th><th>判定</th></tr></thead><tbody>${e.attempts.map((a, i) => `
+    <tr><td class="num">${esc(a.date)}</td><td>${a.mode === 'paper' ? '检验卷' : '每日重做'}</td><td>${esc(a.response || '—')}</td>
+    <td><select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].zh}</option>`).join('')}</select></td>
+    <td>${{ auto: '自动', self: '自评', parent: '家长' }[a.judgedBy] || ''}</td></tr>`).join('')}</tbody></table></div>`;
+  h += `</section><div class="row"><button type="button" class="btn" data-act="edit" data-id="${esc(e.id)}">编辑</button>`;
+  if (S.confirmDel === e.id) h += `<span class="confirm">删除后不能恢复，作答记录一起删掉。<button type="button" class="btn danger" data-act="delete-ex" data-id="${esc(e.id)}">确认删除</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>`;
+  else h += `<button type="button" class="btn danger" data-act="ask-del" data-id="${esc(e.id)}">删除</button>`;
+  return h + '</div>';
+}
+
+function renderPapers() {
+  if (S.paperEntry) return renderPaperEntry();
+  const P = S.paperForm;
+  const T = TAX[P.subject];
+  const counts = {};
+  for (const e of S.exercises) if (e.subject === P.subject) counts[e.topic] = (counts[e.topic] || 0) + 1;
+  const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[2])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
+  let h = `<section class="panel"><p class="h2">组一张检验卷</p>
+    <div class="grid2">
+      <label class="f"><span>科目</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[2]}</option>`).join('')}</select></label>
+      <label class="f"><span>题数</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
+    </div>
+    <div class="f small"><span class="muted">专题（不选即全部）</span><div class="checks">${topicChecks || '<span class="muted">这个科目还没有错题。</span>'}</div></div>
+    <p class="small muted">抽题顺序：错的次数多的在前；次数相同时，已掌握的在前；再按上次作答早的在前。</p>
+    <div class="row"><button type="button" class="btn" data-act="paper-preview">抽题预览</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>生成检验卷（${S.paperPreview.length} 题）</button>` : ''}</div>
+    ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || '（只有照片）')}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· 错 ${e.wrongCount} 次</span></span></div>`).join('')}</div>` : '<p class="note">范围内没有错题。</p>') : ''}
+    ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
+  </section>`;
+  const papers = S.papers.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
+  h += `<section class="panel"><p class="h3">历次检验卷</p>`;
+  if (!papers.length) h += `<p class="small muted">还没有检验卷。组好的卷子会出现在 Sophia 那一侧，也可以下载打印。</p>`;
+  else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
+      <span class="t">${esc(p.title)}</span>
+      <span class="side">${p.status === 'done' && p.score ? `<span class="num">${p.score.right}/${p.exerciseIds.length}</span>` : '<span>未做</span>'}</span>
+      <span class="meta">${subjChip(p.subject)}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
+        ${S.downloads ? `<button type="button" class="btn ghost small" data-act="paper-print" data-id="${esc(p.id)}">下载打印版</button>` : ''}
+        ${p.status === 'open' ? `<button type="button" class="btn ghost small" data-act="paper-entry" data-id="${esc(p.id)}">录入纸上结果</button>` : ''}
+        ${S.confirmDel === p.id ? `<span class="confirm">删除这张卷？已写进阶梯的作答不受影响。<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">确认</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">删除</button>`}
+      </span></div>`).join('')}</div>`;
+  return h + `</section>`;
+}
+
+function renderPaperEntry() {
+  const E = S.paperEntry;
+  const p = S.papers.find(x => x.id === E.paperId);
+  if (!p) { S.paperEntry = null; return renderPapers(); }
+  const exs = p.exerciseIds.map(exById).filter(Boolean);
+  const pending = exs.filter(e => !E.results[e.id]).length;
+  return `<div class="row"><button type="button" class="btn ghost" data-act="paper-entry-cancel">← 返回</button><p class="h2 grow">${esc(p.title)} · 录入纸上结果</p></div>
+  ${exs.map((e, i) => `<article class="sheet">${questionBody(e, { key: 'e' + i, no: i + 1, locked: true })}${solutionBlock(e)}
+    <div class="selfmark" role="group" aria-label="结果">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="entry-mark" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${E.results[e.id] === r}">${RESULT[r].sym} ${RESULT[r].zh}</button>`).join('')}</div></article>`).join('')}
+  <div class="row"><button type="button" class="btn primary" data-act="paper-entry-save" ${pending ? 'disabled' : ''}>保存结果</button><span class="small muted">${pending ? `还有 ${pending} 题没勾。` : '都勾好了。'}</span></div>
+  ${E.err ? `<p class="note err">${esc(E.err)}</p>` : ''}`;
+}
+
+function renderSettings() {
+  return `<section class="panel"><p class="h2">设置</p>
+    <div class="grid2"><label class="f"><span>每日重做最多几题</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label></div>
+    <div class="row"><button type="button" class="btn primary" data-act="save-settings">保存</button></div>
+    ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
+    <p class="small muted">复习阶梯：录入后第 1、3、7、14 天各重做一次；做对升一级，做错回第 1 级，部分对留在原级；第 4 级做对即掌握。</p>
+  </section>`;
+}
+
+/* ---------- 写数据 ---------- */
+async function writeAttempts(e, attempts) {
+  const derived = deriveState(e.createdAt, attempts);
+  await S.db.doc('exercises/' + e.id).update(Object.assign({ attempts }, derived));
+}
+async function addAttempt(e, a) { await writeAttempts(e, (e.attempts || []).concat([a])); }
+function dbErr(err) {
+  const c = err && err.code;
+  if (c === 'quota_exceeded') return '数据库已满，删掉一些旧错题后再试。';
+  if (c === 'invalid_argument') return '这个账号不能写入数据。';
+  return '保存没有成功（' + (c || '未知错误') + '），请稍后再试。';
+}
+
+/* ---------- 事件 ---------- */
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  const act = b.dataset.act;
+  const R = S.run;
+  try {
+    switch (act) {
+      case 'side': S.side = b.dataset.v; S.confirmDel = null; render(); break;
+      case 'ptab': S.ptab = b.dataset.v; store.set('arena.ptab', S.ptab); S.detailId = null; S.confirmDel = null; render(); break;
+
+      case 'start-daily': {
+        const ids = dailyList(S.exercises, localToday(), S.settings.dailyLimit).map(e => e.id);
+        S.run = { kind: 'daily', ids, i: 0, phase: 'answer', response: '', result: null, results: [] };
+        render(); window.scrollTo(0, 0); break;
+      }
+      case 'pick':
+        if (b.dataset.key === 'd') { R.response = b.dataset.v; }
+        else { const i = Number(b.dataset.key.slice(1)); const p = S.papers.find(x => x.id === R.paperId); R.responses[p.exerciseIds[i]] = b.dataset.v; }
+        render(); break;
+      case 'check': {
+        const e = exById(R.ids[R.i]);
+        if (e.format !== 'open' && !String(R.response).trim()) { R.err = 'Write or pick an answer first.'; render(); break; }
+        R.err = null; R.phase = 'review';
+        if (e.format !== 'open') {
+          R.result = judgeAuto(e, R.response);
+          render();
+          await addAttempt(e, { date: localToday(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'auto' });
+          R.results.push(R.result);
+        } else render();
+        break;
+      }
+      case 'selfmark': {
+        const e = exById(R.ids[R.i]);
+        R.result = b.dataset.r; render();
+        await addAttempt(e, { date: localToday(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'self' });
+        R.results.push(R.result);
+        break;
+      }
+      case 'next': R.i++; R.phase = 'answer'; R.response = ''; R.result = null; R.err = null; render(); window.scrollTo(0, 0); break;
+      case 'exit-run': S.run = null; render(); break;
+
+      case 'start-paper': S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: {}, results: {} }; render(); window.scrollTo(0, 0); break;
+      case 'paper-submit': {
+        const p = S.papers.find(x => x.id === R.paperId);
+        for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
+        R.phase = 'review'; render(); window.scrollTo(0, 0); break;
+      }
+      case 'paper-self': R.results[b.dataset.id] = b.dataset.r; render(); break;
+      case 'paper-finish': {
+        const p = S.papers.find(x => x.id === R.paperId);
+        const today = localToday(), res = [];
+        for (const id of p.exerciseIds) {
+          const e = exById(id); if (!e) continue;
+          const r = R.results[id]; res.push(r);
+          await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
+        }
+        const score = tally(res);
+        await S.db.doc('papers/' + p.id).update({ status: 'done', score });
+        R.phase = 'done'; R.score = score; render(); window.scrollTo(0, 0); break;
+      }
+
+      case 'recognise': await recognise(); break;
+      case 'blank-draft': S.drafts.push(newDraft({ subject: S.recSubject })); render(); break;
+      case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
+      case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.recMsg = null; render(); break;
+      case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
+      case 'add-opt': { const d = draftByKey(b.dataset.k); if (d.options.length < 6) d.options.push(''); render(); break; }
+      case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
+      case 'save-draft': await saveDraft(draftByKey(b.dataset.k)); render(); break;
+      case 'save-all': {
+        let n = 0;
+        for (const d of S.drafts.filter(x => !x.editId)) { if (await saveDraft(d)) n++; }
+        const left = S.drafts.filter(x => !x.editId).length;
+        S.recMsg = { kind: left ? 'err' : 'ok', text: `已保存 ${n} 道。` + (left ? `还有 ${left} 道没填完，见下方提示。` : '') };
+        render(); break;
+      }
+      case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
+
+      case 'detail': S.detailId = b.dataset.id; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
+      case 'back-list': S.detailId = null; S.confirmDel = null; render(); break;
+      case 'edit': { const e = exById(b.dataset.id); S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
+      case 'ask-del': S.confirmDel = b.dataset.id; render(); break;
+      case 'cancel-del': S.confirmDel = null; render(); break;
+      case 'delete-ex': await S.db.doc('exercises/' + b.dataset.id).delete(); S.detailId = null; S.confirmDel = null; render(); break;
+
+      case 'paper-preview': {
+        const P = S.paperForm;
+        S.paperPreview = drawPaper(S.exercises, { subject: P.subject, topics: P.topics, count: Math.max(1, Math.min(50, Number(P.count) || 10)) });
+        S.paperMsg = null; render(); break;
+      }
+      case 'paper-create': {
+        const P = S.paperForm, today = localToday();
+        const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t, 'en')).join(', ') : 'All topics';
+        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), status: 'open', score: null };
+        await S.db.collection('papers').doc().set(doc);
+        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: '检验卷已生成，Sophia 那一侧可以开始做了。' }; render(); break;
+      }
+      case 'paper-print': await printPaper(b.dataset.id); break;
+      case 'paper-entry': S.paperEntry = { paperId: b.dataset.id, results: {} }; render(); window.scrollTo(0, 0); break;
+      case 'paper-entry-cancel': S.paperEntry = null; render(); break;
+      case 'entry-mark': S.paperEntry.results[b.dataset.id] = b.dataset.r; render(); break;
+      case 'paper-entry-save': {
+        const E = S.paperEntry, p = S.papers.find(x => x.id === E.paperId), today = localToday(), res = [];
+        for (const id of p.exerciseIds) {
+          const e = exById(id); if (!e) continue;
+          res.push(E.results[id]);
+          await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: '', result: E.results[id], judgedBy: 'parent' });
+        }
+        await S.db.doc('papers/' + p.id).update({ status: 'done', score: tally(res) });
+        S.paperEntry = null; S.paperMsg = { kind: 'ok', text: '纸上结果已保存，阶梯已更新。' }; render(); break;
+      }
+      case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
+
+      case 'save-settings': {
+        const v = Math.max(1, Math.min(50, Number($('#set-limit').value) || 10));
+        await S.db.doc('settings/main').set({ dailyLimit: v });
+        S.settingsMsg = { kind: 'ok', text: `已保存：每日最多 ${v} 题。` }; render(); break;
+      }
+    }
+  } catch (err) {
+    const msg = dbErr(err);
+    if (S.run) { S.run.err = msg; } else if (S.paperEntry) { S.paperEntry.err = msg; } else { S.recMsg = { kind: 'err', text: msg }; S.paperMsg = S.ptab === 'papers' ? { kind: 'err', text: msg } : S.paperMsg; }
+    render();
+  }
+});
+
+function draftByKey(k) { return S.drafts.find(d => d.key === Number(k)); }
+
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (t.dataset.ans != null && S.run) {
+    const key = t.dataset.ans;
+    if (key === 'd') S.run.response = t.value;
+    else { const p = S.papers.find(x => x.id === S.run.paperId); S.run.responses[p.exerciseIds[Number(key.slice(1))]] = t.value; }
+  } else if (t.dataset.d) {
+    const d = draftByKey(t.dataset.d); if (!d) return;
+    if (t.dataset.f === 'opt') d.options[Number(t.dataset.i)] = t.value; else if (!t.dataset.rerender) d[t.dataset.f] = t.value;
+  } else if (t.dataset.bind) {
+    S[t.dataset.bind] = t.value;
+  }
+});
+
+document.addEventListener('change', async ev => {
+  const t = ev.target;
+  if (t.id === 'rec-files') { S.recFiles = Array.from(t.files || []); return; }
+  if (t.dataset.d && t.dataset.rerender) {
+    const d = draftByKey(t.dataset.d); if (!d) return;
+    d[t.dataset.f] = t.value;
+    if (t.dataset.f === 'subject') { d.topic = ''; d.concept = ''; d.qtype = ''; }
+    if (t.dataset.f === 'topic') d.concept = '';
+    if (t.dataset.f === 'format') {
+      if (t.value === 'mcq') { while (d.options.length < 4) d.options.push(''); if (!LETTERS.includes(String(d.answer).toUpperCase())) d.answer = 'A'; }
+    }
+    render(); return;
+  }
+  if (t.dataset.d) { const d = draftByKey(t.dataset.d); if (d && t.dataset.f !== 'opt') d[t.dataset.f] = t.value; return; }
+  if (t.dataset.filter) { S.filters[t.dataset.filter] = t.value; if (t.dataset.filter === 'subject') S.filters.topic = ''; render(); return; }
+  const act = t.dataset.actChange;
+  try {
+    if (act === 'paper-subject') { S.paperForm.subject = t.value; S.paperForm.topics = []; S.paperPreview = null; render(); }
+    else if (act === 'paper-count') { S.paperForm.count = t.value; S.paperPreview = null; }
+    else if (act === 'paper-topic') { const P = S.paperForm; P.topics = t.checked ? P.topics.concat([t.value]) : P.topics.filter(x => x !== t.value); S.paperPreview = null; render(); }
+    else if (act === 'override') {
+      const e = exById(t.dataset.id), i = Number(t.dataset.i);
+      const attempts = e.attempts.map((a, j) => j === i ? Object.assign({}, a, { result: t.value, judgedBy: 'parent' }) : a);
+      await writeAttempts(e, attempts);
+    }
+  } catch (err) { S.recMsg = { kind: 'err', text: dbErr(err) }; render(); }
+});
+
+/* ---------- 保存草稿 ---------- */
+async function saveDraft(d) {
+  const r = draftToDoc(d);
+  if (r.error) { d.error = r.error; return false; }
+  d.error = '';
+  try {
+    if (d.editId) {
+      const old = exById(d.editId);
+      const attempts = (old && old.attempts) || [];
+      const createdAt = (old && old.createdAt) || localToday();
+      const doc = Object.assign(r.doc, { createdAt, attempts }, deriveState(createdAt, attempts));
+      if (old && old.test) doc.test = true;
+      await S.db.doc('exercises/' + d.editId).set(doc);
+    } else {
+      const createdAt = localToday();
+      await S.db.collection('exercises').doc().set(Object.assign(r.doc, { createdAt, attempts: [] }, deriveState(createdAt, [])));
+    }
+    S.drafts = S.drafts.filter(x => x !== d);
+    return true;
+  } catch (err) { d.error = dbErr(err); return false; }
+}
+
+/* ---------- 识别 ---------- */
+function taxonomyText(subjects) {
+  return subjects.map(s => {
+    const T = TAX[s];
+    const lines = [`SUBJECT ${s}`, 'Topics (id: name) with their concepts:'];
+    for (const t of T.topics) {
+      const cs = T.concepts.filter(c => c[1] === t[0]).map(c => `${c[0]} ${c[3]}`).join('; ');
+      lines.push(`- ${t[0]}: ${t[3]}${cs ? ' | concepts: ' + cs : ''}`);
+    }
+    lines.push('Question types: ' + T.qtypes.map(q => `${q[0]} ${q[2]}`).join('; '));
+    return lines.join('\n');
+  }).join('\n\n');
+}
+function recognisePrompt(subject, text, nImages) {
+  const subs = subject ? [subject] : Object.keys(TAX);
+  return `A parent in Singapore is recording questions that their daughter Sophia (Primary 5, PSLE next year) got wrong, so she can redo them later.
+${nImages ? `The ${nImages} attached photo(s) show worksheet or exam questions.` : ''}${text ? `\nText from the parent:\n"""\n${text}\n"""` : ''}
+
+Extract every separate question shown and return one draft per question.
+Subject: ${subject || 'decide from the content: "english", "math" or "science"'}.
+
+Draft fields:
+- subject: "english" | "math" | "science"
+- topic: exactly one topic id from the list below for that subject
+- concept: a concept id listed under that topic, or null
+- qtype: a question-type id from that subject's list, or null
+- format: "mcq" when numbered options are given; "short" when the answer is one word, number or short phrase; otherwise "open"
+- stem: the question exactly as printed, keeping line breaks, numbers and units; for mcq leave the options out of the stem
+- options: the option texts in order for mcq, else []
+- answer: mcq → letter of the correct option ("A" = option 1, "B" = option 2, ...); short → the expected answer; open → a model answer a PSLE marker would accept
+- accepted: short → every acceptable answer including answer (for example "0.5" and "1/2"), else []
+- solution: a short explanation an 11-year-old can follow; wrap the words that earn marks in [[double brackets]]
+- wrongAnswer: Sophia's own answer if it is visible (handwriting or a marked choice), else ""
+- cause: your best guess of why she got it wrong: "concept" (did not understand the idea), "misread" (misread the question), "careless" (calculation or copying slip), "incomplete" (missing keywords or wrong format)
+- source: the paper name and question number if visible, else ""
+Use the teacher's correction as the answer when one is visible; otherwise solve the question carefully yourself.
+
+Reply with only a JSON array of draft objects.
+
+${taxonomyText(subs)}`;
+}
+async function recognise() {
+  const files = S.recFiles.slice();
+  const text = S.recText.trim();
+  if (!files.length && !text) { S.recMsg = { kind: 'err', text: '先选照片或贴题目文字。' }; render(); return; }
+  S.recBusy = true; S.recMsg = { kind: '', text: files.length ? '正在上传照片…' : '正在识别…' }; render();
+  const imageIds = [];
+  let sendFiles = files;
+  if (S.imgLimits && files.length > S.imgLimits.maxCount) sendFiles = files.slice(0, S.imgLimits.maxCount);
+  const tooBig = S.imgLimits ? sendFiles.filter(f => f.size > S.imgLimits.maxInputBytes) : [];
+  for (const f of files) {
+    try { const a = await S.assets.upload(f); imageIds.push(a.id); }
+    catch (err) { S.recMsg = { kind: 'err', text: `照片「${f.name}」上传失败（${err && err.code || '未知'}），其余照常。` }; }
+  }
+  S.recMsg = { kind: '', text: '正在识别，通常要半分钟左右…' }; render();
+  let drafts = null, fail = '';
+  try {
+    const okFiles = sendFiles.filter(f => !tooBig.includes(f));
+    const out = await S.sample.json(recognisePrompt(S.recSubject, text, okFiles.length), okFiles.length ? { images: okFiles, modelTier: 'complex' } : { modelTier: 'complex' });
+    if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
+    else if (out && Array.isArray(out.drafts)) drafts = out.drafts;
+    else fail = '识别没有成功：回来的内容不是题目清单。';
+  } catch (err) {
+    const c = err && err.code;
+    fail = c === 'rate_limited' ? '识别太频繁了，请过一会儿再试。' : c === 'not_granted' ? '没有允许本页使用 Claude，识别不可用。' : c === 'invalid_json' ? '识别没有成功：回来的内容读不出来。' : `识别不可用（${c || '未知错误'}）。`;
+  }
+  S.recBusy = false;
+  if (drafts && drafts.length) {
+    for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { images: imageIds })));
+    S.recMsg = { kind: 'ok', text: `拆出 ${drafts.length} 道草稿。请逐条核对后保存，答案是 Claude 读出或解出的。` + (files.length > sendFiles.length ? ` 只识别了前 ${sendFiles.length} 张照片。` : '') };
+    S.recText = ''; S.recFiles = [];
+  } else {
+    S.drafts.push(newDraft({ subject: S.recSubject, stem: text, images: imageIds }));
+    S.recMsg = { kind: 'err', text: (fail || '没有识别出题目。') + ' 已给出一份空白草稿，照片已挂上，请手填。' };
+  }
+  render();
+}
+
+/* ---------- 打印版 ---------- */
+async function blobToDataUrl(id) {
+  try {
+    const r = await fetch(blobUrl(id)); if (!r.ok) return null;
+    const b = await r.blob();
+    return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); });
+  } catch (e) { return null; }
+}
+async function printPaper(id) {
+  const p = S.papers.find(x => x.id === id);
+  const exs = p.exerciseIds.map(exById).filter(Boolean);
+  const imgs = {};
+  for (const e of exs) for (const i of e.images || []) if (!(i in imgs)) imgs[i] = await blobToDataUrl(i);
+  const q = (e, n) => {
+    let h = `<div class="q"><div class="n">${n}.</div><div>`;
+    if (e.stem) h += `<div class="stem">${esc(e.stem)}</div>`;
+    for (const i of e.images || []) h += imgs[i] ? `<img src="${imgs[i]}" alt="">` : `<p class="miss">（照片见练习场页面）</p>`;
+    if (e.format === 'mcq') h += `<ol class="opts">${e.options.map(o => `<li>${esc(o)}</li>`).join('')}</ol><p class="ansline">Answer: (&nbsp;&nbsp;&nbsp;&nbsp;)</p>`;
+    else if (e.format === 'short') h += `<p class="ansline">Answer: ____________________</p>`;
+    else h += `<div class="lines"></div>`;
+    return h + '</div></div>';
+  };
+  const key = (e, n) => {
+    let a = e.answer;
+    if (e.format === 'mcq') { const i = LETTERS.indexOf(String(e.answer).toUpperCase()); a = `(${i + 1}) ${e.options[i] || ''}`; }
+    return `<div class="k"><b>${n}.</b> ${hl(a)}${e.solution ? `<div class="why">${hl(e.solution)}</div>` : ''}</div>`;
+  };
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(p.title)}</title><style>
+body{font:15px/1.6 Georgia,"Noto Serif SC","Songti SC",serif;color:#111;max-width:720px;margin:24px auto;padding:0 16px}
+h1{font-size:20px;margin:0 0 4px}.meta{color:#555;font-size:13px;margin-bottom:18px;border-bottom:1px solid #999;padding-bottom:8px}
+.q{display:grid;grid-template-columns:28px 1fr;gap:6px;margin:0 0 22px;break-inside:avoid}.n{font-weight:bold}.stem{white-space:pre-wrap}
+img{max-width:100%;max-height:340px;display:block;margin:6px 0}.opts{margin:6px 0;padding-left:24px}.opts li{list-style:decimal}
+.ansline{margin:8px 0 0}.lines{height:96px;background:repeating-linear-gradient(transparent 0 31px,#bbb 31px 32px)}
+.miss{color:#a00;font-size:13px}.key{break-before:page}.k{margin:0 0 12px}.why{color:#444;font-size:14px;white-space:pre-wrap}
+mark{background:#ffe57a}@media print{body{margin:0 auto}}
+</style></head><body>
+<h1>${esc(p.title)}</h1><div class="meta">Name: Sophia &nbsp;&nbsp; Date: ____________ &nbsp;&nbsp; Score: ____ / ${exs.length}</div>
+${exs.map((e, i) => q(e, i + 1)).join('')}
+<section class="key"><h1>Answers</h1><div class="meta">${esc(p.title)}</div>${exs.map((e, i) => key(e, i + 1)).join('')}</section>
+</body></html>`;
+  try {
+    await S.downloads.save({ filename: `check-paper-${p.createdAt}-${p.subject}.html`, data: html });
+    S.paperMsg = { kind: 'ok', text: '已交给浏览器保存。用浏览器打开这个文件即可打印；答案在最后一页。' };
+  } catch (err) {
+    S.paperMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `下载没有成功（${err && err.code || '未知'}）。` };
+  }
+  render();
+}
+
+/* ---------- 启动 ---------- */
+async function boot() {
+  render();
+  if (!window.claude || !window.claude.use) { S.status = 'nodb'; render(); return; }
+  const use = n => window.claude.use(n).catch(() => null);
+  const [db, assets, sample, downloads] = await Promise.all([use('db'), use('assets'), use('sample'), use('downloads')]);
+  if (!db) { S.status = 'nodb'; render(); return; }
+  Object.assign(S, { db, assets, sample, downloads });
+  if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
+  let got = 0;
+  const ready = () => { if (++got >= 2 && S.status === 'loading') { S.status = 'ready'; render(); } else softRender(); };
+  const fail = () => { S.status = 'nodb'; render(); };
+  db.collection('exercises').onSnapshot(snap => {
+    S.exercises = snap.docs.map(d => Object.assign({ id: d.id, attempts: [] }, d.data()));
+    ready();
+  }, fail);
+  db.collection('papers').onSnapshot(snap => {
+    S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
+    ready();
+  }, fail);
+  db.doc('settings/main').onSnapshot(snap => {
+    const v = snap.exists ? snap.data() : null;
+    S.settings = { dailyLimit: v && v.dailyLimit ? v.dailyLimit : 10 };
+    softRender();
+  }, () => {});
+}
+boot();
+</script>

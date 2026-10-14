@@ -1,3 +1,91 @@
 # 领域总览
 
-（留白：本工作区的必要概念、结构与关系，随讨论裁决填写；取舍的理由写在 ADR。）
+练习场围绕错题转：录入时归类，之后按复习阶梯重做，检验卷抽查是否掌握。每次作答都改变错题在阶梯上的位置。运行载体与账号的取舍见 [ADR 0001](../adr/0001-arena-runs-as-claude-artifact-with-db.md) 与 [ADR 0002](../adr/0002-sophia-uses-parent-account-claude-features-parent-side.md)。
+
+## 模型
+
+```plantuml
+@startuml
+hide empty methods
+class "错题 Exercise" as Exercise {
+  作答形式
+  题目文字、照片
+  选项（选择题）
+  正确答案、可接受答案（短答题）
+  讲解（标出得分关键词）
+  当时的错答
+  错因
+  出处、录入日期
+  阶梯级、到期日、是否掌握
+}
+class "科目 Subject" as Subject
+class "专题 Topic" as Topic
+class "概念 Concept" as Concept
+class "题型 Question type" as QType
+class "作答 Attempt" as Attempt {
+  日期
+  回答
+  结果：对 / 部分对 / 错
+  判定方：自动 / 自评 / 家长
+}
+class "检验卷 Check paper" as Paper {
+  科目、专题范围、题数
+  状态
+}
+Subject "1" *-- "*" Topic
+Topic "1" *-- "*" Concept
+Subject "1" *-- "*" QType
+QType "*" -- "*" Concept : 用到
+Exercise "*" --> "1" Topic
+Exercise "*" --> "0..1" Concept
+Exercise "*" --> "0..1" QType
+Exercise "1" *-- "*" Attempt
+Paper "1" o-- "*" Exercise : 抽出
+Paper "1" -- "*" Attempt : 产生
+@enduml
+```
+
+- **归类**：每道错题必有科目与专题，概念与题型可选。数学、科学的专题、概念、题型取自知识图，英文的由练习场自定，见 `design/arena/TAXONOMY.md`。
+- **作答形式**：选择、短答、主观。前两种自动判对，主观题由 Sophia 对照讲解自评；家长可以改判任何一次作答。
+- **错因**：概念没懂、审题错、粗心、答法不完整，四选一。
+
+## 复习阶梯
+
+```plantuml
+@startuml
+[*] --> L1 : 录入（录入日 + 1 天到期）
+L1 : 第 1 级，间隔 1 天
+L2 : 第 2 级，间隔 2 天
+L3 : 第 3 级，间隔 4 天
+L4 : 第 4 级，间隔 7 天
+L1 --> L2 : 对
+L2 --> L3 : 对
+L3 --> L4 : 对
+L4 --> Mastered : 对
+Mastered : 掌握
+L2 --> L1 : 错
+L3 --> L1 : 错
+L4 --> L1 : 错
+L1 --> L1 : 错 / 部分对
+L2 --> L2 : 部分对
+L3 --> L3 : 部分对
+L4 --> L4 : 部分对
+Mastered --> L1 : 检验卷上错
+@enduml
+```
+
+不变式：
+
+- 到期日从上次作答日起算，加上新所在级的间隔。按时做对时，重做落在录入后第 1、3、7、14 天。
+- 做对升一级；做错回第 1 级，次日到期；部分对留在原级，再隔本级间隔到期。
+- 第 4 级做对即掌握，不再有到期日。掌握的错题在检验卷上做错，回第 1 级；做对或部分对，保持掌握。
+- 每日重做和检验卷的作答适用同一套规则。
+- 错题的阶梯状态完全由录入日与它的全部作答依次推出；家长改判后按新结果重新推出。
+
+## 检验卷
+
+家长选科目、专题范围与题数，从范围内的错题里抽题。顺序：错的次数多的在前；同次数时已掌握的在前；再按上次作答早的在前。Sophia 交卷前看不到答案。交卷后每道题产生一次作答，按上面的规则改变阶梯。
+
+## 留白
+
+- **变式题**：同一概念换情境的新题。位置：作为一道错题录入，多一个指向原题的关联。
