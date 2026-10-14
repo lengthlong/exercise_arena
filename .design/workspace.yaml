@@ -1,0 +1,14 @@
+# 工作区配置：内核检查与 agent 都读它。列表只用「键:」之下一行一个「  - 项」的写法；integrations 是「  集成名:」之下缩进的配置。
+toolkit: v0.7.0
+template: software
+context: domain/CONTEXT.md
+design:
+  - CLAUDE.md
+  - adr/*.md
+  - domain/*.md
+  - architecture/*.md
+  - design/*.md
+  - CAPABILITIES.md
+  - .agents/skills/design-writing/*.md
+terms:
+integrations:
