@@ -174,6 +174,11 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .checks label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); }
 .checks input { margin: 0; }
 .draft { border-left: 3px solid var(--pen); }
+.setcard { border-left: 3px solid var(--amber); }
+.material { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 14px; display: grid; gap: 8px; min-width: 0; }
+.material > summary { cursor: pointer; font-weight: 500; }
+.material .stem { font-size: 15.5px; }
+.member { margin-left: 14px; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -241,10 +246,43 @@ function judgeAuto(ex, response) {
   }
   return null;
 }
+function cmpSetPos(a, b) {
+  return ((a.setPos || 0) - (b.setPos || 0)) || String(a.createdAt).localeCompare(String(b.createdAt)) || String(a.id).localeCompare(String(b.id));
+}
 function dailyList(exs, today, limit) {
-  return exs.filter(e => !e.mastered && e.due && e.due <= today)
-    .sort((a, b) => a.due.localeCompare(b.due) || String(a.createdAt).localeCompare(String(b.createdAt)))
-    .slice(0, Math.max(0, limit));
+  // 到期题合成单元：独立题各成一个，同一题组的到期题合成一个；单元按最早 due、再按最早 createdAt 排
+  const due = exs.filter(e => !e.mastered && e.due && e.due <= today);
+  const units = [], bySet = {};
+  for (const e of due) {
+    if (e.setId) {
+      if (!bySet[e.setId]) { bySet[e.setId] = []; units.push(bySet[e.setId]); }
+      bySet[e.setId].push(e);
+    } else units.push([e]);
+  }
+  const key = u => ({
+    due: u.reduce((m, e) => e.due < m ? e.due : m, u[0].due),
+    c: u.reduce((m, e) => String(e.createdAt) < m ? String(e.createdAt) : m, String(u[0].createdAt))
+  });
+  const keyed = units.map(u => ({ u: u.slice().sort(cmpSetPos), k: key(u) }));
+  keyed.sort((a, b) => a.k.due.localeCompare(b.k.due) || a.k.c.localeCompare(b.k.c));
+  const out = [];
+  const cap = Math.max(0, limit);
+  for (const x of keyed) {
+    if (!out.length) { if (cap) out.push(...x.u); continue; }
+    if (out.length + x.u.length <= cap) out.push(...x.u);
+  }
+  return out;
+}
+function paperLayout(drawn) {
+  // 按抽题顺序，遇到题组的第一道题时把同组抽中的题按 setPos 接在后面
+  const out = [], seen = new Set();
+  for (const e of drawn) {
+    if (!e.setId) { out.push(e); continue; }
+    if (seen.has(e.setId)) continue;
+    seen.add(e.setId);
+    out.push(...drawn.filter(x => x.setId === e.setId).sort(cmpSetPos));
+  }
+  return out;
 }
 function cmpLast(a, b) {
   const x = a.lastAttemptAt, y = b.lastAttemptAt;
@@ -315,20 +353,57 @@ const S = {
   db: null, assets: null, sample: null, downloads: null, imgLimits: null,
   exercises: [], papers: [], settings: { dailyLimit: 10 },
   run: null,                    // 练习侧正在做的每日重做或检验卷
+  sets: [], setDrafts: [], setEdit: null,
   drafts: [], recSubject: '', recText: '', recFiles: [], recBusy: false, recMsg: null,
   filters: { subject: '', topic: '', cause: '', state: '' },
   detailId: null, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperEntry: null, paperMsg: null,
   settingsMsg: null
 };
-let draftSeq = 1;
+let draftSeq = 1, setSeq = 1;
+const pendingPos = {};
+
+/* ---------- 题组（design/arena/README.md） ---------- */
+function setById(id) { return S.sets.find(x => x.id === id); }
+function liveSets(subject) { return S.sets.filter(x => x.subject === subject && S.exercises.some(e => e.setId === x.id)); }
+function nextPos(setId) {
+  let m = pendingPos[setId] || 0;
+  for (const e of S.exercises) if (e.setId === setId && (e.setPos || 0) > m) m = e.setPos || 0;
+  pendingPos[setId] = m + 1;
+  return m + 1;
+}
+async function cleanupSet(setId, goneId) {
+  if (!setId) return;
+  if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
+}
+function materialBlock(set, open) {
+  if (!set) return '';
+  return `<details class="material" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${esc(set.text)}</div>` : ''}${(set.images || []).length ? `<div class="imgs">${set.images.map(id => `<img src="${blobUrl(id)}" alt="Material photo" loading="lazy">`).join('')}</div>` : ''}</details>`;
+}
+const setChip = e => { const x = e.setId && setById(e.setId); return x ? `<span class="chip">题组 · ${esc(x.title || '未命名')}</span>` : ''; };
+function newSetDraft(x) {
+  x = x || {};
+  return { key: setSeq++, subject: SUBJ[x.subject] ? x.subject : '', title: String(x.title || ''), text: String(x.text || ''), source: String(x.source || ''), images: Array.isArray(x.images) ? x.images.slice() : [], savedId: null, error: '' };
+}
+function setDraftByKey(k) { return k === 'edit' ? S.setEdit : S.setDrafts.find(x => x.key === Number(k)); }
+function setOfDraft(d) {
+  if (!d.setRef) return null;
+  if (String(d.setRef).startsWith('new:')) return setDraftByKey(String(d.setRef).slice(4)) || null;
+  return setById(d.setRef) || null;
+}
+function draftsInOrder() {
+  const fresh = S.drafts.filter(d => !d.editId);
+  const out = [];
+  for (const sd of S.setDrafts) out.push(...fresh.filter(d => d.setRef === 'new:' + sd.key));
+  return out.concat(fresh.filter(d => !out.includes(d)));
+}
 
 /* ---------- 渲染 ---------- */
 function locked() {
   if (S.run) return true;
   if (S.side === 'parent') {
-    if (S.ptab === 'record' && S.drafts.length) return true;
-    if (S.ptab === 'exercises' && S.drafts.some(d => d.editId)) return true;
+    if (S.ptab === 'record' && (S.drafts.length || S.setDrafts.length)) return true;
+    if (S.ptab === 'exercises' && (S.drafts.some(d => d.editId) || S.setEdit)) return true;
     if (S.ptab === 'papers' && S.paperEntry) return true;
   }
   return false;
@@ -437,6 +512,7 @@ function renderDaily() {
   if (!e) { R.i++; return renderDaily(); }
   const pct = Math.round(R.i / R.ids.length * 100);
   let h = `<div class="progress"><span class="small muted num">Question ${R.i + 1} of ${R.ids.length}</span><div class="bar"><i style="width:${pct}%"></i></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
+  if (e.setId) { const prev = R.i > 0 ? exById(R.ids[R.i - 1]) : null; h += materialBlock(setById(e.setId), !(prev && prev.setId === e.setId)); }
   h += `<article class="sheet">${questionBody(e, { key: 'd', response: R.response, locked: R.phase !== 'answer', showCorrect: R.phase !== 'answer' })}`;
   if (R.phase === 'answer') {
     h += `<div><button type="button" class="btn primary" data-act="check">${e.format === 'open' ? 'Show the model answer' : 'Check'}</button></div>`;
@@ -470,7 +546,8 @@ function renderPaperRun() {
   let h = `<div class="progress"><span class="small muted">${esc(p.title)}</span><div class="grow"></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
   h += exs.map((e, i) => {
     const key = 'p' + i;
-    let x = `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review' })}`;
+    let x = (e.setId && (i === 0 || exs[i - 1].setId !== e.setId)) ? materialBlock(setById(e.setId), true) : '';
+    x += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review' })}`;
     if (R.phase === 'review') {
       const res = R.results[e.id];
       if (e.format !== 'open' && res) x += `<div>${markHtml(res)}</div>`;
@@ -518,16 +595,40 @@ function renderRecord() {
     <div class="row">
       <button type="button" class="btn primary" data-act="recognise" ${(!canSample || S.recBusy) ? 'disabled' : ''}>${S.recBusy ? '识别中…' : '识别成草稿'}</button>
       <button type="button" class="btn" data-act="blank-draft">手填一题</button>
+      <button type="button" class="btn" data-act="new-set">新建题组</button>
       ${!canSample ? '<span class="small muted">识别不可用：只能手填。</span>' : ''}
     </div>
     ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
   </section>`;
   const newDrafts = S.drafts.filter(d => !d.editId);
-  if (newDrafts.length) {
-    h += `<div class="row"><p class="h2 grow">草稿 ${newDrafts.length} 道</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>`;
-    h += newDrafts.map(draftForm).join('');
+  if (newDrafts.length || S.setDrafts.length) {
+    h += `<div class="row"><p class="h2 grow">草稿 ${newDrafts.length} 道${S.setDrafts.length ? `，题组 ${S.setDrafts.length} 个` : ''}</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>`;
+    for (const sd of S.setDrafts) {
+      const members = newDrafts.filter(d => d.setRef === 'new:' + sd.key);
+      h += setForm(sd, members.length);
+      h += members.map(d => `<div class="member">${draftForm(d)}</div>`).join('');
+    }
+    h += newDrafts.filter(d => !S.setDrafts.some(sd => d.setRef === 'new:' + sd.key)).map(draftForm).join('');
   }
   return h;
+}
+
+function setForm(sd, nMembers) {
+  const k = sd.key, edit = k === 'edit';
+  const inp = (field, v, ph) => `<input type="text" id="s${k}-${field}" data-s="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
+  let h = `<section class="panel setcard" id="set-${k}">
+    <div class="row"><p class="h3 grow">${edit ? '编辑题组' : (sd.savedId ? '题组（已保存）' : '题组草稿')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="add-to-set" data-s="${k}">加一道小题</button><button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">放弃题组</button>`}</div>
+    <div class="grid2">
+      ${edit ? `<div class="f small"><span class="muted">科目</span><div>${esc(SUBJ[sd.subject] ? SUBJ[sd.subject].zh : '')}</div></div>` : `<label class="f"><span>科目 *</span><select id="s${k}-subject" data-s="${k}" data-f="subject" data-rerender="1">${subjectOptions(sd.subject)}</select></label>`}
+      <label class="f"><span>标题</span>${inp('title', sd.title, '例：School carnival flyer')}</label>
+      <label class="f"><span>出处</span>${inp('source', sd.source, '例：2026 P5 SA2 卷二 Booklet B')}</label>
+    </div>
+    <label class="f"><span>材料文字（文章、传单或实验装置的文字）</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>`;
+  if (sd.images.length) h += `<div class="imgs thumbs">${sd.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="材料照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-simg" data-s="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
+  if (!edit && nMembers === 0) h += `<p class="small muted">还没有小题挂在这个题组下；没有小题的题组不会保存。</p>`;
+  if (sd.error) h += `<p class="note err">${esc(sd.error)}</p>`;
+  if (edit) h += `<div class="row"><button type="button" class="btn primary" data-act="save-set">保存题组</button><button type="button" class="btn ghost" data-act="cancel-set">取消</button></div>`;
+  return h + '</section>';
 }
 
 function draftForm(d) {
@@ -552,7 +653,8 @@ function draftForm(d) {
       ${f('format', '作答形式', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
       ${f('cause', '错因', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
     </div>
-    ${f('stem', '题目文字', ta('stem', d.stem, 4))}`;
+    ${f('setRef', '所属题组', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">无（独立的题）</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>本批新建：${esc(sd.title || '未命名题组')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || '未命名题组')}</option>`).join('')}</select>`)}
+    ${f('stem', d.setRef ? '题目文字（只写这一问，材料在题组里）' : '题目文字', ta('stem', d.stem, 4))}`;
   if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="题目照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
   if (d.format === 'mcq') {
     h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `选项 (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
@@ -588,7 +690,8 @@ function newDraft(x) {
     accepted: Array.isArray(x.accepted) ? x.accepted.filter(a => normAnswer(a) !== normAnswer(x.answer)).join('; ') : String(x.accepted || ''),
     solution: String(x.solution || ''), wrongAnswer: String(x.wrongAnswer || ''),
     cause: CAUSE[x.cause] ? x.cause : 'concept', source: String(x.source || ''),
-    images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? 'Claude 给的专题不在体系里，请选一个。' : ''
+    images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? 'Claude 给的专题不在体系里，请选一个。' : '',
+    setRef: x.setRef != null ? String(x.setRef) : String(x.setId || ''), origSetId: x.setId || null, setPos: x.setPos || null
   };
 }
 
@@ -596,7 +699,11 @@ function draftToDoc(d) {
   const err = [];
   if (!SUBJ[d.subject]) err.push('科目');
   if (!d.topic) err.push('专题');
-  if (!d.stem.trim() && !d.images.length) err.push('题目文字或照片');
+  const sd = setOfDraft(d);
+  if (d.setRef && !sd) err.push('所属题组');
+  if (sd && sd.subject && sd.subject !== d.subject) err.push('与题组相同的科目');
+  const hasMat = sd && (String(sd.text || '').trim() || (sd.images || []).length);
+  if (!d.stem.trim() && !d.images.length && !hasMat) err.push('题目文字或照片');
   const options = d.format === 'mcq' ? d.options.map(o => o.trim()) : [];
   if (d.format === 'mcq' && options.filter(Boolean).length < 2) err.push('至少两个选项');
   if (!String(d.answer).trim()) err.push('答案');
@@ -631,9 +738,9 @@ function renderExercises() {
   if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>还没有错题</b><span>到「录入」拍一张 Sophia 做错的题，或者在 Claude Code 对话里把题目发给 Claude。</span></div></div>`;
   h += `<div class="list">${list.length ? list.map(e => `
     <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
-      <span class="t">${esc(plain(e.stem) || '（只有照片）')}</span>
+      <span class="t">${esc(plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）'))}</span>
       <span class="side">${ladderHtml(e)}<span class="num">${e.mastered ? '' : '到期 ' + fmtDate(e.due)}</span></span>
-      <span class="meta">${subjChip(e.subject)}<span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· ${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '')}</span><span>· 错 ${e.wrongCount} 次</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</span>
+      <span class="meta">${subjChip(e.subject)}<span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· ${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '')}</span><span>· 错 ${e.wrongCount} 次</span>${setChip(e)}${e.test ? '<span class="chip test">TEST</span>' : ''}</span>
     </button>`).join('') : '<div class="empty">没有符合筛选的错题。</div>'}</div>`;
   return h;
 }
@@ -642,8 +749,13 @@ function renderDetail() {
   const e = exById(S.detailId);
   if (!e) { S.detailId = null; return renderExercises(); }
   const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
-  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← 返回列表</button></div>
-  <article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← 返回列表</button></div>`;
+  const qs = e.setId && setById(e.setId);
+  if (qs) {
+    if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
+    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">题组「${esc(qs.title || '未命名')}」共 ${S.exercises.filter(x => x.setId === qs.id).length} 道错题。删掉或移出全部错题后，题组自动删除。</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">编辑题组</button></div>`;
+  }
+  h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
     <div class="grid2 small">
       <div><span class="muted">专题</span><div>${esc(topicLabel(e.subject, e.topic, 'zh'))}</div></div>
@@ -681,9 +793,9 @@ function renderPapers() {
       <label class="f"><span>题数</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
     </div>
     <div class="f small"><span class="muted">专题（不选即全部）</span><div class="checks">${topicChecks || '<span class="muted">这个科目还没有错题。</span>'}</div></div>
-    <p class="small muted">抽题顺序：错的次数多的在前；次数相同时，已掌握的在前；再按上次作答早的在前。</p>
+    <p class="small muted">抽题顺序：错的次数多的在前；次数相同时，已掌握的在前；再按上次作答早的在前。抽中的同组题在卷面上排在一起。</p>
     <div class="row"><button type="button" class="btn" data-act="paper-preview">抽题预览</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>生成检验卷（${S.paperPreview.length} 题）</button>` : ''}</div>
-    ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || '（只有照片）')}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· 错 ${e.wrongCount} 次</span></span></div>`).join('')}</div>` : '<p class="note">范围内没有错题。</p>') : ''}
+    ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· 错 ${e.wrongCount} 次</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">范围内没有错题。</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
   const papers = S.papers.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
@@ -707,7 +819,7 @@ function renderPaperEntry() {
   const exs = p.exerciseIds.map(exById).filter(Boolean);
   const pending = exs.filter(e => !E.results[e.id]).length;
   return `<div class="row"><button type="button" class="btn ghost" data-act="paper-entry-cancel">← 返回</button><p class="h2 grow">${esc(p.title)} · 录入纸上结果</p></div>
-  ${exs.map((e, i) => `<article class="sheet">${questionBody(e, { key: 'e' + i, no: i + 1, locked: true })}${solutionBlock(e)}
+  ${exs.map((e, i) => `${(e.setId && (i === 0 || exs[i - 1].setId !== e.setId)) ? materialBlock(setById(e.setId), true) : ''}<article class="sheet">${questionBody(e, { key: 'e' + i, no: i + 1, locked: true })}${solutionBlock(e)}
     <div class="selfmark" role="group" aria-label="结果">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="entry-mark" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${E.results[e.id] === r}">${RESULT[r].sym} ${RESULT[r].zh}</button>`).join('')}</div></article>`).join('')}
   <div class="row"><button type="button" class="btn primary" data-act="paper-entry-save" ${pending ? 'disabled' : ''}>保存结果</button><span class="small muted">${pending ? `还有 ${pending} 题没勾。` : '都勾好了。'}</span></div>
   ${E.err ? `<p class="note err">${esc(E.err)}</p>` : ''}`;
@@ -800,14 +912,28 @@ document.addEventListener('click', async ev => {
       case 'recognise': await recognise(); break;
       case 'blank-draft': S.drafts.push(newDraft({ subject: S.recSubject })); render(); break;
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
-      case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.recMsg = null; render(); break;
+      case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; render(); break;
+      case 'new-set': { const sd = newSetDraft({ subject: S.recSubject }); S.setDrafts.push(sd); S.drafts.push(newDraft({ subject: sd.subject, setRef: 'new:' + sd.key })); render(); break; }
+      case 'add-to-set': { const sd = setDraftByKey(b.dataset.s); S.drafts.push(newDraft({ subject: sd.subject, setRef: 'new:' + sd.key })); render(); break; }
+      case 'drop-set': { const k = b.dataset.s; for (const d of S.drafts) if (d.setRef === 'new:' + k) d.setRef = ''; S.setDrafts = S.setDrafts.filter(x => x.key !== Number(k)); render(); break; }
+      case 'drop-simg': { const sd = setDraftByKey(b.dataset.s); sd.images.splice(Number(b.dataset.i), 1); render(); break; }
+      case 'edit-set': { const x = setById(b.dataset.id); S.setEdit = Object.assign(newSetDraft(x), { key: 'edit', id: x.id, createdAt: x.createdAt, test: x.test }); render(); break; }
+      case 'cancel-set': S.setEdit = null; render(); break;
+      case 'save-set': {
+        const E = S.setEdit;
+        if (!E.text.trim() && !E.images.length) { E.error = '材料文字或照片至少要有一项。'; render(); break; }
+        const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), createdAt: E.createdAt || localToday() };
+        if (E.test) doc.test = true;
+        await S.db.doc('sets/' + E.id).set(doc);
+        S.setEdit = null; render(); break;
+      }
       case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
       case 'add-opt': { const d = draftByKey(b.dataset.k); if (d.options.length < 6) d.options.push(''); render(); break; }
       case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
       case 'save-draft': await saveDraft(draftByKey(b.dataset.k)); render(); break;
       case 'save-all': {
         let n = 0;
-        for (const d of S.drafts.filter(x => !x.editId)) { if (await saveDraft(d)) n++; }
+        for (const d of draftsInOrder()) { if (await saveDraft(d)) n++; }
         const left = S.drafts.filter(x => !x.editId).length;
         S.recMsg = { kind: left ? 'err' : 'ok', text: `已保存 ${n} 道。` + (left ? `还有 ${left} 道没填完，见下方提示。` : '') };
         render(); break;
@@ -819,11 +945,11 @@ document.addEventListener('click', async ev => {
       case 'edit': { const e = exById(b.dataset.id); S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
       case 'ask-del': S.confirmDel = b.dataset.id; render(); break;
       case 'cancel-del': S.confirmDel = null; render(); break;
-      case 'delete-ex': await S.db.doc('exercises/' + b.dataset.id).delete(); S.detailId = null; S.confirmDel = null; render(); break;
+      case 'delete-ex': { const e = exById(b.dataset.id); await S.db.doc('exercises/' + b.dataset.id).delete(); if (e && e.setId) await cleanupSet(e.setId, e.id); S.detailId = null; S.confirmDel = null; render(); break; }
 
       case 'paper-preview': {
         const P = S.paperForm;
-        S.paperPreview = drawPaper(S.exercises, { subject: P.subject, topics: P.topics, count: Math.max(1, Math.min(50, Number(P.count) || 10)) });
+        S.paperPreview = paperLayout(drawPaper(S.exercises, { subject: P.subject, topics: P.topics, count: Math.max(1, Math.min(50, Number(P.count) || 10)) }));
         S.paperMsg = null; render(); break;
       }
       case 'paper-create': {
@@ -873,6 +999,8 @@ document.addEventListener('input', ev => {
   } else if (t.dataset.d) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     if (t.dataset.f === 'opt') d.options[Number(t.dataset.i)] = t.value; else if (!t.dataset.rerender) d[t.dataset.f] = t.value;
+  } else if (t.dataset.s) {
+    const sd = setDraftByKey(t.dataset.s); if (sd && !t.dataset.rerender) sd[t.dataset.f] = t.value;
   } else if (t.dataset.bind) {
     S[t.dataset.bind] = t.value;
   }
@@ -884,7 +1012,7 @@ document.addEventListener('change', async ev => {
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
-    if (t.dataset.f === 'subject') { d.topic = ''; d.concept = ''; d.qtype = ''; }
+    if (t.dataset.f === 'subject') { d.topic = ''; d.concept = ''; d.qtype = ''; const sd = setOfDraft(d); if (sd && sd.subject && sd.subject !== d.subject) d.setRef = ''; }
     if (t.dataset.f === 'topic') d.concept = '';
     if (t.dataset.f === 'format') {
       if (t.value === 'mcq') { while (d.options.length < 4) d.options.push(''); if (!LETTERS.includes(String(d.answer).toUpperCase())) d.answer = 'A'; }
@@ -892,6 +1020,7 @@ document.addEventListener('change', async ev => {
     render(); return;
   }
   if (t.dataset.d) { const d = draftByKey(t.dataset.d); if (d && t.dataset.f !== 'opt') d[t.dataset.f] = t.value; return; }
+  if (t.dataset.s) { const sd = setDraftByKey(t.dataset.s); if (sd) { sd[t.dataset.f] = t.value; if (t.dataset.rerender) render(); } return; }
   if (t.dataset.filter) { S.filters[t.dataset.filter] = t.value; if (t.dataset.filter === 'subject') S.filters.topic = ''; render(); return; }
   const act = t.dataset.actChange;
   try {
@@ -912,6 +1041,20 @@ async function saveDraft(d) {
   if (r.error) { d.error = r.error; return false; }
   d.error = '';
   try {
+    let setId = null;
+    if (String(d.setRef).startsWith('new:')) {
+      const sd = setOfDraft(d);
+      if (!sd.savedId) {
+        sd.subject = sd.subject || d.subject;
+        if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = '题组还缺材料文字或照片。'; return false; }
+        const ref = S.db.collection('sets').doc();
+        await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), createdAt: localToday() });
+        sd.savedId = ref.id;
+      }
+      setId = sd.savedId;
+    } else if (d.setRef) setId = d.setRef;
+    const setPos = setId ? ((d.editId && d.origSetId === setId && d.setPos) ? d.setPos : nextPos(setId)) : null;
+    Object.assign(r.doc, { setId, setPos });
     if (d.editId) {
       const old = exById(d.editId);
       const attempts = (old && old.attempts) || [];
@@ -919,11 +1062,13 @@ async function saveDraft(d) {
       const doc = Object.assign(r.doc, { createdAt, attempts }, deriveState(createdAt, attempts));
       if (old && old.test) doc.test = true;
       await S.db.doc('exercises/' + d.editId).set(doc);
+      if (d.origSetId && d.origSetId !== setId) await cleanupSet(d.origSetId, d.editId);
     } else {
       const createdAt = localToday();
       await S.db.collection('exercises').doc().set(Object.assign(r.doc, { createdAt, attempts: [] }, deriveState(createdAt, [])));
     }
     S.drafts = S.drafts.filter(x => x !== d);
+    S.setDrafts = S.setDrafts.filter(sd => !sd.savedId || S.drafts.some(x => x.setRef === 'new:' + sd.key));
     return true;
   } catch (err) { d.error = dbErr(err); return false; }
 }
@@ -946,7 +1091,8 @@ function recognisePrompt(subject, text, nImages) {
   return `A parent in Singapore is recording questions that their daughter Sophia (Primary 5, PSLE next year) got wrong, so she can redo them later.
 ${nImages ? `The ${nImages} attached photo(s) show worksheet or exam questions.` : ''}${text ? `\nText from the parent:\n"""\n${text}\n"""` : ''}
 
-Extract every separate question shown and return one draft per question.
+Return one draft per question. Only draft the questions Sophia got wrong when that is visible (her written or marked answer is wrong, or the teacher marked it wrong); if you cannot tell which ones she got wrong, draft every question.
+When several questions share one passage, picture, table or experiment set-up, put that material once in "sets" and point each of those questions at it with "set" (its index in "sets"); the stem of such a question holds only that question.
 Subject: ${subject || 'decide from the content: "english", "math" or "science"'}.
 
 Draft fields:
@@ -963,9 +1109,12 @@ Draft fields:
 - wrongAnswer: Sophia's own answer if it is visible (handwriting or a marked choice), else ""
 - cause: your best guess of why she got it wrong: "concept" (did not understand the idea), "misread" (misread the question), "careless" (calculation or copying slip), "incomplete" (missing keywords or wrong format)
 - source: the paper name and question number if visible, else ""
+- set: index into "sets" when the question uses shared material, else null
+
+Set fields: title (a short name, for example "School carnival flyer"), text (the material transcribed exactly; describe pictures briefly in [brackets]), source.
 Use the teacher's correction as the answer when one is visible; otherwise solve the question carefully yourself.
 
-Reply with only a JSON array of draft objects.
+Reply with only a JSON object: {"sets": [...], "drafts": [...]}. Use "sets": [] when nothing is shared.
 
 ${taxonomyText(subs)}`;
 }
@@ -983,12 +1132,12 @@ async function recognise() {
     catch (err) { S.recMsg = { kind: 'err', text: `照片「${f.name}」上传失败（${err && err.code || '未知'}），其余照常。` }; }
   }
   S.recMsg = { kind: '', text: '正在识别，通常要半分钟左右…' }; render();
-  let drafts = null, fail = '';
+  let drafts = null, sets = [], fail = '';
   try {
     const okFiles = sendFiles.filter(f => !tooBig.includes(f));
     const out = await S.sample.json(recognisePrompt(S.recSubject, text, okFiles.length), okFiles.length ? { images: okFiles, modelTier: 'complex' } : { modelTier: 'complex' });
     if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
-    else if (out && Array.isArray(out.drafts)) drafts = out.drafts;
+    else if (out && Array.isArray(out.drafts)) { drafts = out.drafts.filter(x => x && typeof x === 'object'); sets = Array.isArray(out.sets) ? out.sets.filter(x => x && typeof x === 'object') : []; }
     else fail = '识别没有成功：回来的内容不是题目清单。';
   } catch (err) {
     const c = err && err.code;
@@ -996,8 +1145,17 @@ async function recognise() {
   }
   S.recBusy = false;
   if (drafts && drafts.length) {
-    for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { images: imageIds })));
-    S.recMsg = { kind: 'ok', text: `拆出 ${drafts.length} 道草稿。请逐条核对后保存，答案是 Claude 读出或解出的。` + (files.length > sendFiles.length ? ` 只识别了前 ${sendFiles.length} 张照片。` : '') };
+    const setKeys = sets.map((x, i) => {
+      const member = drafts.find(dd => dd.set === i);
+      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || S.recSubject, images: imageIds }));
+      S.setDrafts.push(sd);
+      return sd.key;
+    });
+    for (const x of drafts) {
+      const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
+      S.drafts.push(newDraft(Object.assign({}, x, { images: setKeys.length ? [] : imageIds, setRef: si === null ? '' : 'new:' + setKeys[si] })));
+    }
+    S.recMsg = { kind: 'ok', text: (setKeys.length ? `拆出 ${setKeys.length} 个题组、` : '拆出 ') + `${drafts.length} 道草稿。请逐条核对后保存，答案是 Claude 读出或解出的。` + (files.length > sendFiles.length ? ` 只识别了前 ${sendFiles.length} 张照片。` : '') };
     S.recText = ''; S.recFiles = [];
   } else {
     S.drafts.push(newDraft({ subject: S.recSubject, stem: text, images: imageIds }));
@@ -1018,7 +1176,10 @@ async function printPaper(id) {
   const p = S.papers.find(x => x.id === id);
   const exs = p.exerciseIds.map(exById).filter(Boolean);
   const imgs = {};
+  const setIds = [...new Set(exs.map(e => e.setId).filter(Boolean))];
   for (const e of exs) for (const i of e.images || []) if (!(i in imgs)) imgs[i] = await blobToDataUrl(i);
+  for (const sid of setIds) { const x = setById(sid); for (const i of (x && x.images) || []) if (!(i in imgs)) imgs[i] = await blobToDataUrl(i); }
+  const mat = x => x ? `<div class="mat"><div class="mt">${esc(x.title || '')}</div>${x.text ? `<div class="stem">${esc(x.text)}</div>` : ''}${(x.images || []).map(i => imgs[i] ? `<img src="${imgs[i]}" alt="">` : `<p class="miss">（照片见练习场页面）</p>`).join('')}</div>` : '';
   const q = (e, n) => {
     let h = `<div class="q"><div class="n">${n}.</div><div>`;
     if (e.stem) h += `<div class="stem">${esc(e.stem)}</div>`;
@@ -1039,11 +1200,11 @@ h1{font-size:20px;margin:0 0 4px}.meta{color:#555;font-size:13px;margin-bottom:1
 .q{display:grid;grid-template-columns:28px 1fr;gap:6px;margin:0 0 22px;break-inside:avoid}.n{font-weight:bold}.stem{white-space:pre-wrap}
 img{max-width:100%;max-height:340px;display:block;margin:6px 0}.opts{margin:6px 0;padding-left:24px}.opts li{list-style:decimal}
 .ansline{margin:8px 0 0}.lines{height:96px;background:repeating-linear-gradient(transparent 0 31px,#bbb 31px 32px)}
-.miss{color:#a00;font-size:13px}.key{break-before:page}.k{margin:0 0 12px}.why{color:#444;font-size:14px;white-space:pre-wrap}
+.miss{color:#a00;font-size:13px}.mat{border:1px solid #999;padding:10px 12px;margin:0 0 14px}.mt{font-weight:bold}.key{break-before:page}.k{margin:0 0 12px}.why{color:#444;font-size:14px;white-space:pre-wrap}
 mark{background:#ffe57a}@media print{body{margin:0 auto}}
 </style></head><body>
 <h1>${esc(p.title)}</h1><div class="meta">Name: Sophia &nbsp;&nbsp; Date: ____________ &nbsp;&nbsp; Score: ____ / ${exs.length}</div>
-${exs.map((e, i) => q(e, i + 1)).join('')}
+${exs.map((e, i) => ((e.setId && (i === 0 || exs[i - 1].setId !== e.setId)) ? mat(setById(e.setId)) : '') + q(e, i + 1)).join('')}
 <section class="key"><h1>Answers</h1><div class="meta">${esc(p.title)}</div>${exs.map((e, i) => key(e, i + 1)).join('')}</section>
 </body></html>`;
   try {
@@ -1065,7 +1226,7 @@ async function boot() {
   Object.assign(S, { db, assets, sample, downloads });
   if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
   let got = 0;
-  const ready = () => { if (++got >= 2 && S.status === 'loading') { S.status = 'ready'; render(); } else softRender(); };
+  const ready = () => { if (++got >= 3 && S.status === 'loading') { S.status = 'ready'; render(); } else softRender(); };
   const fail = () => { S.status = 'nodb'; render(); };
   db.collection('exercises').onSnapshot(snap => {
     S.exercises = snap.docs.map(d => Object.assign({ id: d.id, attempts: [] }, d.data()));
@@ -1073,6 +1234,10 @@ async function boot() {
   }, fail);
   db.collection('papers').onSnapshot(snap => {
     S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
+    ready();
+  }, fail);
+  db.collection('sets').onSnapshot(snap => {
+    S.sets = snap.docs.map(d => Object.assign({ id: d.id, images: [] }, d.data()));
     ready();
   }, fail);
   db.doc('settings/main').onSnapshot(snap => {

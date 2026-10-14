@@ -8,7 +8,7 @@ actor "家长" as Parent
 actor "Sophia" as Sophia
 node "claude.ai Artifact 平台" as Platform {
   component "练习场页面\n(app/arena.html)" as Page
-  database "db\nexercises / attempts / papers / settings" as DB
+  database "db\nexercises / sets / papers / settings" as DB
   storage "assets\n题目照片" as Assets
   component "sample\n照片识别" as Sample
 }
@@ -19,9 +19,9 @@ Parent --> Page : 家长侧：录入、改判、组检验卷
 Sophia --> Page : 练习侧：每日重做、检验卷
 Page --> DB : 读写
 Page --> Assets : 上传、显示照片
-Page --> Sample : 照片 → 错题草稿
+Page --> Sample : 照片 → 题组与错题草稿
 Parent --> Agent : 发文字或照片
-Agent --> DB : 经 ArtifactData 写 exercises
+Agent --> DB : 经 ArtifactData 写 exercises、sets
 Agent --> Assets : 上传照片
 Page ..> Maps : 链接到概念、题型
 @enduml
@@ -31,6 +31,6 @@ Page ..> Maps : 链接到概念、题型
 |---|---|---|
 | 练习场页面 | Container（`app/arena.html`） | 家长侧与练习侧的全部界面；阶梯、判对、抽题的计算；读写 `db`、`assets`，调用 `sample` |
 | claude.ai Artifact 平台 | 外部系统 | 托管页面；提供 `db`、`assets`、`sample`；家长账号登录 |
-| Claude Code 对话 | 外部参与者（agent） | 在家长确认后，把对话里收到的错题写进 `exercises`，照片传进 `assets` |
+| Claude Code 对话 | 外部参与者（agent） | 在家长确认后，把对话里收到的错题与题组写进 `exercises`、`sets`，照片传进 `assets` |
 | 知识图页面 | 外部系统 | 科学、数学的专题、概念、题型与讲解；练习场只链接过去 |
 | 家长、Sophia | 参与者 | 分别使用家长侧与练习侧 |

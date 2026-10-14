@@ -2,8 +2,9 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数，按 design/arena/README.md 的规则断言。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,matchShort,addDays,tally,localToday};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday};', ctx);
 const L = ctx.L;
+const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
 // ladder: on-time rights land on day 1,3,7,14 after recording, then mastered
 let s = L.deriveState('2026-10-12', []);
@@ -40,8 +41,8 @@ const ex = [
   { id: 'c', due: '2026-10-15', createdAt: '2026-10-03', mastered: false },
   { id: 'd', due: null, createdAt: '2026-10-03', mastered: true },
   { id: 'e', due: '2026-10-10', createdAt: '2026-10-01', mastered: false }];
-assert.deepStrictEqual(L.dailyList(ex, '2026-10-14', 10).map(e => e.id), ['e', 'b', 'a']);
-assert.deepStrictEqual(L.dailyList(ex, '2026-10-14', 2).map(e => e.id), ['e', 'b']);
+assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 10)), ['e', 'b', 'a']);
+assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 2)), ['e', 'b']);
 // paper draw: wrongCount desc, mastered first on tie, then oldest lastAttempt (never first)
 const px = [
   { id: 'p1', subject: 'science', topic: 'C-water', wrongCount: 1, mastered: false, lastAttemptAt: '2026-10-01' },
@@ -49,7 +50,25 @@ const px = [
   { id: 'p3', subject: 'science', topic: 'C-water', wrongCount: 1, mastered: true, lastAttemptAt: '2026-10-09' },
   { id: 'p4', subject: 'science', topic: 'C-repro', wrongCount: 1, mastered: false, lastAttemptAt: null },
   { id: 'p5', subject: 'math', topic: 'F-frac', wrongCount: 9, mastered: false, lastAttemptAt: null }];
-assert.deepStrictEqual(L.drawPaper(px, { subject: 'science', topics: [], count: 10 }).map(e => e.id), ['p2', 'p3', 'p4', 'p1']);
-assert.deepStrictEqual(L.drawPaper(px, { subject: 'science', topics: ['C-water'], count: 2 }).map(e => e.id), ['p2', 'p3']);
+assert.deepStrictEqual(ids(L.drawPaper(px, { subject: 'science', topics: [], count: 10 })), ['p2', 'p3', 'p4', 'p1']);
+assert.deepStrictEqual(ids(L.drawPaper(px, { subject: 'science', topics: ['C-water'], count: 2 })), ['p2', 'p3']);
 assert.deepStrictEqual({ ...L.tally(['right', 'wrong', 'right', 'partial']) }, { right: 2, partial: 1, wrong: 1 });
+// 题组：每日清单按组连排（D5、D13）
+const g = [
+  { id: 's1', due: '2026-10-12', createdAt: '2026-10-05', mastered: false },
+  { id: 'q4', setId: 'S', setPos: 2, due: '2026-10-13', createdAt: '2026-10-01', mastered: false },
+  { id: 'q2', setId: 'S', setPos: 1, due: '2026-10-14', createdAt: '2026-10-01', mastered: false },
+  { id: 'q5', setId: 'S', setPos: 3, due: '2026-10-16', createdAt: '2026-10-01', mastered: false },
+  { id: 's2', due: '2026-10-14', createdAt: '2026-10-02', mastered: false },
+  { id: 's3', due: '2026-10-14', createdAt: '2026-10-03', mastered: false }];
+// 组内到期的 q2、q4 连排、按 setPos；q5 未到期不拉进来；组按最早到期（10-13）排位
+assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 10)), ['s1', 'q2', 'q4', 's2', 's3']);
+// 上限 2：s1 放入后组放不下，跳过并继续补位 s2
+assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 2)), ['s1', 's2']);
+// 上限 1 且清单为空时，第一组整组放入（这里第一个单元是 s1，单独一题）
+assert.deepStrictEqual(ids(L.dailyList(g.slice(1), '2026-10-14', 1)), ['q2', 'q4']);
+// 卷面合并（D6）：按抽题顺序，遇到题组第一道题时接上同组抽中的题
+const drawn = [
+  { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
+assert.deepStrictEqual(ids(L.paperLayout(drawn)), ['a', 'q2', 'q4', 'b', 'c']);
 console.log('all logic tests passed');
