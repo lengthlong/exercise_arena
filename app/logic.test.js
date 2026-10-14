@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数，按 design/arena/README.md 的规则断言。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,paperMethod,historyDays};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,paperMethod,historyDays,mustUseCheck,parseList};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -90,4 +90,22 @@ assert.deepStrictEqual(Array.from(days, d => d.date), ['2026-10-14', '2026-10-13
 assert.deepStrictEqual({ ...days[0].daily }, { right: 1, partial: 1, wrong: 0 });
 assert.deepStrictEqual(Array.from(days[0].paperIds), ['P1']);
 assert.deepStrictEqual(Array.from(days[0].items, x => x.attempt.at || '-'), ['-', '2026-10-14T08:05', '2026-10-14T19:40', '2026-10-14T19:41', '2026-10-14T19:42']);
+// 0004：选词判对、必须用的词、一句检查
+assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, 'Although'), 'right');
+assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, 'despite'), 'wrong');
+assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, ''), 'wrong');
+assert.strictEqual(L.mustUseCheck('anything', []), null);
+const mu = (a, m) => { const r = L.mustUseCheck(a, m); return [Array.from(r.missing), r.multi]; };
+assert.deepStrictEqual(mu('Despite the heavy rain, the match continued.', ['Despite']), [[], false]);
+assert.deepStrictEqual(mu('In spite of the rain, the match continued.', ['Despite']), [['Despite'], false]);
+assert.deepStrictEqual(mu('The match continued despite the rain.', ['despite']), [[], false]);
+assert.deepStrictEqual(mu('Despiteful rain fell.', ['Despite']), [['Despite'], false]);
+assert.deepStrictEqual(mu('Neither Tom nor Ali came.', ['Neither…nor']), [[], false]);
+assert.deepStrictEqual(mu('Nor Tom neither Ali came.', ['Neither…nor']), [['Neither…nor'], false]);
+assert.deepStrictEqual(mu('Not only did she sing but also danced.', ['Not only...but also']), [[], false]);
+assert.deepStrictEqual(mu('It rained. The match continued.', ['rained']), [[], true]);
+assert.deepStrictEqual(mu('"Can you help me?" asked Tom.', ['asked']), [[], false]);
+assert.deepStrictEqual(mu("'Can you help me?' asked Tom.", ['asked']), [[], false]);
+assert.deepStrictEqual(mu("Mr. Tan said that he didn't know.", ['said']), [[], false]);
+assert.deepStrictEqual(Array.from(L.parseList('a; b\nc ;; ')), ['a', 'b', 'c']);
 console.log('all logic tests passed');

@@ -174,6 +174,9 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .checks label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); }
 .checks input { margin: 0; }
 .draft { border-left: 3px solid var(--pen); }
+.bank { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt.word { grid-template-columns: auto; padding: 6px 12px; }
+.stem u { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
 .setcard { border-left: 3px solid var(--amber); }
 .material { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 14px; display: grid; gap: 8px; min-width: 0; }
 .material > summary { cursor: pointer; font-weight: 500; }
@@ -240,6 +243,7 @@ function matchShort(response, accepted) {
 }
 function judgeAuto(ex, response) {
   if (ex.format === 'mcq') return String(response || '').trim().toUpperCase() === String(ex.answer || '').trim().toUpperCase() ? 'right' : 'wrong';
+  if (ex.format === 'pick') return normAnswer(response) && normAnswer(response) === normAnswer(ex.answer) ? 'right' : 'wrong';
   if (ex.format === 'short') {
     const acc = ex.accepted && ex.accepted.length ? ex.accepted : [ex.answer];
     return matchShort(response, acc) ? 'right' : 'wrong';
@@ -338,6 +342,30 @@ function historyDays(exs) {
   for (const d of out) d.items.sort((x, y) => ((x.attempt.at ? 1 : 0) - (y.attempt.at ? 1 : 0)) || String(x.attempt.at || '').localeCompare(String(y.attempt.at || '')));
   return out;
 }
+function escRe(t) { return String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function mustUseCheck(answer, mustUse) {
+  // 提交前的提醒（design/arena/README.md「判对」）：只对 mustUse 非空的主观题；返回 null 表示不检查
+  if (!mustUse || !mustUse.length) return null;
+  const text = String(answer || ''), low = text.toLowerCase();
+  const missing = [];
+  for (const item of mustUse) {
+    const parts = String(item).split(/…|\.\.\./).map(x => x.trim().toLowerCase()).filter(Boolean);
+    let pos = 0, ok = parts.length > 0;
+    for (const part of parts) {
+      const re = new RegExp('(^|[^a-z0-9])' + escRe(part).replace(/\s+/g, '\\s+') + '(?=$|[^a-z0-9])', 'g');
+      re.lastIndex = pos;
+      const m = re.exec(low);
+      if (!m) { ok = false; break; }
+      pos = m.index + m[0].length;
+    }
+    if (!ok) missing.push(String(item));
+  }
+  let t = text.replace(/"[^"]*"|“[^”]*”/g, 'Q').replace(/(^|[\s(])['‘][^'’]*['’](?=[\s,.!?;:)]|$)/g, '$1Q');
+  t = t.replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1');
+  const multi = /[.!?]+\s+\S/.test(t.trim());
+  return { missing, multi };
+}
+function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 /* LOGIC:END */
 </script>
 
@@ -348,7 +376,7 @@ const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s[0], { en: s[1], zh: s[2] }]
 const MAPS = { science: 'https://claude.ai/artifact/28476983-ebca-49fd-b882-f428e4e45012', math: 'https://claude.ai/artifact/8ujg7zbHmtuCPqTVMs3hvK' };
 const CAUSES = [['concept', '概念没懂', "Didn't get the idea"], ['misread', '审题错', 'Misread the question'], ['careless', '粗心', 'Careless slip'], ['incomplete', '答法不完整', 'Incomplete answer']];
 const CAUSE = Object.fromEntries(CAUSES.map(c => [c[0], { zh: c[1], en: c[2] }]));
-const FORMATS = [['mcq', '选择'], ['short', '短答'], ['open', '主观']];
+const FORMATS = [['mcq', '选择'], ['pick', '选词'], ['short', '短答'], ['open', '主观']];
 const RESULT = { right: { en: 'Right', zh: '对', sym: '✓' }, partial: { en: 'Partly', zh: '部分对', sym: '½' }, wrong: { en: 'Wrong', zh: '错', sym: '✗' } };
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -365,6 +393,8 @@ for (const s of Object.keys(TAX)) {
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hl = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<mark>$1</mark>');
+// 题组材料与题目文字里 [[ ]] 显示为下划线（改错的划线词）；讲解与标准答法里用 hl 高亮
+const ul = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<u>$1</u>');
 const plain = s => String(s || '').replace(/\[\[(.+?)\]\]/g, '$1');
 const nameOf = (s, kind, id) => (IDX[s] && IDX[s][kind][id]) || null;
 const topicLabel = (s, id, lang) => { const t = nameOf(s, 'topic', id); return t ? (lang === 'zh' ? t.zh : t.en) : (id || '—'); };
@@ -414,12 +444,12 @@ async function cleanupSet(setId, goneId) {
 }
 function materialBlock(set, open) {
   if (!set) return '';
-  return `<details class="material" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${esc(set.text)}</div>` : ''}${(set.images || []).length ? `<div class="imgs">${set.images.map(id => `<img src="${blobUrl(id)}" alt="Material photo" loading="lazy">`).join('')}</div>` : ''}</details>`;
+  return `<details class="material" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${(set.images || []).length ? `<div class="imgs">${set.images.map(id => `<img src="${blobUrl(id)}" alt="Material photo" loading="lazy">`).join('')}</div>` : ''}</details>`;
 }
 const setChip = e => { const x = e.setId && setById(e.setId); return x ? `<span class="chip">题组 · ${esc(x.title || '未命名')}</span>` : ''; };
 function newSetDraft(x) {
   x = x || {};
-  return { key: setSeq++, subject: SUBJ[x.subject] ? x.subject : '', title: String(x.title || ''), text: String(x.text || ''), source: String(x.source || ''), images: Array.isArray(x.images) ? x.images.slice() : [], savedId: null, error: '' };
+  return { key: setSeq++, subject: SUBJ[x.subject] ? x.subject : '', title: String(x.title || ''), text: String(x.text || ''), source: String(x.source || ''), images: Array.isArray(x.images) ? x.images.slice() : [], wordBank: parseList(x.wordBank).join('; '), savedId: null, error: '' };
 }
 function setDraftByKey(k) { return k === 'edit' ? S.setEdit : S.setDrafts.find(x => x.key === Number(k)); }
 function setOfDraft(d) {
@@ -508,11 +538,19 @@ function renderPractice() {
 
 function exById(id) { return S.exercises.find(e => e.id === id); }
 
+function bankOf(e) { const x = e.setId && setById(e.setId); return x ? parseList(x.wordBank) : []; }
+function mustUseNote(e, response) {
+  const c = mustUseCheck(response, e.mustUse);
+  if (!c) return '';
+  const out = c.missing.map(m => `Your answer must use "${m}".`);
+  if (c.multi) out.push('Your answer must be one sentence.');
+  return out.join(' ');
+}
 function questionBody(e, opts) {
   // opts: {no, name: input name prefix, response, locked, showCorrect}
   const o = opts || {};
   let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${subjChip(e.subject)}<span class="chip">${esc(topicLabel(e.subject, e.topic, 'en'))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</div>`;
-  if (e.stem) h += `<div class="stem">${esc(e.stem)}</div>`;
+  if (e.stem) h += `<div class="stem">${ul(e.stem)}</div>`;
   if (e.images && e.images.length) h += `<div class="imgs">${e.images.map(id => `<img src="${blobUrl(id)}" alt="Question photo" loading="lazy">`).join('')}</div>`;
   const r = o.response || '';
   if (e.format === 'mcq') {
@@ -522,7 +560,14 @@ function questionBody(e, opts) {
       if (o.showCorrect) { if (L === String(e.answer).toUpperCase()) cls = ' is-right'; else if (L === r) cls = ' is-wrong'; }
       return `<button type="button" class="opt${cls}" data-act="pick" data-key="${esc(o.key)}" data-v="${L}" aria-pressed="${r === L}" ${o.locked ? 'disabled' : ''}><span class="l">(${i + 1})</span><span>${esc(t)}</span></button>`;
     }).join('')}</div>`;
-  } else if (e.format === 'short') {
+  } else if (e.format === 'pick' && bankOf(e).length) {
+    // 选词：词表作为作答按钮（D5），点选的词即回答
+    h += `<div class="small muted">Choose from the word bank</div><div class="bank" role="group" aria-label="Word bank">${bankOf(e).map(w => {
+      let cls = '';
+      if (o.showCorrect) { if (normAnswer(w) === normAnswer(e.answer)) cls = ' is-right'; else if (w === r) cls = ' is-wrong'; }
+      return `<button type="button" class="opt word${cls}" data-act="pick" data-key="${esc(o.key)}" data-v="${esc(w)}" aria-pressed="${r === w}" ${o.locked ? 'disabled' : ''}>${esc(w)}</button>`;
+    }).join('')}</div>`;
+  } else if (e.format === 'short' || e.format === 'pick') {
     h += `<label class="f"><span>Your answer</span><input type="text" class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" value="${esc(r)}" ${o.locked ? 'disabled' : ''} autocomplete="off"></label>`;
   } else {
     h += `<label class="f"><span>Your answer</span><textarea class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" rows="4" ${o.locked ? 'disabled' : ''}>${esc(r)}</textarea></label>`;
@@ -560,7 +605,8 @@ function renderDaily() {
   if (e.setId) { const prev = R.i > 0 ? exById(R.ids[R.i - 1]) : null; h += materialBlock(setById(e.setId), !(prev && prev.setId === e.setId)); }
   h += `<article class="sheet">${questionBody(e, { key: 'd', response: R.response, locked: R.phase !== 'answer', showCorrect: R.phase !== 'answer' })}`;
   if (R.phase === 'answer') {
-    h += `<div><button type="button" class="btn primary" data-act="check">${e.format === 'open' ? 'Show the model answer' : 'Check'}</button></div>`;
+    if (R.warn) h += `<p class="note err">${esc(R.warn)} You can fix it, or submit anyway.</p>`;
+    h += `<div><button type="button" class="btn primary" data-act="check">${R.warn ? 'Submit anyway' : e.format === 'open' ? 'Show the model answer' : 'Check'}</button></div>`;
   } else {
     if (R.result) h += `<div>${markHtml(R.result)}</div>`;
     h += solutionBlock(e);
@@ -601,7 +647,7 @@ function renderPaperRun() {
     }
     return x + '</article>';
   }).join('');
-  if (R.phase === 'answer') h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit">Hand in</button><span class="small muted">Answers show after you hand in.</span></div>`;
+  if (R.phase === 'answer') h += `${R.warn ? `<div class="note err">${R.warn.map(w => `<div>${esc(w)}</div>`).join('')}<div>You can fix them, or hand in anyway.</div></div>` : ''}<div class="row"><button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button><span class="small muted">Answers show after you hand in.</span></div>`;
   else {
     const pending = exs.filter(e => !R.results[e.id]).length;
     h += `<div class="row"><button type="button" class="btn primary" data-act="paper-finish" ${(pending || R.saving) ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Finish and save'}</button><span class="small muted">${R.saving ? 'Saving your answers. Please wait.' : pending ? `Mark ${pending} more answer${pending > 1 ? 's' : ''} first.` : 'All marked.'}</span></div>`;
@@ -669,7 +715,8 @@ function setForm(sd, nMembers) {
       <label class="f"><span>标题</span>${inp('title', sd.title, '例：School carnival flyer')}</label>
       <label class="f"><span>出处</span>${inp('source', sd.source, '例：2026 P5 SA2 卷二 Booklet B')}</label>
     </div>
-    <label class="f"><span>材料文字（文章、传单或实验装置的文字）</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>`;
+    <label class="f"><span>材料文字（文章、传单或实验装置的文字；[[ ]] 显示为下划线）</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>
+    <label class="f"><span>词表（语法完形框里的词，用 ; 或换行分隔；没有就留空）</span><textarea id="s${k}-wordBank" data-s="${k}" data-f="wordBank" data-rerender="1" rows="2" placeholder="例：although; despite; which; whose">${esc(sd.wordBank)}</textarea></label>`;
   if (sd.images.length) h += `<div class="imgs thumbs">${sd.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="材料照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-simg" data-s="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
   if (!edit && nMembers === 0) h += `<p class="small muted">还没有小题挂在这个题组下；没有小题的题组不会保存。</p>`;
   if (sd.error) h += `<p class="note err">${esc(sd.error)}</p>`;
@@ -700,18 +747,24 @@ function draftForm(d) {
       ${f('cause', '错因', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
     </div>
     ${f('setRef', '所属题组', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">无（独立的题）</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>本批新建：${esc(sd.title || '未命名题组')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || '未命名题组')}</option>`).join('')}</select>`)}
-    ${f('stem', d.setRef ? '题目文字（只写这一问，材料在题组里）' : '题目文字', ta('stem', d.stem, 4))}`;
+    ${f('stem', (d.setRef ? '题目文字（只写这一问，材料在题组里）' : '题目文字') + '；[[ ]] 显示为下划线', ta('stem', d.stem, 4))}`;
   if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="题目照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
   if (d.format === 'mcq') {
     h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `选项 (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
       <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">加一个选项</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">去掉最后一个</button>` : ''}</div>
       <div class="grid2">${f('answer', '正确选项 *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
       ${f('wrongAnswer', '她当时选的', inp('wrongAnswer', d.wrongAnswer, '例：(1)'))}</div>`;
+  } else if (d.format === 'pick') {
+    const sd = setOfDraft(d), bank = sd ? parseList(sd.wordBank) : [];
+    h += bank.length
+      ? `<div class="grid2">${f('answer', '正确的词 *（取自所属题组的词表）', `<select id="d${k}-answer" data-d="${k}" data-f="answer"><option value="">选词</option>${bank.map(w => `<option value="${esc(w)}" ${normAnswer(d.answer) === normAnswer(w) ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>`)}${f('wrongAnswer', '她当时填的', inp('wrongAnswer', d.wrongAnswer))}</div>`
+      : `<p class="note err">选词题要属于带词表的题组：先选所属题组，并在题组卡片里填好词表。</p>`;
   } else if (d.format === 'short') {
     h += `<div class="grid2">${f('answer', '正确答案 *', inp('answer', d.answer))}${f('accepted', '其他可接受答案（用 ; 分隔）', inp('accepted', d.accepted, '例：0.5; 1/2'))}${f('wrongAnswer', '她当时的答案', inp('wrongAnswer', d.wrongAnswer))}</div>`;
   } else {
     h += f('answer', '标准答法 *（得分关键词用 [[ ]] 括起来）', ta('answer', d.answer, 3, '例：Warmer [[water vapour]] in the surrounding air [[loses heat]] to the [[cooler surface]] and [[condenses]].'));
     h += f('wrongAnswer', '她当时的答案', ta('wrongAnswer', d.wrongAnswer, 2));
+    h += f('mustUse', '必须用的词（句子改写用；; 分隔，分开的词组写成 Neither…nor）', inp('mustUse', d.mustUse, '例：Despite'));
   }
   h += f('solution', '讲解（关键词用 [[ ]]）', ta('solution', d.solution, 3));
   h += `<div class="grid2">${f('source', '出处', inp('source', d.source, '例：2026 P5 SA2 卷二 Q7'))}</div>`;
@@ -726,7 +779,7 @@ function newDraft(x) {
   const topic = subject && nameOf(subject, 'topic', x.topic) ? x.topic : '';
   const concept = topic && nameOf(subject, 'concept', x.concept) && IDX[subject].concept[x.concept].topic === topic ? x.concept : '';
   const qtype = subject && nameOf(subject, 'qtype', x.qtype) ? x.qtype : '';
-  const format = ['mcq', 'short', 'open'].includes(x.format) ? x.format : 'open';
+  const format = ['mcq', 'pick', 'short', 'open'].includes(x.format) ? x.format : 'open';
   let options = Array.isArray(x.options) ? x.options.map(String) : [];
   if (format === 'mcq') while (options.length < 4) options.push('');
   return {
@@ -737,7 +790,8 @@ function newDraft(x) {
     solution: String(x.solution || ''), wrongAnswer: String(x.wrongAnswer || ''),
     cause: CAUSE[x.cause] ? x.cause : 'concept', source: String(x.source || ''),
     images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? 'Claude 给的专题不在体系里，请选一个。' : '',
-    setRef: x.setRef != null ? String(x.setRef) : String(x.setId || ''), origSetId: x.setId || null, setPos: x.setPos || null
+    setRef: x.setRef != null ? String(x.setRef) : String(x.setId || ''), origSetId: x.setId || null, setPos: x.setPos || null,
+    mustUse: parseList(x.mustUse).join('; ')
   };
 }
 
@@ -753,12 +807,18 @@ function draftToDoc(d) {
   const options = d.format === 'mcq' ? d.options.map(o => o.trim()) : [];
   if (d.format === 'mcq' && options.filter(Boolean).length < 2) err.push('至少两个选项');
   if (!String(d.answer).trim()) err.push('答案');
+  if (d.format === 'pick') {
+    const bank = sd ? parseList(sd.wordBank) : [];
+    if (!bank.length) err.push('带词表的所属题组');
+    else if (!bank.some(w => normAnswer(w) === normAnswer(d.answer))) err.push('词表里的答案');
+  }
   if (err.length) return { error: '还缺：' + err.join('、') };
   const accepted = d.format === 'short' ? [d.answer.trim()].concat(d.accepted.split(';').map(a => a.trim()).filter(Boolean)) : [];
   return { doc: {
     subject: d.subject, topic: d.topic, concept: d.concept || null, qtype: d.qtype || null, format: d.format,
     stem: d.stem.trim(), images: d.images, options, answer: String(d.answer).trim(), accepted,
-    solution: d.solution.trim(), wrongAnswer: d.wrongAnswer.trim(), cause: d.cause, source: d.source.trim()
+    solution: d.solution.trim(), wrongAnswer: d.wrongAnswer.trim(), cause: d.cause, source: d.source.trim(),
+    mustUse: d.format === 'open' ? parseList(String(d.mustUse || '').replace(/\n/g, ';')) : []
   } };
 }
 
@@ -977,7 +1037,8 @@ document.addEventListener('click', async ev => {
       case 'check': {
         const e = exById(R.ids[R.i]);
         if (e.format !== 'open' && !String(R.response).trim()) { R.err = 'Write or pick an answer first.'; render(); break; }
-        R.err = null; R.phase = 'review';
+        if (e.format === 'open' && !R.warned) { const w = mustUseNote(e, R.response); if (w) { R.warn = w; R.warned = true; render(); break; } }
+        R.err = null; R.warn = null; R.phase = 'review';
         if (e.format !== 'open') {
           R.result = judgeAuto(e, R.response);
           render();
@@ -993,12 +1054,17 @@ document.addEventListener('click', async ev => {
         R.results.push(R.result);
         break;
       }
-      case 'next': R.i++; R.phase = 'answer'; R.response = ''; R.result = null; R.err = null; render(); window.scrollTo(0, 0); break;
+      case 'next': R.i++; R.phase = 'answer'; R.response = ''; R.result = null; R.err = null; R.warn = null; R.warned = false; render(); window.scrollTo(0, 0); break;
       case 'exit-run': S.run = null; render(); break;
 
       case 'start-paper': S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: {}, results: {} }; render(); window.scrollTo(0, 0); break;
       case 'paper-submit': {
         const p = S.papers.find(x => x.id === R.paperId);
+        if (!R.warned) {
+          const warns = p.exerciseIds.map((id, i) => { const e = exById(id); const w = e && e.format === 'open' ? mustUseNote(e, R.responses[id] || '') : ''; return w ? `Question ${i + 1}: ${w}` : ''; }).filter(Boolean);
+          if (warns.length) { R.warn = warns; R.warned = true; render(); break; }
+        }
+        R.warn = null;
         for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
         R.phase = 'review'; render(); window.scrollTo(0, 0); break;
       }
@@ -1037,7 +1103,10 @@ document.addEventListener('click', async ev => {
       case 'save-set': {
         const E = S.setEdit;
         if (!E.text.trim() && !E.images.length) { E.error = '材料文字或照片至少要有一项。'; render(); break; }
-        const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), createdAt: E.createdAt || localToday() };
+        const bank = parseList(E.wordBank);
+        const lost = S.exercises.filter(x => x.setId === E.id && x.format === 'pick' && !bank.some(w => normAnswer(w) === normAnswer(x.answer)));
+        if (lost.length) { E.error = '不能保存：这些选词题的答案不在新词表里——' + lost.map(x => `「${plain(x.stem) || x.answer}」（答案 ${x.answer}）`).join('、') + '。先改词表或这些题。'; render(); break; }
+        const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), wordBank: bank, createdAt: E.createdAt || localToday() };
         if (E.test) doc.test = true;
         await S.db.doc('sets/' + E.id).set(doc);
         S.setEdit = null; render(); break;
@@ -1175,7 +1244,7 @@ async function saveDraft(d) {
         sd.subject = sd.subject || d.subject;
         if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = '题组还缺材料文字或照片。'; return false; }
         const ref = S.db.collection('sets').doc();
-        await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), createdAt: localToday() });
+        await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
         sd.savedId = ref.id;
       }
       setId = sd.savedId;
@@ -1227,9 +1296,10 @@ Draft fields:
 - topic: exactly one topic id from the list below for that subject
 - concept: a concept id listed under that topic, or null
 - qtype: a question-type id from that subject's list, or null
-- format: "mcq" when numbered options are given; "short" when the answer is one word, number or short phrase; otherwise "open"
+- format: "mcq" when numbered options are given; "pick" when the blank is answered by choosing a word from a word list given with the passage (grammar cloze); "short" when the answer is one word, number or short phrase; otherwise "open"
 - stem: the question exactly as printed, keeping line breaks, numbers and units; for mcq leave the options out of the stem
 - options: the option texts in order for mcq, else []
+- mustUse: for sentence synthesis / transformation, the given word(s) the rewritten sentence must use (write split pairs as "Neither…nor"), else []
 - answer: mcq → letter of the correct option ("A" = option 1, "B" = option 2, ...); short → the expected answer; open → a model answer a PSLE marker would accept
 - accepted: short → every acceptable answer including answer (for example "0.5" and "1/2"), else []
 - solution: a short explanation an 11-year-old can follow; wrap the words that earn marks in [[double brackets]]
@@ -1238,7 +1308,10 @@ Draft fields:
 - source: the paper name and question number if visible, else ""
 - set: index into "sets" when the question uses shared material, else null
 
-Set fields: title (a short name, for example "School carnival flyer"), text (the material transcribed exactly; describe pictures briefly in [brackets]), source.
+Set fields: title (a short name, for example "School carnival flyer"), text (the material transcribed exactly; describe pictures briefly in [brackets]; keep blank numbers like (1) ____), source, wordBank (the list of words given in a box for grammar cloze, else []).
+Grammar cloze: put the boxed words in the set's wordBank and make each blank a "pick" question whose answer is the word.
+Editing for spelling and grammar: write every underlined word as [[word]] in the set text and in the question stem (for example "(3) [[recieve]]"); each underlined word is one "short" question whose answer is the corrected word.
+Sentence synthesis / transformation: an "open" question; answer is the full rewritten sentence including the given word(s); fill mustUse.
 Use the teacher's correction as the answer when one is visible; otherwise solve the question carefully yourself.
 
 Reply with only a JSON object: {"sets": [...], "drafts": [...]}. Use "sets": [] when nothing is shared.
@@ -1306,13 +1379,13 @@ async function printPaper(id) {
   const setIds = [...new Set(exs.map(e => e.setId).filter(Boolean))];
   for (const e of exs) for (const i of e.images || []) if (!(i in imgs)) imgs[i] = await blobToDataUrl(i);
   for (const sid of setIds) { const x = setById(sid); for (const i of (x && x.images) || []) if (!(i in imgs)) imgs[i] = await blobToDataUrl(i); }
-  const mat = x => x ? `<div class="mat"><div class="mt">${esc(x.title || '')}</div>${x.text ? `<div class="stem">${esc(x.text)}</div>` : ''}${(x.images || []).map(i => imgs[i] ? `<img src="${imgs[i]}" alt="">` : `<p class="miss">（照片见练习场页面）</p>`).join('')}</div>` : '';
+  const mat = x => x ? `<div class="mat"><div class="mt">${esc(x.title || '')}</div>${x.text ? `<div class="stem">${ul(x.text)}</div>` : ''}${parseList(x.wordBank).length ? `<div class="wb">${parseList(x.wordBank).map(esc).join(' &nbsp;·&nbsp; ')}</div>` : ''}${(x.images || []).map(i => imgs[i] ? `<img src="${imgs[i]}" alt="">` : `<p class="miss">（照片见练习场页面）</p>`).join('')}</div>` : '';
   const q = (e, n) => {
     let h = `<div class="q"><div class="n">${n}.</div><div>`;
-    if (e.stem) h += `<div class="stem">${esc(e.stem)}</div>`;
+    if (e.stem) h += `<div class="stem">${ul(e.stem)}</div>`;
     for (const i of e.images || []) h += imgs[i] ? `<img src="${imgs[i]}" alt="">` : `<p class="miss">（照片见练习场页面）</p>`;
     if (e.format === 'mcq') h += `<ol class="opts">${e.options.map(o => `<li>${esc(o)}</li>`).join('')}</ol><p class="ansline">Answer: (&nbsp;&nbsp;&nbsp;&nbsp;)</p>`;
-    else if (e.format === 'short') h += `<p class="ansline">Answer: ____________________</p>`;
+    else if (e.format === 'short' || e.format === 'pick') h += `<p class="ansline">Answer: ____________________</p>`;
     else h += `<div class="lines"></div>`;
     return h + '</div></div>';
   };
@@ -1327,7 +1400,7 @@ h1{font-size:20px;margin:0 0 4px}.meta{color:#555;font-size:13px;margin-bottom:1
 .q{display:grid;grid-template-columns:28px 1fr;gap:6px;margin:0 0 22px;break-inside:avoid}.n{font-weight:bold}.stem{white-space:pre-wrap}
 img{max-width:100%;max-height:340px;display:block;margin:6px 0}.opts{margin:6px 0;padding-left:24px}.opts li{list-style:decimal}
 .ansline{margin:8px 0 0}.lines{height:96px;background:repeating-linear-gradient(transparent 0 31px,#bbb 31px 32px)}
-.miss{color:#a00;font-size:13px}.mat{border:1px solid #999;padding:10px 12px;margin:0 0 14px}.mt{font-weight:bold}.key{break-before:page}.k{margin:0 0 12px}.why{color:#444;font-size:14px;white-space:pre-wrap}
+.miss{color:#a00;font-size:13px}.mat{border:1px solid #999;padding:10px 12px;margin:0 0 14px}.mt{font-weight:bold}.wb{border:1px dashed #777;padding:6px 10px;margin-top:8px}.key{break-before:page}.k{margin:0 0 12px}.why{color:#444;font-size:14px;white-space:pre-wrap}
 mark{background:#ffe57a}@media print{body{margin:0 auto}}
 </style></head><body>
 <h1>${esc(p.title)}</h1><div class="meta">Name: Sophia &nbsp;&nbsp; Date: ____________ &nbsp;&nbsp; Score: ____ / ${exs.length}</div>
