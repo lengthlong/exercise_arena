@@ -302,6 +302,42 @@ function tally(results) {
   for (const r of results) if (s[r] != null) s[r]++;
   return s;
 }
+function nowLocal(d) { d = d || new Date(); return localToday(d) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+function paperAttempts(paper, exs) {
+  // 检验卷上每题的作答：按卷面顺序，取 paperId 为本卷的那条；错题已删时 ex 为 null
+  const byId = {};
+  for (const e of exs) byId[e.id] = e;
+  return (paper.exerciseIds || []).map(id => {
+    const e = byId[id];
+    if (!e) return { id, ex: null, attempt: null };
+    return { id, ex: e, attempt: (e.attempts || []).find(x => x.paperId === paper.id) || null };
+  });
+}
+function paperScore(paper, exs) {
+  const rows = paperAttempts(paper, exs).filter(r => r.ex);
+  const s = tally(rows.map(r => r.attempt && r.attempt.result).filter(Boolean));
+  s.total = rows.length;
+  return s;
+}
+function paperMethod(paper, exs) {
+  if (paper.takenOn) return { how: paper.takenOn, inferred: false };
+  const as = paperAttempts(paper, exs).map(r => r.attempt).filter(Boolean);
+  if (!as.length) return null;
+  return { how: as.every(a => a.judgedBy === 'parent') ? 'printed' : 'screen', inferred: true };
+}
+function historyDays(exs) {
+  // 全部作答按 date 分天，最近的在前；每天：每日重做汇总、当天的检验卷编号、按 at 排序的明细（缺 at 的在前）
+  const days = {};
+  for (const e of exs) (e.attempts || []).forEach((a, i) => {
+    const d = days[a.date] || (days[a.date] = { date: a.date, daily: { right: 0, partial: 0, wrong: 0 }, paperIds: [], items: [] });
+    d.items.push({ ex: e, attempt: a, i });
+    if (a.mode === 'daily' && d.daily[a.result] != null) d.daily[a.result]++;
+    if (a.mode === 'paper' && a.paperId && !d.paperIds.includes(a.paperId)) d.paperIds.push(a.paperId);
+  });
+  const out = Object.values(days).sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  for (const d of out) d.items.sort((x, y) => ((x.attempt.at ? 1 : 0) - (y.attempt.at ? 1 : 0)) || String(x.attempt.at || '').localeCompare(String(y.attempt.at || '')));
+  return out;
+}
 /* LOGIC:END */
 </script>
 
@@ -357,7 +393,7 @@ const S = {
   drafts: [], recSubject: '', recText: '', recFiles: [], recBusy: false, recMsg: null,
   filters: { subject: '', topic: '', cause: '', state: '' },
   detailId: null, confirmDel: null,
-  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperEntry: null, paperMsg: null,
+  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperEntry: null, paperMsg: null, paperView: null, histOpen: {},
   settingsMsg: null
 };
 let draftSeq = 1, setSeq = 1;
@@ -427,7 +463,7 @@ function render() {
 
 /* ---------- 练习侧 ---------- */
 function renderPractice() {
-  if (S.run) return S.run.kind === 'daily' ? renderDaily() : renderPaperRun();
+  if (S.run) return S.run.kind === 'daily' ? renderDaily() : S.run.kind === 'review' ? renderPaperSheet(S.run.paperId, false) : renderPaperRun();
   const today = localToday();
   const due = dailyList(S.exercises, today, S.settings.dailyLimit);
   const allDue = S.exercises.filter(e => !e.mastered && e.due && e.due <= today).length;
@@ -456,6 +492,15 @@ function renderPractice() {
         <span class="side"><span>${p.exerciseIds.length} questions</span></span>
         <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
       </button>`).join('')}</div></section>`;
+  }
+  const done = S.papers.filter(p => p.status === 'done').sort((a, b) => String(b.finishedAt || b.createdAt).localeCompare(String(a.finishedAt || a.createdAt)));
+  if (done.length) {
+    h += `<section class="panel"><p class="h3">Past papers</p><div class="list">${done.map(p => { const sc = paperScore(p, S.exercises); return `
+      <button type="button" class="item" data-act="review-paper" data-id="${esc(p.id)}">
+        <span class="t">${esc(p.title)}</span>
+        <span class="side"><span class="num">${sc.right}/${sc.total}</span></span>
+        <span class="meta">${subjChip(p.subject)}<span>${p.finishedAt ? 'finished ' + fmtDate(p.finishedAt.slice(0, 10)) : ''}</span></span>
+      </button>`; }).join('')}</div></section>`;
   }
   h += `<div class="stats"><span><b class="num">${learning}</b> on the ladder</span><span><b class="num">${mastered}</b> mastered</span><span>Ladder: day 1 → 3 → 7 → 14</span></div>`;
   return h;
@@ -567,11 +612,12 @@ function renderPaperRun() {
 
 /* ---------- 家长侧 ---------- */
 function renderParent() {
-  const tabs = [['record', '录入'], ['exercises', '错题'], ['papers', '检验卷'], ['settings', '设置']];
+  const tabs = [['record', '录入'], ['exercises', '错题'], ['papers', '检验卷'], ['history', '历史'], ['settings', '设置']];
   let h = `<nav class="tabs" aria-label="家长侧">${tabs.map(t => `<button type="button" data-act="ptab" data-v="${t[0]}" aria-pressed="${S.ptab === t[0]}">${t[1]}</button>`).join('')}</nav>`;
   if (S.ptab === 'record') h += renderRecord();
   else if (S.ptab === 'exercises') h += renderExercises();
-  else if (S.ptab === 'papers') h += renderPapers();
+  else if (S.ptab === 'papers') h += S.paperView ? renderPaperSheet(S.paperView, true) : renderPapers();
+  else if (S.ptab === 'history') h += renderHistory();
   else h += renderSettings();
   return `<div class="zh" style="display:grid;gap:16px">${h}</div>`;
 }
@@ -771,7 +817,7 @@ function renderDetail() {
   <section class="panel"><p class="h3">作答记录 · 可改判</p>`;
   if (!e.attempts || !e.attempts.length) h += `<p class="small muted">还没有重做过。</p>`;
   else h += `<div class="tbl"><table><thead><tr><th>日期</th><th>方式</th><th>她的回答</th><th>结果</th><th>判定</th></tr></thead><tbody>${e.attempts.map((a, i) => `
-    <tr><td class="num">${esc(a.date)}</td><td>${a.mode === 'paper' ? '检验卷' : '每日重做'}</td><td>${esc(a.response || '—')}</td>
+    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? '检验卷' : '每日重做'}</td><td>${esc(a.response || '—')}</td>
     <td><select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].zh}</option>`).join('')}</select></td>
     <td>${{ auto: '自动', self: '自评', parent: '家长' }[a.judgedBy] || ''}</td></tr>`).join('')}</tbody></table></div>`;
   h += `</section><div class="row"><button type="button" class="btn" data-act="edit" data-id="${esc(e.id)}">编辑</button>`;
@@ -803,8 +849,9 @@ function renderPapers() {
   if (!papers.length) h += `<p class="small muted">还没有检验卷。组好的卷子会出现在 Sophia 那一侧，也可以下载打印。</p>`;
   else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
       <span class="t">${esc(p.title)}</span>
-      <span class="side">${p.status === 'done' && p.score ? `<span class="num">${p.score.right}/${p.exerciseIds.length}</span>` : '<span>未做</span>'}</span>
+      <span class="side">${p.status === 'done' ? (() => { const sc = paperScore(p, S.exercises); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>未做</span>'}</span>
       <span class="meta">${subjChip(p.subject)}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
+        ${p.status === 'done' ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">查看详情</button>` : ''}
         ${S.downloads ? `<button type="button" class="btn ghost small" data-act="paper-print" data-id="${esc(p.id)}">下载打印版</button>` : ''}
         ${p.status === 'open' ? `<button type="button" class="btn ghost small" data-act="paper-entry" data-id="${esc(p.id)}">录入纸上结果</button>` : ''}
         ${S.confirmDel === p.id ? `<span class="confirm">删除这张卷？已写进阶梯的作答不受影响。<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">确认</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">删除</button>`}
@@ -823,6 +870,66 @@ function renderPaperEntry() {
     <div class="selfmark" role="group" aria-label="结果">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="entry-mark" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${E.results[e.id] === r}">${RESULT[r].sym} ${RESULT[r].zh}</button>`).join('')}</div></article>`).join('')}
   <div class="row"><button type="button" class="btn primary" data-act="paper-entry-save" ${(pending || E.saving) ? 'disabled' : ''}>${E.saving ? '保存中…' : '保存结果'}</button><span class="small muted">${pending ? `还有 ${pending} 题没勾。` : '都勾好了。'}</span></div>
   ${E.err ? `<p class="note err">${esc(E.err)}</p>` : ''}`;
+}
+
+const METHOD = { screen: { zh: '屏幕作答', en: 'on screen' }, printed: { zh: '纸上作答，家长录入结果', en: 'on paper' } };
+const JUDGE = { auto: '自动', self: '自评', parent: '家长' };
+function renderPaperSheet(paperId, parent) {
+  // 检验卷详情（家长侧，可改判）与回看（练习侧，只读）：design/arena/README.md「检验卷」
+  const p = S.papers.find(x => x.id === paperId);
+  const back = parent ? `<button type="button" class="btn ghost" data-act="paper-view-close">← 返回检验卷</button>` : `<button type="button" class="btn ghost" data-act="exit-run">← Back to today</button>`;
+  if (!p) return `<div class="row">${back}</div><p class="note">${parent ? '这张检验卷已删除。' : 'This paper was deleted.'}</p>`;
+  const rows = paperAttempts(p, S.exercises), sc = paperScore(p, S.exercises), m = paperMethod(p, S.exercises);
+  const when = p.finishedAt ? p.finishedAt.replace('T', ' ') : (parent ? '未记录' : 'not recorded');
+  const how = m ? (parent ? METHOD[m.how].zh + (m.inferred ? '（按作答推断）' : '') : METHOD[m.how].en) : '—';
+  let h = `<div class="row">${back}</div>
+  <section class="panel"><p class="h2">${esc(p.title)}</p>
+    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><span class="muted">${parent ? `对 ${sc.right} · 部分对 ${sc.partial} · 错 ${sc.wrong}` : `${sc.right} right · ${sc.partial} partly · ${sc.wrong} wrong`}</span></div>
+    <div class="stats"><span>${parent ? '完成' : 'Finished'} <b>${esc(when)}</b></span><span>${parent ? '方式' : 'How'} <b>${esc(how)}</b></span></div>
+  </section>`;
+  rows.forEach((r, i) => {
+    if (!r.ex) { h += `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">${parent ? '这道错题已删除。' : 'This question was deleted.'}</p></article>`; return; }
+    const e = r.ex, a = r.attempt;
+    if (e.setId && (i === 0 || !rows[i - 1].ex || rows[i - 1].ex.setId !== e.setId)) h += materialBlock(setById(e.setId), true);
+    h += `<article class="sheet">${questionBody(e, { key: (parent ? 'pv' : 'rv') + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true })}`;
+    if (a) h += `<div class="row">${markHtml(a.result)}<span class="small muted">${parent ? '判定：' + (JUDGE[a.judgedBy] || '') : ''}</span></div>`;
+    else h += `<p class="small muted">${parent ? '这道题没有这张卷的作答。' : 'No answer recorded.'}</p>`;
+    h += solutionBlock(e);
+    if (parent && a) {
+      const ai = e.attempts.indexOf(a);
+      h += `<div class="row"><label class="f"><span>改判</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].zh}</option>`).join('')}</select></label><button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">错题详情</button></div>`;
+    }
+    h += '</article>';
+  });
+  return h;
+}
+
+function renderHistory() {
+  // 作答历史：design/arena/README.md「作答历史」
+  const days = historyDays(S.exercises);
+  if (!days.length) return `<section class="panel"><p class="h2">历史</p><p class="small muted">还没有作答。Sophia 做完每日重做或检验卷后，这里按天列出。</p></section>`;
+  return days.map(d => {
+    const tot = d.daily.right + d.daily.partial + d.daily.wrong;
+    const papers = d.paperIds.map(id => {
+      const p = S.papers.find(x => x.id === id);
+      if (!p) return `<span class="chip">检验卷（已删除）</span>`;
+      const sc = paperScore(p, S.exercises);
+      return `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">${esc(p.title)} · ${sc.right}/${sc.total}</button>`;
+    }).join('');
+    const items = d.items.map(x => {
+      const a = x.attempt, e = x.ex, p = a.paperId ? S.papers.find(y => y.id === a.paperId) : null;
+      const how = a.mode === 'paper' ? (p ? '检验卷' : '检验卷（已删除）') : '每日重做';
+      return `<tr><td class="num">${esc(a.at ? a.at.slice(11) : '—')}</td><td><button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">${esc((plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）')).slice(0, 40))}</button></td><td>${esc(how)}</td><td>${esc(a.response || '—')}</td><td>${RESULT[a.result] ? RESULT[a.result].zh : ''}</td><td>${JUDGE[a.judgedBy] || ''}</td></tr>`;
+    }).join('');
+    return `<section class="panel">
+      <div class="row"><p class="h2 grow num">${esc(d.date)}</p><span class="small muted">共 ${d.items.length} 次作答</span></div>
+      <div class="stats"><span>每日重做 <b class="num">${tot}</b> 题${tot ? `：对 ${d.daily.right} · 部分对 ${d.daily.partial} · 错 ${d.daily.wrong}` : ''}</span></div>
+      ${papers ? `<div class="row">${papers}</div>` : ''}
+      <details ${S.histOpen[d.date] ? 'open' : ''} data-hist="${esc(d.date)}"><summary class="small">展开每次作答</summary>
+        <div class="tbl"><table><thead><tr><th>时刻</th><th>题目</th><th>方式</th><th>她的回答</th><th>结果</th><th>判定</th></tr></thead><tbody>${items}</tbody></table></div>
+      </details>
+    </section>`;
+  }).join('');
 }
 
 function renderSettings() {
@@ -856,7 +963,7 @@ document.addEventListener('click', async ev => {
   try {
     switch (act) {
       case 'side': S.side = b.dataset.v; S.confirmDel = null; render(); break;
-      case 'ptab': S.ptab = b.dataset.v; store.set('arena.ptab', S.ptab); S.detailId = null; S.confirmDel = null; render(); break;
+      case 'ptab': S.ptab = b.dataset.v; store.set('arena.ptab', S.ptab); S.detailId = null; S.confirmDel = null; S.paperView = null; render(); break;
 
       case 'start-daily': {
         const ids = dailyList(S.exercises, localToday(), S.settings.dailyLimit).map(e => e.id);
@@ -874,7 +981,7 @@ document.addEventListener('click', async ev => {
         if (e.format !== 'open') {
           R.result = judgeAuto(e, R.response);
           render();
-          await addAttempt(e, { date: localToday(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'auto' });
+          await addAttempt(e, { date: localToday(), at: nowLocal(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'auto' });
           R.results.push(R.result);
         } else render();
         break;
@@ -882,7 +989,7 @@ document.addEventListener('click', async ev => {
       case 'selfmark': {
         const e = exById(R.ids[R.i]);
         R.result = b.dataset.r; render();
-        await addAttempt(e, { date: localToday(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'self' });
+        await addAttempt(e, { date: localToday(), at: nowLocal(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'self' });
         R.results.push(R.result);
         break;
       }
@@ -900,7 +1007,7 @@ document.addEventListener('click', async ev => {
         // 每张卷每道题只写一次作答：保存中不再响应；卷子已出结果或该题已有本卷作答时跳过
         if (R.saving) break;
         const p = S.papers.find(x => x.id === R.paperId);
-        if (p.status === 'done') { R.phase = 'done'; R.score = p.score || tally([]); render(); break; }
+        if (p.status === 'done') { R.phase = 'done'; R.score = paperScore(p, S.exercises); render(); break; }
         R.saving = true; R.err = null; render();
         const today = localToday(), res = [];
         try {
@@ -908,10 +1015,10 @@ document.addEventListener('click', async ev => {
             const e = exById(id); if (!e) continue;
             const r = R.results[id]; res.push(r);
             if ((e.attempts || []).some(a => a.paperId === p.id)) continue;
-            await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
+            await addAttempt(e, { date: today, at: nowLocal(), mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
           }
           const score = tally(res);
-          await S.db.doc('papers/' + p.id).update({ status: 'done', score });
+          await S.db.doc('papers/' + p.id).update({ status: 'done', finishedAt: nowLocal(), takenOn: 'screen' });
           R.phase = 'done'; R.score = score;
         } finally { R.saving = false; }
         render(); window.scrollTo(0, 0); break;
@@ -963,11 +1070,15 @@ document.addEventListener('click', async ev => {
       case 'paper-create': {
         const P = S.paperForm, today = localToday();
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t, 'en')).join(', ') : 'All topics';
-        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), status: 'open', score: null };
+        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), status: 'open' };
         await S.db.collection('papers').doc().set(doc);
         S.paperPreview = null; S.paperMsg = { kind: 'ok', text: '检验卷已生成，Sophia 那一侧可以开始做了。' }; render(); break;
       }
       case 'paper-print': await printPaper(b.dataset.id); break;
+      case 'paper-view': S.ptab = 'papers'; S.paperView = b.dataset.id; S.paperEntry = null; render(); window.scrollTo(0, 0); break;
+      case 'paper-view-close': S.paperView = null; render(); break;
+      case 'goto-ex': S.ptab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; S.drafts = S.drafts.filter(d => !d.editId); render(); window.scrollTo(0, 0); break;
+      case 'review-paper': S.run = { kind: 'review', paperId: b.dataset.id }; render(); window.scrollTo(0, 0); break;
       case 'paper-entry': S.paperEntry = { paperId: b.dataset.id, results: {} }; render(); window.scrollTo(0, 0); break;
       case 'paper-entry-cancel': S.paperEntry = null; render(); break;
       case 'entry-mark': S.paperEntry.results[b.dataset.id] = b.dataset.r; render(); break;
@@ -981,9 +1092,9 @@ document.addEventListener('click', async ev => {
             const e = exById(id); if (!e) continue;
             res.push(E.results[id]);
             if ((e.attempts || []).some(a => a.paperId === p.id)) continue;
-            await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: '', result: E.results[id], judgedBy: 'parent' });
+            await addAttempt(e, { date: today, at: nowLocal(), mode: 'paper', paperId: p.id, response: '', result: E.results[id], judgedBy: 'parent' });
           }
-          await S.db.doc('papers/' + p.id).update({ status: 'done', score: tally(res) });
+          await S.db.doc('papers/' + p.id).update({ status: 'done', finishedAt: nowLocal(), takenOn: 'printed' });
         } finally { E.saving = false; }
         S.paperEntry = null; S.paperMsg = { kind: 'ok', text: '纸上结果已保存，阶梯已更新。' }; render(); break;
       }
@@ -1019,6 +1130,8 @@ document.addEventListener('input', ev => {
     S[t.dataset.bind] = t.value;
   }
 });
+
+document.addEventListener('toggle', ev => { const t = ev.target; if (t.dataset && t.dataset.hist) S.histOpen[t.dataset.hist] = t.open; }, true);
 
 document.addEventListener('change', async ev => {
   const t = ev.target;

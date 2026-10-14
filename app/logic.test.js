@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数，按 design/arena/README.md 的规则断言。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,paperMethod,historyDays};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -71,4 +71,23 @@ assert.deepStrictEqual(ids(L.dailyList(g.slice(1), '2026-10-14', 1)), ['q2', 'q4
 const drawn = [
   { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
 assert.deepStrictEqual(ids(L.paperLayout(drawn)), ['a', 'q2', 'q4', 'b', 'c']);
+// 检验卷记录与作答历史（0003）
+const P = { id: 'P1', exerciseIds: ['x1', 'gone', 'x2', 'x3'] };
+const hx = [
+  { id: 'x1', attempts: [{ date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'right', judgedBy: 'auto', at: '2026-10-14T19:40' }] },
+  { id: 'x2', attempts: [{ date: '2026-10-13', mode: 'daily', result: 'wrong', judgedBy: 'auto' }, { date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'wrong', judgedBy: 'self', at: '2026-10-14T19:41' }] },
+  { id: 'x3', attempts: [{ date: '2026-10-14', mode: 'daily', result: 'partial', judgedBy: 'self', at: '2026-10-14T08:05' }, { date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'right', judgedBy: 'auto', at: '2026-10-14T19:42' }, { date: '2026-10-14', mode: 'daily', result: 'right', judgedBy: 'auto' }] }];
+// 卷上作答按卷面顺序，已删题为空
+assert.deepStrictEqual(Array.from(L.paperAttempts(P, hx), r => r.ex ? r.attempt.result : null), ['right', null, 'wrong', 'right']);
+// 得分只算仍在的题
+assert.deepStrictEqual({ ...L.paperScore(P, hx) }, { right: 2, partial: 0, wrong: 1, total: 3 });
+// 方式：有 takenOn 用它；没有时全部家长判为 printed，否则 screen
+assert.deepStrictEqual({ ...L.paperMethod(Object.assign({ takenOn: 'printed' }, P), hx) }, { how: 'printed', inferred: false });
+assert.deepStrictEqual({ ...L.paperMethod(P, hx) }, { how: 'screen', inferred: true });
+// 按天分组：最近一天在前；每日重做汇总；当天的检验卷；缺 at 的排在最前，其余按 at
+const days = L.historyDays(hx);
+assert.deepStrictEqual(Array.from(days, d => d.date), ['2026-10-14', '2026-10-13']);
+assert.deepStrictEqual({ ...days[0].daily }, { right: 1, partial: 1, wrong: 0 });
+assert.deepStrictEqual(Array.from(days[0].paperIds), ['P1']);
+assert.deepStrictEqual(Array.from(days[0].items, x => x.attempt.at || '-'), ['-', '2026-10-14T08:05', '2026-10-14T19:40', '2026-10-14T19:41', '2026-10-14T19:42']);
 console.log('all logic tests passed');
