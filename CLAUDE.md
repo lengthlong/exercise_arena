@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-为 P5 学生 Sophia 设计一个练习场（Exercise Arena）：家长录入她的错题（文字或照片），她按复习阶梯重做，家长用检验卷确认她是否掌握。
+为 P5 学生 Sophia 设计一个练习场（Exercise Arena）：录入她的错题（文字或照片），按复习阶梯重做，用检验卷确认是否掌握。
 
 <!-- design-kernel:begin -->
 ## 内核
