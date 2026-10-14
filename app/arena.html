@@ -559,7 +559,7 @@ function renderPaperRun() {
   if (R.phase === 'answer') h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit">Hand in</button><span class="small muted">Answers show after you hand in.</span></div>`;
   else {
     const pending = exs.filter(e => !R.results[e.id]).length;
-    h += `<div class="row"><button type="button" class="btn primary" data-act="paper-finish" ${pending ? 'disabled' : ''}>Finish and save</button><span class="small muted">${pending ? `Mark ${pending} more answer${pending > 1 ? 's' : ''} first.` : 'All marked.'}</span></div>`;
+    h += `<div class="row"><button type="button" class="btn primary" data-act="paper-finish" ${(pending || R.saving) ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Finish and save'}</button><span class="small muted">${R.saving ? 'Saving your answers. Please wait.' : pending ? `Mark ${pending} more answer${pending > 1 ? 's' : ''} first.` : 'All marked.'}</span></div>`;
   }
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
   return h;
@@ -821,7 +821,7 @@ function renderPaperEntry() {
   return `<div class="row"><button type="button" class="btn ghost" data-act="paper-entry-cancel">← 返回</button><p class="h2 grow">${esc(p.title)} · 录入纸上结果</p></div>
   ${exs.map((e, i) => `${(e.setId && (i === 0 || exs[i - 1].setId !== e.setId)) ? materialBlock(setById(e.setId), true) : ''}<article class="sheet">${questionBody(e, { key: 'e' + i, no: i + 1, locked: true })}${solutionBlock(e)}
     <div class="selfmark" role="group" aria-label="结果">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="entry-mark" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${E.results[e.id] === r}">${RESULT[r].sym} ${RESULT[r].zh}</button>`).join('')}</div></article>`).join('')}
-  <div class="row"><button type="button" class="btn primary" data-act="paper-entry-save" ${pending ? 'disabled' : ''}>保存结果</button><span class="small muted">${pending ? `还有 ${pending} 题没勾。` : '都勾好了。'}</span></div>
+  <div class="row"><button type="button" class="btn primary" data-act="paper-entry-save" ${(pending || E.saving) ? 'disabled' : ''}>${E.saving ? '保存中…' : '保存结果'}</button><span class="small muted">${pending ? `还有 ${pending} 题没勾。` : '都勾好了。'}</span></div>
   ${E.err ? `<p class="note err">${esc(E.err)}</p>` : ''}`;
 }
 
@@ -897,16 +897,24 @@ document.addEventListener('click', async ev => {
       }
       case 'paper-self': R.results[b.dataset.id] = b.dataset.r; render(); break;
       case 'paper-finish': {
+        // 每张卷每道题只写一次作答：保存中不再响应；卷子已出结果或该题已有本卷作答时跳过
+        if (R.saving) break;
         const p = S.papers.find(x => x.id === R.paperId);
+        if (p.status === 'done') { R.phase = 'done'; R.score = p.score || tally([]); render(); break; }
+        R.saving = true; R.err = null; render();
         const today = localToday(), res = [];
-        for (const id of p.exerciseIds) {
-          const e = exById(id); if (!e) continue;
-          const r = R.results[id]; res.push(r);
-          await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
-        }
-        const score = tally(res);
-        await S.db.doc('papers/' + p.id).update({ status: 'done', score });
-        R.phase = 'done'; R.score = score; render(); window.scrollTo(0, 0); break;
+        try {
+          for (const id of p.exerciseIds) {
+            const e = exById(id); if (!e) continue;
+            const r = R.results[id]; res.push(r);
+            if ((e.attempts || []).some(a => a.paperId === p.id)) continue;
+            await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
+          }
+          const score = tally(res);
+          await S.db.doc('papers/' + p.id).update({ status: 'done', score });
+          R.phase = 'done'; R.score = score;
+        } finally { R.saving = false; }
+        render(); window.scrollTo(0, 0); break;
       }
 
       case 'recognise': await recognise(); break;
@@ -965,12 +973,18 @@ document.addEventListener('click', async ev => {
       case 'entry-mark': S.paperEntry.results[b.dataset.id] = b.dataset.r; render(); break;
       case 'paper-entry-save': {
         const E = S.paperEntry, p = S.papers.find(x => x.id === E.paperId), today = localToday(), res = [];
-        for (const id of p.exerciseIds) {
-          const e = exById(id); if (!e) continue;
-          res.push(E.results[id]);
-          await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: '', result: E.results[id], judgedBy: 'parent' });
-        }
-        await S.db.doc('papers/' + p.id).update({ status: 'done', score: tally(res) });
+        if (E.saving) break;
+        if (p.status === 'done') { S.paperEntry = null; S.paperMsg = { kind: 'err', text: '这张卷已经有结果了，没有重复保存。' }; render(); break; }
+        E.saving = true; E.err = null; render();
+        try {
+          for (const id of p.exerciseIds) {
+            const e = exById(id); if (!e) continue;
+            res.push(E.results[id]);
+            if ((e.attempts || []).some(a => a.paperId === p.id)) continue;
+            await addAttempt(e, { date: today, mode: 'paper', paperId: p.id, response: '', result: E.results[id], judgedBy: 'parent' });
+          }
+          await S.db.doc('papers/' + p.id).update({ status: 'done', score: tally(res) });
+        } finally { E.saving = false; }
         S.paperEntry = null; S.paperMsg = { kind: 'ok', text: '纸上结果已保存，阶梯已更新。' }; render(); break;
       }
       case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
