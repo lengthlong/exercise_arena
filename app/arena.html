@@ -438,9 +438,19 @@ function handedInAt(paper, view, uid) {
   for (const e of view) for (const a of e.attempts || []) if (a.paperId === paper.id) { const t = a.at || a.date; if (t && (!last || t > last)) last = t; }
   return last;
 }
-function papersToDo(papers, view, defaultOwner, uid) {
-  // Today 列出的检验卷：归属人等于我的默认归属人、我还没交过；每日卷不在其中
-  return papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !handedInAt(p, view, uid));
+function todayPapers(papers, view, defaultOwner, uid, today) {
+  // Today 的 Check papers：默认归属人的检验卷中我没交的，加我今天交的；没交的在前、组卷日期新的在前，交过的在后、交卷早的在前
+  const at = p => handedInAt(p, view, uid);
+  const open = papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !at(p))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(a.id).localeCompare(String(b.id)));
+  const done = papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && at(p) && String(at(p)).slice(0, 10) === today)
+    .sort((a, b) => String(at(a)).localeCompare(String(at(b))) || String(a.id).localeCompare(String(b.id)));
+  return open.concat(done);
+}
+function paperProgress(paper, view) {
+  // 卷上仍在的题数，与其中我在本卷有作答的题数
+  const rows = paperAttempts(paper, view).filter(r => r.ex);
+  return { done: rows.filter(r => r.attempt).length, total: rows.length };
 }
 function visiblePapers(papers, view, uid) {
   // 卷子列表：全部检验卷，加我交过的每日卷；没交的每日卷不列（再开始重做时会被删掉换新）
@@ -454,10 +464,14 @@ function subjectBatch(todo, today, limit, subject) {
   // 这一科此刻的一批：只在这一科的错题里按 dailyList 的到期、排序与题组规则装到一批为止（每科各算一批）
   return dailyList(todo.filter(e => e.subject === subject), today, limit);
 }
+function dueNowIds(todo, today) {
+  // 此刻全部到期的题：未掌握、due 不晚于今天（不按一批截断）
+  return todo.filter(e => !e.mastered && e.due && e.due <= today).map(e => e.id);
+}
 function todayCounts(todo, today, leftIds) {
-  // Today 的「已做/一共」：已做是我今天做过的题（每日卷、检验卷都算，一题一次）；一共是已做与还要做（leftIds）的并集；不在 todo 的 id 不计
+  // Today 的「已做/一共」：已做是每日重做上今天做过的题（检验卷不算），一题一次；一共是已做与 leftIds 的并集；不在 todo 的 id 不计
   const byId = Object.fromEntries(todo.map(e => [e.id, e]));
-  const done = new Set(todo.filter(e => (e.attempts || []).some(a => a.date === today)).map(e => e.id));
+  const done = new Set(todo.filter(e => (e.attempts || []).some(a => a.date === today && a.mode !== 'paper')).map(e => e.id));
   const all = new Set(done);
   for (const id of leftIds || []) if (byId[id]) all.add(id);
   const count = (set, s) => [...set].filter(id => byId[id].subject === s).length;
@@ -686,11 +700,11 @@ function readSettings(v, uid) {
     defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
 function dueByDay(todo, today) {
-  // Next 7 days：从今天起 7 天每天到期的题数；今天含过期，其后各天为 due 等于那天；已掌握不算
+  // Next 7 days：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；其后各天为 due 等于那天
   const open = todo.filter(e => !e.mastered && e.due);
   return Array.from({ length: 7 }, (_, i) => {
     const date = addDays(today, i);
-    return { date, count: open.filter(e => i === 0 ? e.due <= date : e.due === date).length };
+    return { date, count: i === 0 ? todayCounts(todo, today, dueNowIds(todo, today)).total.all : open.filter(e => e.due === date).length };
   });
 }
 function weekStart(today) {
@@ -949,12 +963,13 @@ function renderPractice() {
   }
   const sc = todayScope(S.exercises, S.me, S.settings.defaultOwner);
   const redo = redoButtons(sc.todo, today);
-  const open = papersToDo(S.papers, sc.done, S.settings.defaultOwner, S.me).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
+  const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
+  const open = cps.filter(p => !handedInAt(p, sc.done, S.me));
   const db = dashboardData(sc.todo, sc.done, today);
   const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
   const checks = goalChecks(week, S.settings);
   return helloBlock(dateLine, db, encouragement(db, redo.length > 0 || open.length > 0))
-    + todayBlock(today, redo, open, sc.todo)
+    + todayBlock(today, redo, cps, sc.todo, sc.done)
     + planBlock(dueByDay(sc.todo, today), today, sc.done, week, checks)
     + reviewBlock(week, checks)
     + progressBlock(db);
@@ -982,15 +997,15 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, open, todo) {
-  // n 是各按钮题数之和；大数字与按钮写「已做/一共」（已做含检验卷上做的题）；某科没有要做的、但今天做过时出打勾标签
+function todayBlock(today, redo, cps, todo, view) {
+  // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
-  const tc = todayCounts(todo, today, redo.flatMap(b => b.ids));
+  const tc = todayCounts(todo, today, dueNowIds(todo, today));
   const frac = c => `${c.done}/${c.all}`;
   const subjC = Object.fromEntries(tc.bySubject);
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
-  // 还有要做的题时不出标题（大数字已说明已做/一共），只说还剩的是什么题、主要哪些专题；没有要做的题时标题说做完了或今天没有
+  // 还有要做的题时不出标题（大数字已说明已做/一共），只说这一批是什么题、主要哪些专题；没有要做的题时标题说做完了或今天没有
   const head = n ? '' : tc.total.done ? 'All caught up for today!' : 'Nothing due today';
   const mix = leftMix(todo, redo.flatMap(b => b.ids));
   const kinds = [[mix.missed, 'missed last time'], [mix.review, 'to review'], [mix.first, mix.first === 1 ? 'first redo' : 'first redos']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
@@ -1004,13 +1019,14 @@ function todayBlock(today, redo, open, todo) {
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
-  if (open.length) {
-    h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
-      <button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">
-        <span class="t">${esc(p.title)}</span>
-        <span class="side"><span>${p.exerciseIds.length} questions</span></span>
-        <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
-      </button>`).join('')}</div></div>`;
+  if (cps.length) {
+    // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
+    h += `<div class="today-papers"><p class="h3">Check papers</p><div class="list">${cps.map(p => {
+      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
+      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
+      const body = `<span class="t">${esc(p.title)}</span>${side}<span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>`;
+      return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
+    }).join('')}</div></div>`;
   }
   return h + `</section>`;
 }
