@@ -1,5 +1,1 @@
 .DS_Store
-/.agents/skills/design-*
-!/.agents/skills/design-writing
-/.claude/skills/design-*
-!/.claude/skills/design-writing

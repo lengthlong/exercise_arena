@@ -1,6 +1,6 @@
 <!--
   Sophia's Exercise Arena — 练习场页面（实现）。
-  设计：design/arena/README.md、design/arena/TAXONOMY.md、domain/OVERVIEW.md。
+  数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
   能力：db、assets、sample（images）、downloads。
 -->
@@ -230,12 +230,12 @@ details.photos[open] > summary { margin-bottom: 6px; }
 <div class="wrap" id="app"></div>
 
 <script>
-/* ---------- 归类体系（见 design/arena/TAXONOMY.md）---------- */
+/* ---------- 归类体系（来源见 DATA.md「归类体系」）---------- */
 const TAX = /*TAXONOMY:BEGIN*/{"english":{"layers":[["V","动词","Verbs"],["W","词类","Word classes"],["S","句子","Sentences"],["M","书写","Mechanics"],["X","词汇","Vocabulary"]],"topics":[["en-tense","V","时态","Tenses"],["en-sva","V","主谓一致","Subject-verb agreement"],["en-voice","V","主动与被动","Active & passive voice"],["en-verbforms","V","非谓语与情态","Gerunds, infinitives & modals"],["en-noun","W","名词与冠词","Nouns & articles"],["en-pron","W","代词","Pronouns"],["en-prep","W","介词","Prepositions"],["en-adj","W","形容词与副词","Adjectives & adverbs"],["en-conj","W","连接词","Connectors"],["en-qtag","S","反意疑问句","Question tags"],["en-cond","S","条件句","Conditionals"],["en-speech","S","直接与间接引语","Direct & reported speech"],["en-synth","S","句子合并与改写","Synthesis & transformation"],["en-spell","M","拼写","Spelling"],["en-punct","M","标点","Punctuation"],["en-vocab","X","词汇与搭配","Vocabulary & collocations"]],"concepts":[["en-t-simpres","en-tense","一般现在时","Simple present"],["en-t-prescont","en-tense","现在进行时","Present continuous"],["en-t-simpast","en-tense","一般过去时","Simple past"],["en-t-pastcont","en-tense","过去进行时","Past continuous"],["en-t-presperf","en-tense","现在完成时","Present perfect"],["en-t-pastperf","en-tense","过去完成时","Past perfect"],["en-t-future","en-tense","将来时","Future"],["en-sva-eithor","en-sva","either/neither…or/nor","Either/neither…or/nor"],["en-sva-each","en-sva","each/every/everyone","Each, every, everyone"],["en-sva-collective","en-sva","集合名词","Collective nouns"],["en-sva-oneof","en-sva","one of the…","One of the…"],["en-sva-distance","en-sva","远离主语的谓语","Verb far from subject"],["en-v-form","en-voice","被动语态的构成","Forming the passive"],["en-v-tense","en-voice","被动语态的时态","Passive in different tenses"],["en-vf-gerund","en-verbforms","动名词","Gerunds"],["en-vf-inf","en-verbforms","不定式","Infinitives"],["en-vf-modal","en-verbforms","情态动词","Modal verbs"],["en-n-count","en-noun","可数与不可数","Countable & uncountable"],["en-n-article","en-noun","a/an/the","Articles"],["en-n-quant","en-noun","量词","Quantifiers"],["en-p-personal","en-pron","人称与物主代词","Personal & possessive"],["en-p-reflexive","en-pron","反身代词","Reflexive"],["en-p-relative","en-pron","关系代词","Relative pronouns"],["en-pp-timeplace","en-prep","时间与地点介词","Time & place"],["en-pp-fixed","en-prep","固定搭配介词","Fixed prepositions"],["en-a-compare","en-adj","比较级与最高级","Comparatives & superlatives"],["en-a-wordform","en-adj","词形变化","Word forms"],["en-c-coord","en-conj","并列与转折","Adding & contrasting"],["en-c-cause","en-conj","原因与结果","Cause & effect"],["en-c-condition","en-conj","条件与让步","Condition & concession"],["en-q-pos","en-qtag","肯定句接否定尾","Positive → negative tag"],["en-q-special","en-qtag","否定词与特殊主语","Negative words & special subjects"],["en-cd-real","en-cond","真实条件","Real conditions"],["en-cd-unreal","en-cond","虚拟条件","Unreal conditions"],["en-s-backshift","en-speech","时态后移","Tense backshift"],["en-s-pronoun","en-speech","人称与时间地点词","Pronouns, time & place words"],["en-s-question","en-speech","间接疑问句","Reported questions"],["en-sy-despite","en-synth","Despite / In spite of","Despite / In spite of"],["en-sy-although","en-synth","Although / Even though","Although / Even though"],["en-sy-neither","en-synth","Neither…nor","Neither…nor"],["en-sy-notonly","en-synth","Not only…but also","Not only…but also"],["en-sy-nosooner","en-synth","No sooner…than","No sooner…than"],["en-sy-tooto","en-synth","too…to / so…that","Too…to / so…that"],["en-sy-unless","en-synth","Unless","Unless"],["en-sy-relative","en-synth","关系从句合并","Joining with relative clauses"],["en-sy-instead","en-synth","Instead of","Instead of"],["en-sy-passive","en-synth","被动改写","Rewriting in the passive"],["en-sy-reported","en-synth","间接引语改写","Rewriting as reported speech"],["en-sp-common","en-spell","常错拼写","Commonly misspelt words"],["en-sp-suffix","en-spell","加后缀的拼写","Adding suffixes"],["en-pu-quote","en-punct","引号与逗号","Quotation marks & commas"],["en-pu-apos","en-punct","撇号","Apostrophes"],["en-vo-phrasal","en-vocab","短语动词","Phrasal verbs"],["en-vo-idiom","en-vocab","习语","Idioms"],["en-vo-synonym","en-vocab","近义词辨析","Similar words"]],"qtypes":[["en-qt-gmcq","语法选择","Grammar MCQ"],["en-qt-vmcq","词汇选择","Vocabulary MCQ"],["en-qt-vcloze","词汇完形","Vocabulary cloze"],["en-qt-visual","图文理解","Visual text comprehension"],["en-qt-gcloze","语法完形","Grammar cloze"],["en-qt-editing","改错（拼写与语法）","Editing (spelling & grammar)"],["en-qt-ccloze","理解完形","Comprehension cloze"],["en-qt-synth","句子合并与改写","Synthesis & transformation"],["en-qt-compoe","阅读理解问答","Comprehension open-ended"]]},"math":{"layers":[["W","整数与钱","Whole numbers & money"],["F","分数与小数","Fractions & decimals"],["R","百分比、比与比率","Percentage, ratio & rate"],["A","规律与代数","Patterns & algebra"],["M","测量","Measurement"],["G","几何","Geometry"],["S","统计","Statistics"],["P","解题方法","Problem solving"]],"topics":[["W-num","W","数的认识","Numbers & place value"],["W-ops","W","四则运算","Four operations"],["W-fm","W","因数与倍数","Factors & multiples"],["W-money","W","钱","Money"],["F-frac","F","分数","Fractions"],["F-dec","F","小数","Decimals"],["R-pct","R","百分比","Percentage"],["R-ratio","R","比","Ratio"],["R-rate","R","比率","Rate"],["A-pat","A","规律","Patterns"],["A-alg","A","代数","Algebra"],["M-len","M","长度、质量与容量","Length, mass & volume"],["M-time","M","时间","Time"],["M-area","M","面积与周长","Area & perimeter"],["M-vol","M","体积","Volume"],["M-circ","M","圆","Circles"],["G-shape","G","平面与立体图形","2D & 3D shapes"],["G-angle","G","角与线","Angles & lines"],["G-poly","G","三角形与四边形","Triangles & quadrilaterals"],["G-sym","G","对称与展开图","Symmetry & nets"],["S-graph","S","统计图表","Graphs & tables"],["S-avg","S","平均数","Average"],["P-steps","P","解题步骤与书写","Steps & presentation"],["P-rep","P","画图与列表","Give a representation"],["P-guess","P","有根据地猜","Make a calculated guess"],["P-walk","P","走一遍过程","Walk through the process"],["P-change","P","改变问题","Change the problem"]],"concepts":[["w-place","W-num","数位与读写","Place value"],["w-round","W-num","四舍五入与估算","Rounding & estimation"],["w-addsub","W-ops","加法与减法","Addition & subtraction"],["w-muldiv","W-ops","乘法与除法","Multiplication & division"],["w-order","W-ops","运算顺序","Order of operations"],["w-factors","W-fm","因数与公因数","Factors"],["w-multiples","W-fm","倍数与公倍数","Multiples"],["w-money","W-money","钱","Money"],["f-meaning","F-frac","分数的意义","Fraction of a whole"],["f-compare","F-frac","比较分数","Comparing fractions"],["f-equiv","F-frac","等值分数与最简分数","Equivalent fractions"],["f-mixed","F-frac","带分数与假分数","Mixed numbers"],["f-ofset","F-frac","一组的几分之几","Fraction of a set"],["f-addsub","F-frac","分数加减","Adding & subtracting fractions"],["f-fracdiv","F-frac","分数与除法","Fractions as division"],["f-muldiv","F-frac","分数乘除","Multiplying & dividing fractions"],["f-decplace","F-dec","小数的数位","Decimal place value"],["f-fracdec","F-dec","分数与小数互化","Fractions ↔ decimals"],["f-decround","F-dec","小数的取近似值","Rounding decimals"],["f-decops","F-dec","小数四则运算","Operations on decimals"],["r-pct","R-pct","百分比的意义","Percentage"],["r-gst","R-pct","折扣、消费税与年利率","Discount, GST & interest"],["r-pctwhole","R-pct","已知部分求整体","Finding the whole"],["r-pctchange","R-pct","增加或减少的百分比","Percentage change"],["r-ratio","R-ratio","比的意义","Ratio"],["r-equiv","R-ratio","等值比与最简比","Equivalent ratios"],["r-divide","R-ratio","按比分配","Dividing in a ratio"],["r-fracratio","R-ratio","比与分数","Ratio & fraction"],["r-rate","R-rate","比率","Rate"],["a-numpattern","A-pat","数的规律","Number patterns"],["a-shapepattern","A-pat","图形的规律","Shape patterns"],["a-letter","A-alg","用字母表示数","Letters for unknowns"],["a-expr","A-alg","化简与代入","Simplifying & substituting"],["a-equation","A-alg","简单方程","Simple equations"],["m-units","M-len","单位与测量","Units of measurement"],["m-convert","M-len","单位换算（小数）","Converting units"],["m-clock","M-time","读钟与 24 小时制","Telling time"],["m-duration","M-time","经过的时间","Duration"],["m-perimeter","M-area","周长","Perimeter"],["m-area-rect","M-area","长方形与正方形面积","Area of rectangles"],["m-triangle-area","M-area","三角形面积","Area of triangles"],["m-composite","M-area","组合图形面积","Composite figures"],["m-cube","M-vol","正方体与长方体体积","Volume of cuboids"],["m-volliquid","M-vol","水箱里的液体","Liquid in a tank"],["m-dimension","M-vol","已知体积求边长","Finding a dimension"],["m-circum","M-circ","圆周长","Circumference"],["m-circle-area","M-circ","圆面积","Area of a circle"],["g-2d","G-shape","平面图形","2D shapes"],["g-3d","G-shape","立体图形","3D shapes"],["g-angle","G-angle","角与量角","Angles"],["g-lines","G-angle","垂直与平行","Perpendicular & parallel lines"],["g-anglerules","G-angle","角的关系","Angle properties"],["g-rectsq","G-poly","长方形与正方形的性质","Rectangles & squares"],["g-triangle","G-poly","三角形","Triangles"],["g-quad","G-poly","平行四边形、菱形和梯形","Special quadrilaterals"],["g-symmetry","G-sym","线对称","Line symmetry"],["g-nets","G-sym","展开图","Nets"],["s-picture","S-graph","象形统计图","Picture graphs"],["s-bar","S-graph","条形图","Bar graphs"],["s-table","S-graph","表格","Tables"],["s-line","S-graph","折线图","Line graphs"],["s-pie","S-graph","扇形图","Pie charts"],["s-average","S-avg","平均数","Average"],["p-star","P-steps","解题四步","Four steps"],["p-equation","P-steps","写清算式","Showing working"],["p-check","P-steps","检查答案","Checking"],["p-calc","P-steps","用计算器","Using a calculator"],["p-model-pw","P-rep","模型：部分与整体","Part-whole model"],["p-model-cmp","P-rep","模型：比较","Comparison model"],["p-units","P-rep","单位与份数","Units & parts"],["p-list","P-rep","系统列表","Systematic list"],["p-guess","P-guess","猜测与检验","Guess & check"],["p-suppose","P-guess","假设法","Make a supposition"],["p-pattern","P-guess","找规律","Look for patterns"],["p-backwards","P-walk","倒推","Work backwards"],["p-beforeafter","P-walk","变化前后","Before–after"],["p-simplify","P-change","简化、重述、分步解决","Simplify the problem"]],"qtypes":[["qt-calc","卷一基础计算","Paper 1 computation"],["qt-pw","部分与整体、比较","Part-whole & comparison"],["qt-remainder","剩余部分的几分之几","Fraction of the remainder"],["qt-total","变化前后：总数不变","Before–after: constant total"],["qt-diff","变化前后：差不变","Before–after: constant difference"],["qt-allchange","变化前后：都变了","Before–after: everything changes"],["qt-suppose","假设法：鸡兔同笼","Supposition"],["qt-excess","盈亏问题","Excess & shortage"],["qt-equalfrac","等量分数","Equal fractions of two quantities"],["qt-backwards","倒推题","Working backwards"],["qt-pattern","图形与数的规律","Patterns"],["qt-pct","百分比应用","Percentage in context"],["qt-rate","比率与收费","Rates & charges"],["qt-tank","水箱与水位","Water tanks"],["qt-shaded","阴影面积与周长","Shaded area & perimeter"],["qt-angles","图形中的未知角","Unknown angles"],["qt-spatial","立体、展开图与对称","Solids, nets & symmetry"],["qt-average","平均数变化","Average problems"],["qt-data","读统计图","Reading graphs"],["qt-algebra","代数式与方程","Algebra"],["qt-fm","因数、倍数的应用","Factors & multiples in context"],["qt-time","时间与时长","Time & duration"]]},"science":{"layers":[["D","多样性","Diversity"],["C","循环","Cycles"],["S","系统","Systems"],["I","相互作用","Interactions"],["E","能量","Energy"],["P","科学探究","Science Practices"]],"topics":[["D-living","D","生物与非生物","Living & non-living things"],["D-mat","D","材料","Materials"],["C-life","C","生命周期","Life cycles"],["C-matter","C","物质","Matter"],["C-water","C","水","Water"],["C-repro","C","繁殖","Reproduction"],["S-plant4","S","植物系统","Plant system"],["S-human4","S","人体系统","Human system"],["S-plant5","S","植物的运输与气体交换","Plant respiratory & circulatory systems"],["S-human5","S","人体呼吸与循环","Human respiratory & circulatory systems"],["S-elec","S","电系统","Electrical system"],["I-mag","I","磁铁","Magnets"],["I-force","I","力","Interaction of forces"],["I-env","I","环境中的相互作用","Interactions within the environment"],["E-light","E","光","Light"],["E-heat","E","热","Heat"],["E-photo","E","光合作用","Photosynthesis"],["E-conv","E","能量转换","Energy conversion"],["P-design","P","设计实验","Designing investigations"],["P-data","P","处理数据","Analysing data"],["P-comm","P","解释与决定","Explaining & deciding"]],"concepts":[["d-living","D-living","生物的特征","Living things"],["d-plants","D-living","开花与不开花植物","Flowering & non-flowering plants"],["d-animals","D-living","动物的六大类","Animal groups"],["d-fungi","D-living","真菌","Fungi"],["d-bacteria","D-living","细菌","Bacteria"],["d-classify","D-living","分类与检索表","Classification & keys"],["d-materials","D-mat","常见材料","Common materials"],["d-props","D-mat","材料的特性","Properties of materials"],["c-plantlc","C-life","植物的生命周期","Plant life cycle"],["c-3stage","C-life","三阶段生命周期","Three-stage life cycle"],["c-4stage","C-life","四阶段生命周期","Four-stage life cycle"],["c-matter","C-matter","物质","Matter"],["c-states","C-matter","物质的三态","Three states of matter"],["c-measure","C-matter","测量质量与体积","Measuring mass & volume"],["c-melt","C-water","熔化与凝固","Melting & freezing"],["c-evap","C-water","蒸发","Evaporation"],["c-boil","C-water","沸腾","Boiling"],["c-cond","C-water","凝结","Condensation"],["c-watercycle","C-water","水循环","Water cycle"],["c-waterimp","C-water","水的重要性","Importance of water"],["c-cell","C-repro","细胞是生命的基本单位","The cell"],["c-spores","C-repro","孢子与种子","Spores & seeds"],["c-flower","C-repro","花的结构","Parts of a flower"],["c-pollination","C-repro","传粉","Pollination"],["c-fert","C-repro","受精","Fertilisation"],["c-dispersal","C-repro","果实与种子的传播","Seed dispersal"],["c-germ","C-repro","种子萌发","Germination"],["c-human-repro","C-repro","人的繁殖","Human reproduction"],["s-plantparts","S-plant4","植物各部分的功能","Plant parts"],["s-organsys","S-human4","人体器官系统","Organ systems"],["s-digestive","S-human4","消化系统","Digestive system"],["s-planttransport","S-plant5","植物的运输管道","Transport in plants"],["s-plantgas","S-plant5","植物的气体交换","Gas exchange in plants"],["s-resp","S-human5","呼吸系统","Respiratory system"],["s-circ","S-human5","循环系统","Circulatory system"],["s-circuit","S-elec","闭合电路","Closed circuit"],["s-conductors","S-elec","电的导体与绝缘体","Electrical conductors"],["s-series","S-elec","串联与并联","Series & parallel"],["i-magnet","I-mag","磁铁的性质","Properties of magnets"],["i-makemagnet","I-mag","制作磁铁","Making magnets"],["i-magnetuse","I-mag","磁铁的用途","Uses of magnets"],["i-force","I-force","力的作用效果","Effects of forces"],["i-friction","I-force","摩擦力","Frictional force"],["i-gravity","I-force","重力与重量","Gravity & weight"],["i-spring","I-force","弹簧弹力","Elastic spring force"],["i-factors","I-env","影响生存的环境因素","Environmental factors"],["i-hierarchy","I-env","种群、群落与生境","Populations & communities"],["i-foodchain","I-env","食物链","Food chain"],["i-foodweb","I-env","食物网与种群变化","Food web"],["i-adapt-struct","I-env","结构适应","Structural adaptations"],["i-adapt-behav","I-env","行为适应","Behavioural adaptations"],["i-man","I-env","人类对环境的影响","Man’s impact"],["e-seeing","E-light","我们怎样看见物体","How we see"],["e-straight","E-light","光沿直线传播","Light travels straight"],["e-shadow","E-light","影子","Shadows"],["e-heattemp","E-heat","热与温度","Heat & temperature"],["e-heatflow","E-heat","热的流动","Heat flow"],["e-gainlose","E-heat","吸热与放热的效果","Expansion & contraction"],["e-conductors","E-heat","热的良导体与不良导体","Conductors of heat"],["e-sun","E-photo","太阳是主要能量来源","The Sun"],["e-photosyn","E-photo","光合作用","Photosynthesis"],["e-respiration","E-photo","呼吸作用与能量","Respiration"],["e-forms","E-conv","能量的形式","Forms of energy"],["e-convert","E-conv","能量转换","Energy conversion"],["e-resources","E-conv","能源与节约能源","Energy resources"],["p-question","P-design","实验目的与假设","Aims & hypotheses"],["p-variables","P-design","变量","Variables"],["p-fairtest","P-design","公平测试","Fair test"],["p-control","P-design","对照组","Control set-up"],["p-reliable","P-design","让结果更可靠","Reliability"],["p-measure","P-data","仪器与测量","Apparatus & measurement"],["p-graphs","P-data","读表格和图表","Tables & graphs"],["p-infer","P-data","推断与预测","Inferring & predicting"],["p-cer","P-comm","主张、证据、推理","Claim–Evidence–Reasoning"],["p-model","P-comm","用图和模型表达","Models & diagrams"],["p-decide","P-comm","做出有依据的决定","Informed decisions"],["p-keywords","P-comm","题干指令词","Command words"]],"qtypes":[["qt-fair","实验设计与公平测试","Experimental design & fair test"],["qt-graph","读图表与数据分析","Tables & graphs"],["qt-classify","分类图与检索表","Classification charts & keys"],["qt-material","材料选择","Choosing materials"],["qt-lifecycle","生命周期图","Life cycle diagrams"],["qt-phenomena","解释日常现象","Explaining everyday phenomena"],["qt-states","状态变化与温度曲线","Changes of state & temperature graphs"],["qt-heat","热传递与保温实验","Heat transfer & insulation"],["qt-light","光与影","Light & shadows"],["qt-pathway","系统路径追踪","Tracing paths through systems"],["qt-body","系统协作：运动后的身体","Systems working together"],["qt-circuit","电路分析","Circuit analysis"],["qt-magnet","磁铁实验","Magnet investigations"],["qt-forces","力的分析","Forces in action"],["qt-repro","繁殖与传播","Reproduction & dispersal"],["qt-photo","光合作用与呼吸实验","Photosynthesis & respiration experiments"],["qt-foodweb","食物网与种群变化","Food webs & population changes"],["qt-adapt","适应与生存","Adaptations & survival"],["qt-energy","能量转换链","Energy conversion chains"],["qt-water","水循环与水资源","Water cycle & water resources"],["qt-impact","人类影响与做决定","Human impact & decisions"]]}}/*TAXONOMY:END*/;
 </script>
 
 <script>
-/* LOGIC:BEGIN — 纯函数：复习阶梯、判对、每日清单、抽题（design/arena/README.md） */
+/* LOGIC:BEGIN — 纯函数：复习阶梯、判对、每日清单、抽题、看板（断言见 app/logic.test.js） */
 const GAPS = [0, 1, 2, 4, 7];
 function pad2(n) { return String(n).padStart(2, '0'); }
 function localToday(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -365,7 +365,7 @@ function paperScore(paper, exs) {
 }
 function escRe(t) { return String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function mustUseCheck(answer, mustUse) {
-  // 提交前的提醒（design/arena/README.md「判对」）：只对 mustUse 非空的主观题；返回 null 表示不检查
+  // 提交前的提醒：只对 mustUse 非空的主观题；返回 null 表示不检查
   if (!mustUse || !mustUse.length) return null;
   const text = String(answer || ''), low = text.toLowerCase();
   const missing = [];
@@ -387,7 +387,7 @@ function mustUseCheck(answer, mustUse) {
   return { missing, multi };
 }
 function parseExplanation(text) {
-  // 讲解三段（design/arena/README.md「讲解格式」）：Key idea / Steps / Watch out；没有标记时按空行分段
+  // 讲解三段：Key idea / Steps / Watch out；没有标记时按空行分段
   const lines = String(text || '').split('\n');
   const out = { keyIdea: '', steps: [], watchOut: [], paras: [], structured: false };
   let cur = null;
@@ -413,7 +413,7 @@ function parseExplanation(text) {
 }
 function recordedKey(e) { return e.recordedAt || (e.createdAt ? e.createdAt + 'T00:00' : ''); }
 function sortExercises(list, key, dir) {
-  // 错题列表排序（D7、D9）：空值总在最后；并列按录入时间新的在前，再按 id
+  // 错题列表排序：空值总在最后；并列按录入时间新的在前，再按 id
   const val = e => key === 'recorded' ? recordedKey(e) : key === 'due' ? (e.due || null) : key === 'wrong' ? (e.wrongCount == null ? null : e.wrongCount) : key === 'last' ? (e.lastAttemptAt || null) : null;
   const sign = dir === 'asc' ? 1 : -1;
   return list.slice().sort((a, b) => {
@@ -461,7 +461,7 @@ function toYaml(v, ind) {
   return pad + yamlScalar(v);
 }
 function exportData(exs, sets, papers, settings, exportedAt) {
-  // 导出（D6）：字段原样、带 id；images 换成张数；papers.score 用算出的得分覆盖
+  // 导出：字段原样、带 id；images 换成张数；papers.score 用算出的得分覆盖
   const imgs = o => Object.assign({}, o, { images: Array.isArray(o.images) ? o.images.length : 0 });
   return {
     exportedAt,
@@ -473,7 +473,7 @@ function exportData(exs, sets, papers, settings, exportedAt) {
 }
 const MILESTONES = [10, 25, 50, 100];
 function streakInfo(exs, today) {
-  // 连续天数（design/arena/README.md「进度看板」）：按作答的 date 计天；今天还没有作答时从昨天往回数
+  // 连续天数：按作答的 date 计天；今天还没有作答时从昨天往回数
   const days = new Set();
   for (const e of exs) for (const a of e.attempts || []) if (a.date) days.add(a.date);
   const doneToday = days.has(today);
@@ -528,7 +528,7 @@ function dashboardData(exs, today) {
     streak: st.streak, doneToday: st.doneToday, todayRight: t.right, todayAny: t.right + t.partial + t.wrong };
 }
 function encouragement(d, hasWork) {
-  // 鼓励语（D7）：按顺序取第一条成立的
+  // 鼓励语：按顺序取第一条成立的
   const tail = d.streak >= 2 ? ` ${d.streak}-day streak, keep it going!` : '';
   if (d.newMasteredToday > 0) return `You mastered ${d.newMasteredToday} today!` + tail;
   if (d.todayRight > 0) return `${d.todayRight} right today — nice work!` + tail;
@@ -599,7 +599,7 @@ const S = {
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
 
-/* ---------- 题组（design/arena/README.md） ---------- */
+/* ---------- 题组 ---------- */
 function setById(id) { return S.sets.find(x => x.id === id); }
 function liveSets(subject) { return S.sets.filter(x => x.subject === subject && S.exercises.some(e => e.setId === x.id)); }
 function nextPos(setId) {
@@ -613,7 +613,7 @@ async function cleanupSet(setId, goneId) {
   if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
 }
 function photosBlock(ids, alt) {
-  // 照片默认收起（D2）：「Show photo (n)」，点开才显示
+  // 照片默认收起：「Show photo (n)」，点开才显示
   if (!ids || !ids.length) return '';
   return `<details class="photos"><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
 }
@@ -698,7 +698,7 @@ function renderPractice() {
   return h;
 }
 
-/* ---------- 进度看板（design/arena/README.md「进度看板」） ---------- */
+/* ---------- 进度看板 ---------- */
 function cheerBlock(db, message) {
   const badges = db.badges.map(m => `<span class="badge earned" title="Milestone: ${m} mastered">★ ${m} mastered</span>`).join('');
   const nextB = db.next ? `<span class="badge next">Next badge: ${db.next} mastered · ${db.toGo} to go</span>` : '';
@@ -785,7 +785,7 @@ function questionBody(e, opts) {
       return `<button type="button" class="opt${cls}" data-act="pick" data-key="${esc(o.key)}" data-v="${L}" aria-pressed="${r === L}" ${o.locked ? 'disabled' : ''}><span class="l">(${i + 1})</span><span>${esc(t)}</span></button>`;
     }).join('')}</div>`;
   } else if (e.format === 'pick' && bankOf(e).length) {
-    // 选词：词表作为作答按钮（D5），点选的词即回答
+    // 选词：词表作为作答按钮，点选的词即回答
     h += `<div class="small muted">Choose from the word bank</div><div class="bank" role="group" aria-label="Word bank">${bankOf(e).map(w => {
       let cls = '';
       if (o.showCorrect) { if (normAnswer(w) === normAnswer(e.answer)) cls = ' is-right'; else if (w === r) cls = ' is-wrong'; }
@@ -1157,7 +1157,7 @@ function renderPapers() {
 
 const JUDGE = { auto: '自动', self: '自评', parent: '改判' };
 function renderPaperSheet(paperId) {
-  // 检验卷详情（可改判）：design/arena/README.md「检验卷」
+  // 检验卷详情（可改判）
   const p = S.papers.find(x => x.id === paperId);
   const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← 返回检验卷</button>`;
   if (!p) return `<div class="row">${back}</div><p class="note">这张检验卷已删除。</p>`;
@@ -1549,7 +1549,7 @@ async function recognise() {
   render();
 }
 
-/* ---------- 导出（design/arena/README.md「导出」） ---------- */
+/* ---------- 导出 ---------- */
 async function exportAll() {
   const now = nowLocal();
   const data = exportData(S.exercises, S.sets, S.papers, S.settings, now);
