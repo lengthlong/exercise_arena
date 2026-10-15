@@ -167,12 +167,12 @@ assert.deepStrictEqual({ ...dd.ladder }, { 1: 2, 2: 1, 3: 0, 4: 0, mastered: 2 }
 assert.deepStrictEqual([dd.peak, Array.from(dd.badges), dd.next, dd.toGo], [2, [], 10, 8]);
 // 鼓励语各分支
 const base = { streak: 0, newMasteredToday: 0, todayRight: 0, todayAny: 0 };
-assert.strictEqual(L.encouragement(Object.assign({}, base, { newMasteredToday: 2, todayRight: 5, todayAny: 5, streak: 3 }), true), 'You mastered 2 today! 3-day streak, keep it going!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { todayRight: 4, todayAny: 6, streak: 1 }), true), '4 right today — nice work!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { todayAny: 3, streak: 5 }), true), 'You practised today — every mistake helps you learn!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { streak: 4 }), true), "Do today's redo to keep your 4-day streak!");
-assert.strictEqual(L.encouragement(base, true), "Start today's redo to begin a streak!");
-assert.strictEqual(L.encouragement(base, false), 'All caught up. See you tomorrow!');
+assert.strictEqual(L.encouragement(Object.assign({}, base, { newMasteredToday: 2, todayRight: 5, todayAny: 5, streak: 3 }), true), 'Mastered 2 today!');
+assert.strictEqual(L.encouragement(Object.assign({}, base, { todayRight: 4, todayAny: 6, streak: 1 }), true), '4 right today!');
+assert.strictEqual(L.encouragement(Object.assign({}, base, { todayAny: 3, streak: 5 }), true), 'Good practice today!');
+assert.strictEqual(L.encouragement(Object.assign({}, base, { streak: 4 }), true), 'Keep the streak!');
+assert.strictEqual(L.encouragement(base, true), 'Start a streak today!');
+assert.strictEqual(L.encouragement(base, false), 'All caught up!');
 // 里程碑
 const mast27 = Array.from({ length: 27 }, () => ({ attempts: four(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']), mastered: true, step: 4 }));
 const dm = L.dashboardData(mast27, mast27, T0);

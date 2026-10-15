@@ -679,13 +679,12 @@ function dashboardData(todo, done, today) {
     streak: st.streak, doneToday: st.doneToday, todayRight: t.right, todayAny: t.right + t.partial + t.wrong };
 }
 function encouragement(d, hasWork) {
-  // 鼓励语：按顺序取第一条成立的
-  const tail = d.streak >= 2 ? ` ${d.streak}-day streak, keep it going!` : '';
-  if (d.newMasteredToday > 0) return `You mastered ${d.newMasteredToday} today!` + tail;
-  if (d.todayRight > 0) return `${d.todayRight} right today — nice work!` + tail;
-  if (d.todayAny > 0) return 'You practised today — every mistake helps you learn!';
-  if (hasWork) return d.streak > 0 ? `Do today's redo to keep your ${d.streak}-day streak!` : "Start today's redo to begin a streak!";
-  return 'All caught up. See you tomorrow!';
+  // 鼓励语：按顺序取第一条成立的；要短，和连续天数放在一行（连续几天写在后面的小字里）
+  if (d.newMasteredToday > 0) return `Mastered ${d.newMasteredToday} today!`;
+  if (d.todayRight > 0) return `${d.todayRight} right today!`;
+  if (d.todayAny > 0) return 'Good practice today!';
+  if (hasWork) return d.streak > 0 ? 'Keep the streak!' : 'Start a streak today!';
+  return 'All caught up!';
 }
 /* ---------- 设置、计划与回顾 ---------- */
 const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
@@ -979,13 +978,13 @@ function renderPractice() {
 /* 问候、鼓励语、连续天数与徽章 */
 function hiLine() { const n = S.names[S.me]; return n ? `Hi ${esc(n)}` : 'Hi'; }
 function helloBlock(dateLine, db, message) {
-  // 两行：问候与日期；鼓励语接着连续天数、已得徽章与下一个徽章（窄屏时自动折行）
-  const keep = db.doneToday || !db.streak ? '' : ' · do today to keep it';
-  const stars = db.badges.map(m => ` <span class="star" title="Milestone: ${m} mastered">★${m}</span>`).join('');
-  const nextB = db.next ? ` · Next badge in ${db.toGo}` : '';
+  // 两行：问候与日期；鼓励语接着连续天数、最高的徽章与下一个徽章（都写短，手机上尽量一行；放不下时折行）
+  const top = db.badges[db.badges.length - 1];
+  const stars = top ? ` <span class="star" title="Milestones: ${db.badges.join(', ')} mastered">★${top}</span>` : '';   // 只显示最高的徽章，悬停看全部
+  const nextB = db.next ? ` · next ★ in ${db.toGo}` : '';
   return `<section class="hello" aria-label="Hello">
     <div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div>
-    <p class="hello-line"><span class="cheer-msg">${esc(message)}</span> <span class="hello-meta">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'} in a row${keep}${stars}${nextB}</span></p>
+    <p class="hello-line"><span class="cheer-msg">${esc(message)}</span> <span class="hello-meta" title="${db.streak}-day streak; ★ badges at 10, 25, 50 and 100 mastered">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'}${stars}${nextB}</span></p>
   </section>`;
 }
 
