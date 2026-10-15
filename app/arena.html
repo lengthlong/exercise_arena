@@ -786,7 +786,7 @@ function weekTips(plan, week, checks, settings, topicName) {
   const tips = [];
   if (plan.clearOn === null) {
     tips.push(plan.needLimit
-      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — change the daily limit in Settings.`
+      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — raise Questions per batch in Settings.`
       : `${are(plan.waiting)} waiting — do your redo every day, oldest first.`);
   } else if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
   if (unmet('days')) tips.push(`Little and often: aim for ${settings.practiceDays} days a week — you practised on ${week.practised} of the last 7.`);
@@ -1562,7 +1562,7 @@ function renderSettings() {
       <p class="small muted">Today's redo and new check papers use this person's exercises, and new exercises are recorded under them.</p>
     </div>
     <div class="set-group"><p class="h3">Daily redo</p>
-      <label class="f"><span>Questions per day (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
+      <label class="f"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
     </div>
     <div class="set-group"><p class="h3">Weekly goal</p>
       <div class="grid2">
@@ -1735,7 +1735,7 @@ document.addEventListener('click', async ev => {
       case 'save-settings': {
         const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
         await S.db.doc('settings/' + S.me).set(v);
-        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} a day; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'check paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
+        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} per batch; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'check paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
       }
     }
   } catch (err) {

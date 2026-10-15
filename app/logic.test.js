@@ -273,7 +273,7 @@ assert.deepStrictEqual(Array.from(L.weekTips(okPlan, wr, ch, S6, nameT)), [
   'Little and often: aim for 6 days a week — you practised on 4 of the last 7.',
   'Make a check paper on en-prep.']);                                    // 最多 3 条，④ 被挤掉
 assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 65, needLimit: 30 }, wr, ch, S6, nameT)).slice(0, 1),
-  ['65 questions are waiting. Doing 30 a day clears them in the next 7 days — change the daily limit in Settings.']);
+  ['65 questions are waiting. Doing 30 a day clears them in the next 7 days — raise Questions per batch in Settings.']);
 assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 400, needLimit: null }, wr, ch, S6, nameT)).slice(0, 1),
   ['400 questions are waiting — do your redo every day, oldest first.']);
 // 天数、检验卷都达到、没有过期：只剩 ④；错 3 次出 ④，2 次不出
