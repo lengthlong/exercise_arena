@@ -478,9 +478,9 @@ function leftMix(todo, leftIds) {
   out.topics = out.topics.map((t, i) => [t, i]).sort((a, b) => b[0].n - a[0].n || a[1] - b[1]).map(x => x[0]);
   return out;
 }
-function makeDailyPaper(list, uid, owner, today, fmt, subject) {
-  // 每日卷：一个科目，按当天清单的顺序，只给 uid 做
-  return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today,
+function makeDailyPaper(list, uid, owner, today, fmt, subject, madeAt) {
+  // 每日卷：一个科目，按当天清单的顺序，只给 uid 做；madeAt 是生成时刻
+  return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today, madeAt: madeAt || null,
     subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
 }
 function openDailyPaper(papers, view, uid, today, subject) {
@@ -832,6 +832,8 @@ const plain = s => String(s || '').replace(/\[\[(.+?)\]\]/g, '$1');
 const nameOf = (s, kind, id) => (IDX[s] && IDX[s][kind][id]) || null;
 const topicLabel = (s, id) => { const t = nameOf(s, 'topic', id); return t ? t.en : (id || '—'); };
 const blobUrl = id => '/_blob/' + id;
+// 日期或时刻显示为「15 Oct」或「15 Oct 20:06」
+const fmtWhen = t => t ? fmtDate(String(t).slice(0, 10)) + (String(t).length > 10 ? ' ' + String(t).slice(11, 16) : '') : '—';
 const fmtDate = iso => { if (!iso) return '—'; const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
 const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Review ladder step ${e.step}">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
 const subjChip = s => `<span class="chip s-${esc(s)}">${esc(SUBJ[s] ? SUBJ[s].en : s)}</span>`;
@@ -1522,7 +1524,7 @@ function renderPapers() {
   else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
       <span class="t">${esc(p.title)}</span>
       <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
-      <span class="meta">${isDaily(p) ? `<span class="chip">Daily</span>${p.subject ? subjChip(p.subject) : ''}` : `${subjChip(p.subject)}<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
+      <span class="meta">${isDaily(p) ? `<span class="chip">Daily</span>${p.subject ? subjChip(p.subject) : ''}` : `${subjChip(p.subject)}<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${handedInAt(p, mine(), S.me) ? `<span class="num">Done ${esc(fmtWhen(handedInAt(p, mine(), S.me)))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
         ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">View details</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">Start</button>`}
         ${S.confirmDel === p.id ? `<span class="confirm">Delete this paper? Answers already given stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
       </span></div>`).join('')}</div>`;
@@ -1624,7 +1626,7 @@ document.addEventListener('click', async ev => {
           if (!subj) break;
           const list = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit).filter(e => e.subject === subj);
           if (!list.length) break;
-          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj);
+          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
           const ref = S.db.collection('papers').doc();
           await ref.set(doc);
           p = Object.assign({ id: ref.id }, doc);
@@ -1728,7 +1730,7 @@ document.addEventListener('click', async ev => {
       case 'paper-create': {
         const P = S.paperForm, today = localToday();
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
-        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
+        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
         await S.db.collection('papers').doc().set(doc);
         S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Check paper created.' }; render(); break;
       }

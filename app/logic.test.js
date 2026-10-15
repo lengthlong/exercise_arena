@@ -334,7 +334,8 @@ assert.strictEqual(L.goalProgress(pwA, [PX, PD2], '2026-10-12', '2026-10-18', 'u
 // 组卷排序：按卷子归属人的阶梯
 assert.deepStrictEqual(ids(L.drawPaper(L.viewFor(shared, 'uS'), { subject: 'science', topics: [], count: 1 })), ['v2']);   // Sophia 在 v2 错 3 次
 // 每日卷：按清单顺序生成，只给本人
-const dpx = L.makeDailyPaper([{ id: 'q2' }, { id: 'q4' }, { id: 's1' }], 'uA', 'uS', '2026-10-16', d => 'D' + d.slice(8), 'english');
+const dpx = L.makeDailyPaper([{ id: 'q2' }, { id: 'q4' }, { id: 's1' }], 'uA', 'uS', '2026-10-16', d => 'D' + d.slice(8), 'english', '2026-10-16T07:30');
+assert.strictEqual(dpx.madeAt, '2026-10-16T07:30');
 assert.deepStrictEqual([dpx.kind, dpx.for, dpx.owner, dpx.title, dpx.createdAt, dpx.subject, dpx.topics.length, dpx.count, Array.from(dpx.exerciseIds)],
   ['daily', 'uA', 'uS', 'English redo · D16', '2026-10-16', 'english', 0, 3, ['q2', 'q4', 's1']]);
 // 按科目分开：按 SUBJECTS 顺序（英文、数学、科学），组内保持清单顺序，题组不拆，空科目不出，各科之和等于清单
