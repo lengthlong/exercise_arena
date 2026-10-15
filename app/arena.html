@@ -457,6 +457,23 @@ function todayCounts(todo, today, leftIds) {
   return { total: { done: done.size, all: all.size },
     bySubject: SUBJECTS.map(([s]) => [s, { done: count(done, s), all: count(all, s) }]).filter(x => x[1].all) };
 }
+function leftMix(todo, leftIds) {
+  // 还要做的题是什么：第一次重做（我没作答过）、上次错了、复习（上次对或部分对）各几题；专题按题数多到少，并列按首次出现
+  const byId = Object.fromEntries(todo.map(e => [e.id, e]));
+  const out = { first: 0, missed: 0, review: 0, topics: [] }, seen = new Set(), tk = {};
+  for (const id of leftIds || []) {
+    const e = byId[id];
+    if (!e || seen.has(id)) continue;
+    seen.add(id);
+    const last = (e.attempts || [])[(e.attempts || []).length - 1];
+    if (!last) out.first++; else if (last.result === 'wrong') out.missed++; else out.review++;
+    const k = e.subject + '|' + e.topic;
+    if (!tk[k]) { tk[k] = { subject: e.subject, topic: e.topic, n: 0 }; out.topics.push(tk[k]); }
+    tk[k].n++;
+  }
+  out.topics = out.topics.map((t, i) => [t, i]).sort((a, b) => b[0].n - a[0].n || a[1] - b[1]).map(x => x[0]);
+  return out;
+}
 function makeDailyPaper(list, uid, owner, today, fmt, subject) {
   // 每日卷：一个科目，按当天清单的顺序，只给 uid 做
   return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today,
@@ -996,11 +1013,18 @@ function todayBlock(today, redo, open, todo) {
   const subjC = Object.fromEntries(tc.bySubject);
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
+  // 标题说明大数字：已做几题、还剩几题；下一行说还剩的是什么题、主要哪些专题
+  const head = n ? (tc.total.done ? `${tc.total.done} done · ${n} to go` : `${n} to go today`) : tc.total.done ? 'All done for today' : 'Nothing due today';
+  const mix = leftMix(todo, redo.flatMap(b => b.ids));
+  const kinds = [[mix.missed, 'missed last time'], [mix.review, 'to review'], [mix.first, mix.first === 1 ? 'first redo' : 'first redos']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
+  const tops = mix.topics.slice(0, 2).map(t => `${esc(topicLabel(t.subject, t.topic))} (${t.n})`);
+  const more = allDue > n ? ` · ${allDue - n} more due after these` : '';
+  const whatsLeft = `${kinds.join(' · ')}${more}${tops.length ? `<br>Mostly ${tops.join(' and ')}${mix.topics.length > 2 ? `, plus ${plural(mix.topics.length - 2, 'other topic')}` : ''}.` : ''}`;
   let h = `<section class="today" aria-label="Today">
     <div class="big num" aria-hidden="true">${tc.total.all ? `${tc.total.done}<span class="of">/${tc.total.all}</span>` : 0}</div>
     <div class="txt">
-      <p class="h2">${n ? `${plural(n, 'question')} to redo today` : tc.total.done ? 'All done for today' : 'Nothing due today'}</p>
-      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? (allDue > n ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
+      <p class="h2">${head}</p>
+      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject || ''}">${!b.subject ? `Continue today's redo · ${frac(tc.total)}` : `${b.paper ? 'Continue ' : ''}${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}`}</button>`).join('')}${redo.some(b => !b.subject) ? '' : tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (open.length) {
