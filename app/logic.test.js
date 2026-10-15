@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,paperDoneOn,papersToDo,rankView};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,papersToDo,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -185,10 +185,12 @@ assert.deepStrictEqual({ ...L.readSettings(null) }, { dailyLimit: 10, practiceDa
 assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 18 }) }, { dailyLimit: 18, practiceDays: 6, papersPerWeek: 1, defaultOwner: null });
 assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 0, practiceDays: 9, papersPerWeek: 0 }) }, { dailyLimit: 1, practiceDays: 7, papersPerWeek: 0, defaultOwner: null });
 assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 'x', practiceDays: -2, papersPerWeek: 5 }) }, { dailyLimit: 10, practiceDays: 1, papersPerWeek: 3, defaultOwner: null });
-// 默认归属人：用户 id 照读，缺省、空串、非字符串为 null（公开）
-assert.strictEqual(L.readSettings({ defaultOwner: 'u_S' }).defaultOwner, 'u_S');
-assert.strictEqual(L.readSettings({ defaultOwner: '' }).defaultOwner, null);
-assert.strictEqual(L.readSettings({ defaultOwner: 7 }).defaultOwner, null);
+// 默认归属人：用户 id 照读；缺省、空串、非字符串、null 都读成本人
+assert.strictEqual(L.readSettings({ defaultOwner: 'u_S' }, 'u_me').defaultOwner, 'u_S');
+assert.strictEqual(L.readSettings(null, 'u_me').defaultOwner, 'u_me');
+assert.strictEqual(L.readSettings({ defaultOwner: '' }, 'u_me').defaultOwner, 'u_me');
+assert.strictEqual(L.readSettings({ defaultOwner: 7 }, 'u_me').defaultOwner, 'u_me');
+assert.strictEqual(L.readSettings({ defaultOwner: null }, 'u_me').defaultOwner, 'u_me');
 // 计划：未来 7 天按上限做、假设都做对；做过的题按间隔回来
 const q = (id, due, step, extra) => Object.assign({ id, due, step, createdAt: '2026-10-01', mastered: false }, extra || {});
 let pf = L.planForecast([q('a', '2026-10-15', 1), q('b', '2026-10-15', 1), q('c', '2026-10-15', 1)], '2026-10-15', 2);
@@ -226,7 +228,7 @@ const pa = (paperId, date, atT) => Object.assign({ date, result: 'right', mode: 
 const gx = [{ attempts: [at('2026-10-12', 'right'), at('2026-10-13', 'wrong'), pa('G1', '2026-10-14', '2026-10-14T19:00'), pa('G2', '2026-10-12'), pa('G4', '2026-10-11', '2026-10-11T08:00')] },
   { attempts: [at('2026-10-13', 'right'), at('2026-10-11', 'right'), pa('G1', '2026-10-14', '2026-10-14T19:05')] }];
 const gp = [{ id: 'G1' }, { id: 'G2' }, { id: 'G3' }, { id: 'G4' }];
-assert.deepStrictEqual({ ...L.goalProgress(gx, gp, '2026-10-12', '2026-10-18') }, { days: 3, papers: 2 });
+assert.deepStrictEqual({ ...L.goalProgress(gx, gp, '2026-10-12', '2026-10-18', 'uS') }, { days: 3, papers: 2 });
 // 回顾：最近 7 天（含今天）
 const T1 = '2026-10-20';
 const rx = [
@@ -297,15 +299,12 @@ const vS = L.viewFor(shared, 'uS'), vA = L.viewFor(shared, 'uA'), vX = L.viewFor
 assert.deepStrictEqual([vS[0].step, vS[0].due, vA[0].step, vA[0].due, vA[0].wrongCount], [2, '2026-10-15', 1, '2026-10-14', 2]);
 assert.deepStrictEqual([vS[0].attempts.length, vS[0].allAttempts.length, shared[0].attempts.length], [1, 2, 2]);   // 原文档不动
 assert.deepStrictEqual([vX[1].step, vX[1].due, vX[1].wrongCount, vX[1].lastAttemptAt, vX[1].mastered], [1, '2026-10-13', 1, null, false]);   // 起点
-// 归属人：null 与省略相等
+// 归属人：按 id 筛；没有归属人的错题不属于任何人
 assert.deepStrictEqual(ids(L.ownedBy(shared, 'uS')), ['v1']);
-assert.deepStrictEqual(ids(L.ownedBy(shared, null)), ['v2', 'v3']);
-assert.deepStrictEqual(ids(L.ownedBy(shared, undefined)), ['v2', 'v3']);
+assert.deepStrictEqual(ids(L.ownedBy(shared, 'uA')), []);
 // Today 的范围：todo 只含默认归属人的错题，done 含全部
 let sc = L.todayScope(shared, 'uA', 'uS');
 assert.deepStrictEqual([ids(sc.todo), ids(sc.done), sc.todo[0].step], [['v1'], ['v1', 'v2', 'v3'], 1]);
-sc = L.todayScope(shared, 'uA', null);
-assert.deepStrictEqual(ids(sc.todo), ['v2', 'v3']);
 // 作答按人分组，我在最前，下标指原数组
 const ag = L.attemptGroups(vA[0], 'uA');
 assert.deepStrictEqual(Array.from(ag, g => [g.by, Array.from(g.items, x => x.i)]), [['uA', [1]], ['uS', [0]]]);
@@ -316,16 +315,37 @@ const pw = [
   { id: 'w1', createdAt: '2026-10-10', attempts: [by('uS', '2026-10-14', 'right', { mode: 'paper', paperId: 'PX', at: '2026-10-14T19:40' }), by('uS', '2026-10-15', 'right', { mode: 'paper', paperId: 'PY' })] },
   { id: 'w2', createdAt: '2026-10-10', attempts: [by('uS', '2026-10-14', 'wrong', { mode: 'paper', paperId: 'PX', at: '2026-10-14T19:42' }), by('uA', '2026-10-16', 'right', { mode: 'paper', paperId: 'PX', at: '2026-10-16T08:00' })] }];
 const pwS = L.viewFor(pw, 'uS'), pwA = L.viewFor(pw, 'uA');
-assert.deepStrictEqual([L.paperDoneOn(PX, pwS), L.paperDoneOn(PY, pwS), L.paperDoneOn(PX, pwA), L.paperDoneOn(PY, pwA)], ['2026-10-14T19:42', '2026-10-15', '2026-10-16T08:00', null]);
+assert.deepStrictEqual([L.handedInAt(PX, pwS, 'uS'), L.handedInAt(PY, pwS, 'uS'), L.handedInAt(PX, pwA, 'uA'), L.handedInAt(PY, pwA, 'uA')], ['2026-10-14T19:42', '2026-10-15', '2026-10-16T08:00', null]);
+// 有 handedIn 时以它为准：全是主观题、交卷后没自评（没有作答）也算交过；没记我的就是没交
+const PH = { id: 'PH', owner: 'uS', exerciseIds: ['w1'], handedIn: { uA: '2026-10-17T09:00' } };
+assert.deepStrictEqual([L.handedInAt(PH, pwA, 'uA'), L.handedInAt(PH, pwS, 'uS')], ['2026-10-17T09:00', null]);
 // 两人得分分开
 assert.deepStrictEqual([{ ...L.paperScore(PX, pwS) }, { ...L.paperScore(PX, pwA) }], [{ right: 1, partial: 0, wrong: 1, total: 2 }, { right: 1, partial: 0, wrong: 0, total: 2 }]);
 // 待做的卷：归属人等于我的默认归属人、我还没做
-assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PZ], pwA, 'uS')), ['PY']);
-assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PZ], pwS, 'uS')), []);
-assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PZ], pwA, null)), ['PZ']);
+const PD = { id: 'PD', kind: 'daily', for: 'uA', owner: 'uS', createdAt: '2026-10-16', exerciseIds: ['w1'] };
+assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PZ, PD], pwA, 'uS', 'uA')), ['PY']);   // 每日卷不在其中
+assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PZ], pwS, 'uS', 'uS')), []);
+assert.deepStrictEqual(ids(L.papersToDo([PX, PY, PH], pwA, 'uS', 'uA')), ['PY']);      // PH 已记 uA 交过
 // 目标进度只数我做完的卷
-assert.deepStrictEqual([L.goalProgress(pwS, [PX, PY], '2026-10-12', '2026-10-18').papers, L.goalProgress(pwA, [PX, PY], '2026-10-12', '2026-10-18').papers], [2, 1]);
-// 组卷排序：按卷子归属人的阶梯；归属人为空时用组卷人的
-assert.deepStrictEqual(ids(L.drawPaper(L.rankView(shared, 'uS', 'uA'), { subject: 'science', topics: [], count: 1 })), ['v2']);   // Sophia 在 v2 错 3 次
-assert.deepStrictEqual(ids(L.drawPaper(L.rankView(shared, null, 'uA'), { subject: 'science', topics: [], count: 1 })), ['v1']);   // 公开卷按 uA：v1 错 2 次
+assert.deepStrictEqual([L.goalProgress(pwS, [PX, PY], '2026-10-12', '2026-10-18', 'uS').papers, L.goalProgress(pwA, [PX, PY], '2026-10-12', '2026-10-18', 'uA').papers], [2, 1]);
+// 每日卷不算每周检验卷目标，哪怕交过
+const PD2 = Object.assign({}, PD, { handedIn: { uA: '2026-10-16T10:00' } });
+assert.strictEqual(L.goalProgress(pwA, [PX, PD2], '2026-10-12', '2026-10-18', 'uA').papers, 1);
+// 组卷排序：按卷子归属人的阶梯
+assert.deepStrictEqual(ids(L.drawPaper(L.viewFor(shared, 'uS'), { subject: 'science', topics: [], count: 1 })), ['v2']);   // Sophia 在 v2 错 3 次
+// 每日卷：按清单顺序生成，只给本人
+const dpx = L.makeDailyPaper([{ id: 'q2' }, { id: 'q4' }, { id: 's1' }], 'uA', 'uS', '2026-10-16', d => 'D' + d.slice(8));
+assert.deepStrictEqual([dpx.kind, dpx.for, dpx.owner, dpx.title, dpx.createdAt, dpx.subject, dpx.topics.length, dpx.count, Array.from(dpx.exerciseIds)],
+  ['daily', 'uA', 'uS', "Today's redo · D16", '2026-10-16', null, 0, 3, ['q2', 'q4', 's1']]);
+assert.ok(L.isDaily(dpx) && !L.isDaily(PX));
+// 接着用的每日卷：今天、给我、我没交过；昨天的、别人的、交过的都不取
+const T16 = '2026-10-16';
+const dOld = { id: 'dO', kind: 'daily', for: 'uA', createdAt: '2026-10-15', exerciseIds: [] };
+const dOther = { id: 'dX', kind: 'daily', for: 'uS', createdAt: T16, exerciseIds: [] };
+const dDone = { id: 'dD', kind: 'daily', for: 'uA', createdAt: T16, exerciseIds: [], handedIn: { uA: '2026-10-16T08:00' } };
+const dOpen = { id: 'dN', kind: 'daily', for: 'uA', createdAt: T16, exerciseIds: [] };
+assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone], pwA, 'uA', T16), null);
+assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone, dOpen], pwA, 'uA', T16).id, 'dN');
+// 列表：全部检验卷 + 我的每日卷（今天的，或交过的）；别人的、更早没交的不列
+assert.deepStrictEqual(ids(L.visiblePapers([PX, dOther, dOpen, PZ, dOld, Object.assign({}, dOld, { id: 'dOH', handedIn: { uA: '2026-10-15T20:00' } })], pwA, 'uA', T16)), ['PX', 'dN', 'PZ', 'dOH']);
 console.log('all logic tests passed');

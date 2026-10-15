@@ -104,9 +104,14 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* home */
-.hello { display: grid; gap: 6px; }
-.hello .day { font: 400 13px var(--font-body); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.hello h1 { margin: 0; font: 600 clamp(24px, 4vw, 32px)/1.15 var(--font-body); letter-spacing: -.015em; text-wrap: balance; }
+.hello { display: grid; gap: 2px; }
+.hello-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hello-top h1 { margin: 0; min-width: 0; font: 600 clamp(22px, 4vw, 28px)/1.15 var(--font-body); letter-spacing: -.015em; }
+.hello .day { flex: none; font: 400 13px var(--font-body); color: var(--muted); }
+.hello .cheer-msg { font-size: 19px; }
+.hello-meta { margin: 0; font-size: 13px; color: var(--muted); }
+.hello-meta b { color: var(--red); font-weight: 600; }
+.hello-meta .star { color: var(--amber); white-space: nowrap; }
 .today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
 .today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
 .today .txt { display: grid; gap: 8px; min-width: 0; }
@@ -202,15 +207,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .why p, .exp p { margin: 2px 0; }
 .why ol, .why ul { margin: 2px 0; padding-left: 20px; }
 .pager { justify-content: center; }
-.cheer { display: grid; gap: 8px; }
 .cheer-msg { margin: 0; font: 400 24px/1.25 var(--font-hand); color: var(--pen); text-wrap: balance; }
-.cheer-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.streak { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
-.streak-n { font: 400 24px/1 var(--font-hand); color: var(--red); }
-.streak-l { font-size: 13px; color: var(--muted); }
-.badge { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
-.badge.earned { background: var(--amber-soft); border-color: var(--amber); color: var(--ink); }
-.badge.next { color: var(--muted); border-style: dashed; }
 .dash { gap: 18px; }
 .dash-block { display: grid; gap: 6px; min-width: 0; }
 .meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
@@ -318,7 +315,6 @@ function todayScope(exs, uid, defaultOwner) {
   const done = viewFor(exs, uid);
   return { todo: ownedBy(done, defaultOwner), done };
 }
-function rankView(exs, owner, uid) { return viewFor(exs, owner || uid); }
 function normAnswer(s) {
   return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ').replace(/\.$/, '').trim();
 }
@@ -414,14 +410,30 @@ function paperAttempts(paper, exs) {
     return { id, ex: e, attempt: (e.attempts || []).find(x => x.paperId === paper.id) || null };
   });
 }
-function paperDoneOn(paper, view) {
-  // 某人做完一张卷的时刻：视图里带本卷 paperId 的作答中最晚的 at（没有 at 时取 date）；没做为 null
+function isDaily(p) { return p.kind === 'daily'; }
+function handedInAt(paper, view, uid) {
+  // 我交过这张卷的时刻：卷子的 handedIn 里记的；旧卷没有 handedIn 时取我（view）在本卷作答中最晚的 at（没有 at 取 date）；没交为 null
+  if (paper.handedIn) return paper.handedIn[uid] || null;
   let last = null;
   for (const e of view) for (const a of e.attempts || []) if (a.paperId === paper.id) { const t = a.at || a.date; if (t && (!last || t > last)) last = t; }
   return last;
 }
-function papersToDo(papers, view, defaultOwner) {
-  return papers.filter(p => sameOwner(p.owner, defaultOwner) && !paperDoneOn(p, view));
+function papersToDo(papers, view, defaultOwner, uid) {
+  // Today 列出的检验卷：归属人等于我的默认归属人、我还没交过；每日卷不在其中
+  return papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !handedInAt(p, view, uid));
+}
+function visiblePapers(papers, view, uid, today) {
+  // 卷子列表：全部检验卷，加我的每日卷；更早没交的每日卷作废，不再列出
+  return papers.filter(p => !isDaily(p) || (p.for === uid && (p.createdAt === today || handedInAt(p, view, uid))));
+}
+function makeDailyPaper(list, uid, owner, today, fmt) {
+  // 每日卷：按当天清单的顺序，只给 uid 做
+  return { kind: 'daily', for: uid, owner, title: "Today's redo · " + (fmt ? fmt(today) : today), createdAt: today,
+    subject: null, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
+}
+function openDailyPaper(papers, view, uid, today) {
+  // 今天给我的、我还没交过的每日卷；更早没交的作废
+  return papers.find(p => isDaily(p) && p.for === uid && p.createdAt === today && !handedInAt(p, view, uid)) || null;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -606,9 +618,9 @@ function encouragement(d, hasWork) {
   return 'All caught up. See you tomorrow!';
 }
 /* ---------- 设置、计划与回顾 ---------- */
-const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1, defaultOwner: null };
-function readSettings(v) {
-  // 缺字段或不是数按默认值；超出范围收紧；0 照常保留；defaultOwner 不是字符串时为 null
+const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
+function readSettings(v, uid) {
+  // 缺字段或不是数按默认值；超出范围收紧；0 照常保留；defaultOwner 不是非空字符串时为本人 uid
   v = v || {};
   const num = (k, lo, hi) => {
     const n = Number(v[k]);
@@ -616,7 +628,7 @@ function readSettings(v) {
     return Math.max(lo, Math.min(hi, Math.round(n)));
   };
   return { dailyLimit: num('dailyLimit', 1, 50), practiceDays: num('practiceDays', 1, 7), papersPerWeek: num('papersPerWeek', 0, 3),
-    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : null };
+    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
 function simulatePlan(exs, today, limit) {
   // 从今天起 7 天按上限做当天的题，假设都做对：第 4 级做对即掌握，否则升一级、按间隔排下次到期
@@ -656,14 +668,14 @@ function weekStart(today) {
   const dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
   return addDays(today, -((dow + 6) % 7));
 }
-function goalProgress(exs, papers, from, to) {
-  // exs 是我的视图：区间内有作答的天数、我在区间内做完的检验卷张数
+function goalProgress(exs, papers, from, to, uid) {
+  // exs 是我的视图：区间内有作答的天数、我在区间内交过的检验卷张数（每日卷不算）
   const days = new Set();
   for (const e of exs) for (const a of e.attempts || []) if (a.date >= from && a.date <= to) days.add(a.date);
-  const done = papers.filter(p => { const t = paperDoneOn(p, exs); return t && t.slice(0, 10) >= from && t.slice(0, 10) <= to; }).length;
+  const done = papers.filter(p => { if (isDaily(p)) return false; const t = handedInAt(p, exs, uid); return t && t.slice(0, 10) >= from && t.slice(0, 10) <= to; }).length;
   return { days: days.size, papers: done };
 }
-function weekReview(todo, done, papers, today) {
+function weekReview(todo, done, papers, today, uid) {
   // 最近 7 天（含今天）；过期与第 4 级的题数按 todo（默认归属人的错题），其余按 done（我的全部错题）
   const exs = done;
   const from = addDays(today, -6);
@@ -703,7 +715,7 @@ function weekReview(todo, done, papers, today) {
     if (s4) fallback = `Almost there: ${s4} question${s4 === 1 ? ' is' : 's are'} at step 4.`;
     else if (moved.size) fallback = `${moved.size} question${moved.size === 1 ? '' : 's'} moved up the ladder in the last 7 days.`;
   }
-  const g = goalProgress(exs, papers, from, today);
+  const g = goalProgress(exs, papers, from, today, uid);
   return {
     from, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
     practised: g.days, papersDone: g.papers, days, newlyMastered, fallback,
@@ -807,12 +819,13 @@ function mine() {
   return viewCache.v;
 }
 function myEx(id) { return mine().find(e => e.id === id); }
-function userName(id, en) { return id ? (S.names[id] || 'Someone') : (en ? 'public' : '公开'); }
+function userName(id) { return id ? (S.names[id] || 'Someone') : '—'; }
 function recOwner() { return S.recOwner === undefined ? S.settings.defaultOwner : (S.recOwner || null); }
 function ownerOptions(sel) {
   const ids = S.userIds.slice();
   if (sel && !ids.includes(sel)) ids.push(sel);
-  return `<option value="" ${sel ? '' : 'selected'}>公开</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? '（我）' : ''}</option>`).join('');
+  // 只列用户；没有归属人的旧错题不预选，必须选一位
+  return (sel ? '' : `<option value="" selected disabled>选归属人</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? '（我）' : ''}</option>`).join('');
 }
 async function loadNames() {
   // 名字只在显示时向平台现取；取不到的显示 Someone
@@ -893,21 +906,22 @@ const wd = iso => { const p = iso.split('-').map(Number); return WD[new Date(p[0
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const tick = ok => ok ? '<span class="tick ok" aria-label="done">✓</span>' : '<span class="tick" aria-label="not yet">○</span>';
 function renderPractice() {
-  if (S.run) return S.run.kind === 'daily' ? renderDaily() : renderPaperRun();
+  if (S.run) return renderPaperRun();
   const today = localToday();
-  const dateLine = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateLine = new Date().toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' });
   if (!S.exercises.length) {
-    return `<section class="hello"><span class="day">${dateLine}</span><h1>${hiLine()}</h1></section>
+    return `<section class="hello"><div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div></section>
       <div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in 录入.</p></div>`;
   }
   const sc = todayScope(S.exercises, S.me, S.settings.defaultOwner);
   const due = dailyList(sc.todo, today, S.settings.dailyLimit);
-  const open = papersToDo(S.papers, sc.done, S.settings.defaultOwner).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
+  const openD = openDailyPaper(S.papers, sc.done, S.me, today);
+  const open = papersToDo(S.papers, sc.done, S.settings.defaultOwner, S.me).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   const db = dashboardData(sc.todo, sc.done, today);
   const plan = planForecast(sc.todo, today, S.settings.dailyLimit);
-  const week = weekReview(sc.todo, sc.done, S.papers, today);
-  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0))
-    + todayBlock(today, due, open, sc.todo)
+  const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
+  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0 || !!openD))
+    + todayBlock(today, due, open, sc.todo, openD)
     + planBlock(plan, today, sc.done)
     + reviewBlock(plan, week)
     + progressBlock(db);
@@ -916,29 +930,29 @@ function renderPractice() {
 /* 问候、鼓励语、连续天数与徽章 */
 function hiLine() { const n = S.names[S.me]; return n ? `Hi ${esc(n)}` : 'Hi'; }
 function helloBlock(dateLine, db, message) {
-  const badges = db.badges.map(m => `<span class="badge earned" title="Milestone: ${m} mastered">★ ${m} mastered</span>`).join('');
-  const nextB = db.next ? `<span class="badge next">Next badge: ${db.next} mastered · ${db.toGo} to go</span>` : '';
+  // 三行：问候与日期；鼓励语；连续天数、已得徽章与下一个徽章
+  const keep = db.doneToday || !db.streak ? '' : ' · do today to keep it';
+  const stars = db.badges.map(m => ` <span class="star" title="Milestone: ${m} mastered">★${m}</span>`).join('');
+  const nextB = db.next ? ` · Next badge in ${db.toGo}` : '';
   return `<section class="hello" aria-label="Hello">
-    <span class="day">${dateLine}</span>
-    <h1>${hiLine()}</h1>
+    <div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div>
     <p class="cheer-msg">${esc(message)}</p>
-    <div class="cheer-row">
-      <span class="streak"><span class="streak-n num">${db.streak}</span><span class="streak-l">day${db.streak === 1 ? '' : 's'} in a row${db.doneToday || !db.streak ? '' : ' · do today to keep it'}</span></span>
-      ${badges}${nextB}
-    </div>
+    <p class="hello-meta">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'} in a row${keep}${stars}${nextB}</p>
   </section>`;
 }
 
 /* 今天：每日重做与未做的检验卷 */
-function todayBlock(today, due, open, todo) {
+function todayBlock(today, due, open, todo, openD) {
+  // 有今天没交的每日卷时，题数与按钮都按这张卷
+  const n = openD ? openD.exerciseIds.length : due.length;
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
   let h = `<section class="today" aria-label="Today">
-    <div class="big num" aria-hidden="true">${due.length}</div>
+    <div class="big num" aria-hidden="true">${n}</div>
     <div class="txt">
-      <p class="h2">${due.length ? `${plural(due.length, 'question')} to redo today` : 'Nothing due today'}</p>
-      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner, true))} yet — choose a default owner in 设置.` : due.length ? (allDue > due.length ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
-      ${due.length ? `<div><button type="button" class="btn primary" data-act="start-daily">Start today's redo</button></div>` : ''}
+      <p class="h2">${n ? `${plural(n, 'question')} to redo today` : 'Nothing due today'}</p>
+      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in 设置.` : n ? (allDue > n ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
+      ${n ? `<div><button type="button" class="btn primary" data-act="start-daily">${openD ? 'Continue' : 'Start'} today's redo</button></div>` : ''}
     </div>`;
   if (open.length) {
     h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
@@ -1099,52 +1113,20 @@ function solutionBlock(e) {
 }
 const markHtml = r => `<span class="mark ${r}">${RESULT[r].sym} ${RESULT[r].en}</span>`;
 
-function renderDaily() {
-  const R = S.run;
-  if (R.i >= R.ids.length) {
-    const s = tally(R.results);
-    return `<section class="panel"><p class="h3">Today's redo · done</p>
-      <div class="row"><span class="score num">${s.right}/${R.ids.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong</span></div>
-      <p class="muted small">Wrong ones come back tomorrow. Right ones climb the ladder.</p>
-      <div><button type="button" class="btn primary" data-act="exit-run">Back to today</button></div></section>`;
-  }
-  const e = exById(R.ids[R.i]);
-  if (!e) { R.i++; return renderDaily(); }
-  const pct = Math.round(R.i / R.ids.length * 100);
-  let h = `<div class="progress"><span class="small muted num">Question ${R.i + 1} of ${R.ids.length}</span><div class="bar"><i style="width:${pct}%"></i></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
-  if (e.setId) { const prev = R.i > 0 ? exById(R.ids[R.i - 1]) : null; h += materialBlock(setById(e.setId), !(prev && prev.setId === e.setId)); }
-  h += `<article class="sheet">${questionBody(e, { key: 'd', response: R.response, locked: R.phase !== 'answer', showCorrect: R.phase !== 'answer' })}`;
-  if (R.phase === 'answer') {
-    if (R.warn) h += `<p class="note err">${esc(R.warn)} You can fix it, or submit anyway.</p>`;
-    h += `<div><button type="button" class="btn primary" data-act="check">${R.warn ? 'Submit anyway' : e.format === 'open' ? 'Show the model answer' : 'Check'}</button></div>`;
-  } else {
-    if (R.result) h += `<div>${markHtml(R.result)}</div>`;
-    h += solutionBlock(e);
-    if (!R.result) {
-      h += `<div class="grid2" style="gap:6px"><span class="small muted">How did you do? Compare with the highlighted keywords.</span></div>
-        <div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="selfmark" data-r="${r}">${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
-    } else {
-      h += `<div><button type="button" class="btn primary" data-act="next">${R.i + 1 < R.ids.length ? 'Next question' : 'Finish'}</button></div>`;
-    }
-  }
-  if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
-  h += `</article>`;
-  return h;
-}
-
 function renderPaperRun() {
+  // 检验卷与每日卷同一个作答页：答完交卷；交卷即存客观题，主观题自评即存并锁定
   const R = S.run;
   const p = S.papers.find(x => x.id === R.paperId);
-  if (!p) return `<div class="panel"><p>That check paper is gone.</p><div><button class="btn" type="button" data-act="exit-run">Back</button></div></div>`;
+  if (!p) return `<div class="panel"><p>That paper is gone.</p><div><button class="btn" type="button" data-act="exit-run">Back</button></div></div>`;
   const exs = p.exerciseIds.map(exById).filter(Boolean);
-  if (R.phase === 'done') {
-    const s = R.score;
-    return `<section class="panel"><p class="h3">${esc(p.title)} · result</p>
-      <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong</span></div>
-      <p class="muted small">Any you missed go back to the start of the ladder.</p>
-      <div><button type="button" class="btn primary" data-act="exit-run">Back to today</button></div></section>`;
+  let h = `<div class="progress"><span class="small muted">${esc(p.title)}</span><div class="grow"></div>${R.phase === 'answer' ? '<button type="button" class="btn ghost small" data-act="exit-run">Stop</button>' : ''}</div>`;
+  if (R.phase === 'review') {
+    const s = tally(exs.filter(e => R.saved[e.id]).map(e => R.results[e.id]));
+    const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
+    h += `<section class="panel"><p class="h3">${R.handed ? 'Handed in · saved' : 'Not saved yet'}</p>
+      <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
+      <p class="muted small">${toMark ? 'Check your written answers against the model answers below and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
   }
-  let h = `<div class="progress"><span class="small muted">${esc(p.title)}</span><div class="grow"></div><button type="button" class="btn ghost small" data-act="exit-run">Stop</button></div>`;
   h += exs.map((e, i) => {
     const key = 'p' + i;
     let x = (e.setId && (i === 0 || exs[i - 1].setId !== e.setId)) ? materialBlock(setById(e.setId), true) : '';
@@ -1153,15 +1135,13 @@ function renderPaperRun() {
       const res = R.results[e.id];
       if (e.format !== 'open' && res) x += `<div>${markHtml(res)}</div>`;
       x += solutionBlock(e);
-      if (e.format === 'open') x += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" aria-pressed="${res === r}">${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
+      if (e.format === 'open') x += R.saved[e.id] ? `<div>${markHtml(res)}</div>`
+        : `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
     }
     return x + '</article>';
   }).join('');
-  if (R.phase === 'answer') h += `${R.warn ? `<div class="note err">${R.warn.map(w => `<div>${esc(w)}</div>`).join('')}<div>You can fix them, or hand in anyway.</div></div>` : ''}<div class="row"><button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button><span class="small muted">Answers show after you hand in.</span></div>`;
-  else {
-    const pending = exs.filter(e => !R.results[e.id]).length;
-    h += `<div class="row"><button type="button" class="btn primary" data-act="paper-finish" ${(pending || R.saving) ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Finish and save'}</button><span class="small muted">${R.saving ? 'Saving your answers. Please wait.' : pending ? `Mark ${pending} more answer${pending > 1 ? 's' : ''} first.` : 'All marked.'}</span></div>`;
-  }
+  if (R.phase === 'answer') h += `${R.warn ? `<div class="note err">${R.warn.map(w => `<div>${esc(w)}</div>`).join('')}<div>You can fix them, or hand in anyway.</div></div>` : ''}<div class="row"><button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button></div>`;
+  else h += `<div class="row">${R.handed ? '' : `<button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button>`}<button type="button" class="btn${R.handed ? ' primary' : ''}" data-act="exit-run">Back to today</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
   return h;
 }
@@ -1336,6 +1316,7 @@ function draftToDoc(d) {
     if (!bank.length) err.push('带词表的所属题组');
     else if (!bank.some(w => normAnswer(w) === normAnswer(d.answer))) err.push('词表里的答案');
   }
+  if (!(d.editId ? d.owner : recOwner())) err.push('归属人');
   if (err.length) return { error: '还缺：' + err.join('、') };
   const accepted = d.format === 'short' ? [d.answer.trim()].concat(d.accepted.split(';').map(a => a.trim()).filter(Boolean)) : [];
   return { doc: {
@@ -1424,9 +1405,9 @@ function renderDetail() {
 }
 
 function paperPool() {
-  // 组卷：从我的默认归属人的错题里抽，按卷子归属人的阶梯排（归属人为空时用我的）
+  // 组卷：从我的默认归属人的错题里抽，按这位归属人的阶梯排
   const owner = S.settings.defaultOwner;
-  return ownedBy(rankView(S.exercises, owner, S.me), owner);
+  return ownedBy(viewFor(S.exercises, owner), owner);
 }
 function renderPapers() {
   const P = S.paperForm;
@@ -1446,14 +1427,14 @@ function renderPapers() {
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· 错 ${e.wrongCount} 次</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">范围内没有错题。</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  const papers = S.papers.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
+  const papers = visiblePapers(S.papers, mine(), S.me, localToday()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
   h += `<section class="panel"><p class="h3">历次检验卷</p>`;
   if (!papers.length) h += `<p class="small muted">还没有检验卷。组好的卷子会出现在默认归属人相同的用户的 Today；谁都可以在这里开始做。</p>`;
   else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
       <span class="t">${esc(p.title)}</span>
-      <span class="side">${paperDoneOn(p, mine()) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>我未做</span>'}</span>
-      <span class="meta">${subjChip(p.subject)}<span>归属人 ${esc(userName(p.owner))}</span><span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
-        ${paperDoneOn(p, mine()) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">查看详情</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">开始</button>`}
+      <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>我未做</span>'}</span>
+      <span class="meta">${isDaily(p) ? '<span class="chip">每日</span>' : `${subjChip(p.subject)}<span>归属人 ${esc(userName(p.owner))}</span>`}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
+        ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">查看详情</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">开始</button>`}
         ${S.confirmDel === p.id ? `<span class="confirm">删除这张卷？已写进阶梯的作答不受影响。<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">确认</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">删除</button>`}
       </span></div>`).join('')}</div>`;
   return h + `</section>`;
@@ -1463,10 +1444,10 @@ const JUDGE = { auto: '自动', self: '自评', parent: '改判' };
 function renderPaperSheet(paperId) {
   // 检验卷详情（可改判）
   const p = S.papers.find(x => x.id === paperId);
-  const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← 返回检验卷</button>`;
-  if (!p) return `<div class="row">${back}</div><p class="note">这张检验卷已删除。</p>`;
+  const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← 返回卷子列表</button>`;
+  if (!p) return `<div class="row">${back}</div><p class="note">这张卷已删除。</p>`;
   const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
-  const doneAt = paperDoneOn(p, mine()), when = doneAt ? doneAt.replace('T', ' ') : '未做';
+  const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : '未做';
   let h = `<div class="row">${back}</div>
   <section class="panel"><p class="h2">${esc(p.title)}</p>
     <div class="row"><span class="score num">${sc.right}/${sc.total}</span><span class="muted">对 ${sc.right} · 部分对 ${sc.partial} · 错 ${sc.wrong}</span></div>
@@ -1536,67 +1517,66 @@ document.addEventListener('click', async ev => {
       case 'export': await exportAll(); break;
 
       case 'start-daily': {
-        const ids = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, localToday(), S.settings.dailyLimit).map(e => e.id);
-        S.run = { kind: 'daily', ids, i: 0, phase: 'answer', response: '', result: null, results: [] };
+        // 有今天没交的每日卷就接着用；否则按今天的每日清单生成一张
+        const today = localToday();
+        let p = openDailyPaper(S.papers, mine(), S.me, today);
+        if (!p) {
+          const list = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit);
+          if (!list.length) break;
+          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate);
+          const ref = S.db.collection('papers').doc();
+          await ref.set(doc);
+          p = Object.assign({ id: ref.id }, doc);
+          if (!S.papers.some(x => x.id === p.id)) S.papers = S.papers.concat([p]);
+        }
+        S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: {}, results: {}, saved: {} };
         render(); window.scrollTo(0, 0); break;
       }
-      case 'pick':
-        if (b.dataset.key === 'd') { R.response = b.dataset.v; }
-        else { const i = Number(b.dataset.key.slice(1)); const p = S.papers.find(x => x.id === R.paperId); R.responses[p.exerciseIds[i]] = b.dataset.v; }
-        render(); break;
-      case 'check': {
-        const e = exById(R.ids[R.i]);
-        if (e.format !== 'open' && !String(R.response).trim()) { R.err = 'Write or pick an answer first.'; render(); break; }
-        if (e.format === 'open' && !R.warned) { const w = mustUseNote(e, R.response); if (w) { R.warn = w; R.warned = true; render(); break; } }
-        R.err = null; R.warn = null; R.phase = 'review';
-        if (e.format !== 'open') {
-          R.result = judgeAuto(e, R.response);
-          render();
-          await addAttempt(e, { date: localToday(), at: nowLocal(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'auto' });
-          R.results.push(R.result);
-        } else render();
-        break;
-      }
-      case 'selfmark': {
-        const e = exById(R.ids[R.i]);
-        R.result = b.dataset.r; render();
-        await addAttempt(e, { date: localToday(), at: nowLocal(), mode: 'daily', paperId: null, response: String(R.response), result: R.result, judgedBy: 'self' });
-        R.results.push(R.result);
-        break;
-      }
-      case 'next': R.i++; R.phase = 'answer'; R.response = ''; R.result = null; R.err = null; R.warn = null; R.warned = false; render(); window.scrollTo(0, 0); break;
+      case 'pick': { const i = Number(b.dataset.key.slice(1)); const p = S.papers.find(x => x.id === R.paperId); R.responses[p.exerciseIds[i]] = b.dataset.v; render(); break; }
       case 'exit-run': S.run = null; render(); break;
 
-      case 'start-paper': S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: {}, results: {} }; render(); window.scrollTo(0, 0); break;
+      case 'start-paper': S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: {}, results: {}, saved: {} }; render(); window.scrollTo(0, 0); break;
       case 'paper-submit': {
-        const p = S.papers.find(x => x.id === R.paperId);
-        if (!R.warned) {
-          const warns = p.exerciseIds.map((id, i) => { const e = exById(id); const w = e && e.format === 'open' ? mustUseNote(e, R.responses[id] || '') : ''; return w ? `Question ${i + 1}: ${w}` : ''; }).filter(Boolean);
-          if (warns.length) { R.warn = warns; R.warned = true; render(); break; }
-        }
-        R.warn = null;
-        for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
-        R.phase = 'review'; render(); window.scrollTo(0, 0); break;
-      }
-      case 'paper-self': R.results[b.dataset.id] = b.dataset.r; render(); break;
-      case 'paper-finish': {
-        // 每张卷每道题只写一次作答：保存中不再响应；卷子已出结果或该题已有本卷作答时跳过
+        // 交卷即存：先写客观题的作答（已写过的跳过），再在卷子的 handedIn 记下我；失败时留在本页，可再点补写
         if (R.saving) break;
         const p = S.papers.find(x => x.id === R.paperId);
-        if (paperDoneOn(p, mine())) { R.phase = 'done'; R.score = paperScore(p, mine()); render(); break; }
-        R.saving = true; R.err = null; render();
-        const today = localToday(), res = [];
-        try {
-          for (const id of p.exerciseIds) {
-            const e = exById(id); if (!e) continue;
-            const r = R.results[id]; res.push(r);
-            if ((e.attempts || []).some(a => a.paperId === p.id && a.by === S.me)) continue;
-            await addAttempt(e, { date: today, at: nowLocal(), mode: 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: r, judgedBy: e.format === 'open' ? 'self' : 'auto' });
+        if (R.phase === 'answer') {
+          if (!R.warned) {
+            const warns = p.exerciseIds.map((id, i) => { const e = exById(id); const w = e && e.format === 'open' ? mustUseNote(e, R.responses[id] || '') : ''; return w ? `Question ${i + 1}: ${w}` : ''; }).filter(Boolean);
+            if (warns.length) { R.warn = warns; R.warned = true; render(); break; }
           }
-          const score = tally(res);
-          R.phase = 'done'; R.score = score;
-        } finally { R.saving = false; }
-        render(); window.scrollTo(0, 0); break;
+          R.warn = null;
+          for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
+          R.phase = 'review';
+        }
+        R.saving = true; R.err = null; render(); window.scrollTo(0, 0);
+        try {
+          const today = localToday(), mode = isDaily(p) ? 'daily' : 'paper';
+          for (const id of p.exerciseIds) {
+            const e = exById(id); if (!e || e.format === 'open' || R.saved[id]) continue;
+            if (!(e.attempts || []).some(a => a.paperId === p.id && a.by === S.me))
+              await addAttempt(e, { date: today, at: nowLocal(), mode, paperId: p.id, response: String(R.responses[id] || ''), result: R.results[id], judgedBy: 'auto' });
+            R.saved[id] = true;
+          }
+          const cur = S.papers.find(x => x.id === p.id) || p;
+          if (!(cur.handedIn && cur.handedIn[S.me])) await S.db.doc('papers/' + p.id).update({ handedIn: Object.assign({}, cur.handedIn, { [S.me]: nowLocal() }) });
+          R.handed = true;
+        } catch (err) { R.err = dbErr(err); }
+        finally { R.saving = false; }
+        render(); break;
+      }
+      case 'paper-self': {
+        // 主观题自评即存，存后锁定；要改去卷面详情改判
+        const id = b.dataset.id, e = exById(id), p = S.papers.find(x => x.id === R.paperId);
+        if (!e || !R.handed || R.saved[id] || R.saving) break;
+        R.results[id] = b.dataset.r; R.saving = true; render();
+        try {
+          if (!(e.attempts || []).some(a => a.paperId === p.id && a.by === S.me))
+            await addAttempt(e, { date: localToday(), at: nowLocal(), mode: isDaily(p) ? 'daily' : 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: R.results[id], judgedBy: 'self' });
+          R.saved[id] = true;
+        } catch (err) { R.err = dbErr(err); }
+        finally { R.saving = false; }
+        render(); break;
       }
 
       case 'recognise': await recognise(); break;
@@ -1657,7 +1637,7 @@ document.addEventListener('click', async ev => {
       case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
 
       case 'save-settings': {
-        const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value });
+        const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
         await S.db.doc('settings/' + S.me).set(v);
         S.settingsMsg = { kind: 'ok', text: `已保存：每日最多 ${v.dailyLimit} 题，每周练 ${v.practiceDays} 天、做 ${v.papersPerWeek} 张检验卷，默认归属人：${userName(v.defaultOwner)}。` }; render(); break;
       }
@@ -1675,8 +1655,7 @@ document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset.ans != null && S.run) {
     const key = t.dataset.ans;
-    if (key === 'd') S.run.response = t.value;
-    else { const p = S.papers.find(x => x.id === S.run.paperId); S.run.responses[p.exerciseIds[Number(key.slice(1))]] = t.value; }
+    const p = S.papers.find(x => x.id === S.run.paperId); S.run.responses[p.exerciseIds[Number(key.slice(1))]] = t.value;
   } else if (t.dataset.d) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     if (t.dataset.f === 'opt') d.options[Number(t.dataset.i)] = t.value; else if (!t.dataset.rerender) d[t.dataset.f] = t.value;
@@ -1865,7 +1844,7 @@ async function exportAll() {
   const text = '# Sophia\'s Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
   try {
     await S.downloads.save({ filename: `arena-export-${now.slice(0, 10)}.yaml.txt`, data: text });
-    S.exportMsg = { kind: 'ok', text: `已交给浏览器保存：${S.exercises.length} 道错题、${S.sets.length} 个题组、${S.papers.length} 张检验卷。` };
+    S.exportMsg = { kind: 'ok', text: `已交给浏览器保存：${S.exercises.length} 道错题、${S.sets.length} 个题组、${S.papers.length} 张卷子。` };
   } catch (err) {
     S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `导出没有成功（${err && err.code || '未知'}）。` };
   }
@@ -1881,6 +1860,7 @@ async function boot() {
   const me = user ? (await user.me()).id : null;
   if (!db || !me) { S.status = 'nodb'; render(); return; }
   Object.assign(S, { db, assets, sample, downloads, user, me });
+  S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
   try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}
   if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
@@ -1905,7 +1885,7 @@ async function boot() {
   }, () => {});
   db.doc('settings/' + me).onSnapshot(snap => {
     const v = snap.exists ? snap.data() : null;
-    S.settings = readSettings(v);
+    S.settings = readSettings(v, me);
     softRender();
   }, () => {});
 }
