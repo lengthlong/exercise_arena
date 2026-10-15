@@ -106,7 +106,7 @@
 
 ## 派生字段
 
-一位用户对一道错题的阶梯（`step`、`due`、`mastered`、`wrongCount`、`lastAttemptAt`），由 `createdAt` 与该用户的作答（`by` 等于其 id）依次推出（页面里的 `deriveState`，断言在 `app/logic.test.js`），页面渲染时现算、不存。没有作答时为起点，对所有用户相同：
+一位用户对一道错题的阶梯（`step`、`due`、`mastered`、`wrongCount`、`lastAttemptAt`），由 `createdAt` 与该用户的作答（`by` 等于其 id）中 `mode` 不是 `"paper"` 的全部作答（即每日重做）、加 `mode` 为 `"paper"` 且 `result` 为 `"wrong"` 的作答，按顺序依次推出（页面里的 `deriveState`，断言在 `app/logic.test.js`），页面渲染时现算、不存。没有作答时为起点，对所有用户相同：
 
 ```text
 step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttemptAt = null

@@ -307,12 +307,16 @@ function deriveState(createdAt, attempts) {
   }
   return { step, due, mastered, wrongCount, lastAttemptAt };
 }
+function ladderInput(attempts) {
+  // 推阶梯用的作答：每日重做的全部作答，加检验卷上做错的；检验卷上做对、部分对不改阶梯
+  return (attempts || []).filter(a => a.mode !== 'paper' || a.result === 'wrong');
+}
 function viewFor(exs, uid) {
-  // 一位用户的视图：作答只留 by 为该用户的，阶梯由这些作答现算；原文档的全部作答留在 allAttempts
+  // 一位用户的视图：作答只留 by 为该用户的，阶梯由其中的阶梯输入现算；原文档的全部作答留在 allAttempts
   return exs.map(e => {
     const all = e.attempts || [];
     const mine = all.filter(a => a.by === uid);
-    return Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, mine));
+    return Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, ladderInput(mine)));
   });
 }
 function sameOwner(a, b) { return (a || null) === (b || null); }
@@ -609,10 +613,10 @@ function streakInfo(exs, today) {
   return { streak: n, doneToday };
 }
 function masteryTransitions(e) {
-  // 与 deriveState 同一套逐次规则：返回变成掌握（+1）与失去掌握（-1）的日期
+  // 与 deriveState 同一套逐次规则、同一阶梯输入：返回变成掌握（+1）与失去掌握（-1）的日期
   let step = 1, mastered = false;
   const out = [];
-  for (const a of e.attempts || []) {
+  for (const a of ladderInput(e.attempts)) {
     if (mastered) {
       if (a.result === 'wrong') { mastered = false; step = 1; out.push({ date: a.date, d: -1 }); }
       continue;
@@ -741,7 +745,8 @@ function weekReview(todo, done, papers, today, uid) {
         if (ans[a.result] != null) { ans[a.result]++; days[idx[a.date]][a.result]++; }
         if (a.result === 'wrong') { const k = e.subject + '|' + e.topic; wrongBy[k] = (wrongBy[k] || 0) + 1; }
       }
-      // 与 deriveState 同一套逐次规则，数作答时尚未掌握、做对而升级的题
+      // 与 deriveState 同一套逐次规则，数作答时尚未掌握、做对而升级的题；只看阶梯输入（检验卷上做对、部分对不算）
+      if (!ladderInput([a]).length) continue;
       if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
       if (a.result === 'right') { if (inW) moved.add(e.id); if (step === 4) mastered = true; else step++; }
       else if (a.result !== 'partial') step = 1;
@@ -1519,7 +1524,7 @@ function renderPapers() {
       <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
       <span class="meta">${isDaily(p) ? `<span class="chip">Daily</span>${p.subject ? subjChip(p.subject) : ''}` : `${subjChip(p.subject)}<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
         ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">View details</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">Start</button>`}
-        ${S.confirmDel === p.id ? `<span class="confirm">Delete this paper? Answers already on the ladder stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
+        ${S.confirmDel === p.id ? `<span class="confirm">Delete this paper? Answers already given stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
       </span></div>`).join('')}</div>`;
   return h + `</section>`;
 }
@@ -1575,7 +1580,7 @@ function renderSettings() {
     ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
   </section>
   <section class="panel"><p class="h2">How the review ladder works</p>
-    <p class="small muted">After an exercise is recorded, it comes back for a redo on day 1, 3, 7 and 14. Right moves it up a step, wrong sends it back to step 1, partly right keeps it on the same step. Right on step 4 means mastered.</p>
+    <p class="small muted">After an exercise is recorded, it comes back for a redo on day 1, 3, 7 and 14. Right moves it up a step, wrong sends it back to step 1, partly right keeps it on the same step. Right on step 4 means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to step 1.</p>
   </section>
   <section class="panel"><p class="h2">Export</p>
     <p class="small muted">Exports every exercise (with all answers), question set, paper and these settings as YAML text, without photos (only how many there are). The file is named like arena-export-date.yaml.txt; drop the .txt if needed.</p>
