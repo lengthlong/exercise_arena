@@ -107,7 +107,8 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .hello-top h1 { margin: 0; min-width: 0; font: 600 clamp(22px, 4vw, 28px)/1.15 var(--font-body); letter-spacing: -.015em; }
 .hello .day { flex: none; font: 400 13px var(--font-body); color: var(--muted); }
 .hello .cheer-msg { font-size: 19px; }
-.hello-meta { margin: 0; font-size: 13px; color: var(--muted); }
+.hello-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.hello-meta { font-size: 13px; color: var(--muted); }
 .hello-meta b { color: var(--red); font-weight: 600; }
 .hello-meta .star { color: var(--amber); white-space: nowrap; }
 .today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
@@ -978,14 +979,13 @@ function renderPractice() {
 /* 问候、鼓励语、连续天数与徽章 */
 function hiLine() { const n = S.names[S.me]; return n ? `Hi ${esc(n)}` : 'Hi'; }
 function helloBlock(dateLine, db, message) {
-  // 三行：问候与日期；鼓励语；连续天数、已得徽章与下一个徽章
+  // 两行：问候与日期；鼓励语接着连续天数、已得徽章与下一个徽章（窄屏时自动折行）
   const keep = db.doneToday || !db.streak ? '' : ' · do today to keep it';
   const stars = db.badges.map(m => ` <span class="star" title="Milestone: ${m} mastered">★${m}</span>`).join('');
   const nextB = db.next ? ` · Next badge in ${db.toGo}` : '';
   return `<section class="hello" aria-label="Hello">
     <div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div>
-    <p class="cheer-msg">${esc(message)}</p>
-    <p class="hello-meta">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'} in a row${keep}${stars}${nextB}</p>
+    <p class="hello-line"><span class="cheer-msg">${esc(message)}</span> <span class="hello-meta">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'} in a row${keep}${stars}${nextB}</span></p>
   </section>`;
 }
 
