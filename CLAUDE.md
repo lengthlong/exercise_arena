@@ -69,8 +69,10 @@
 | 位置 | 回答 | 权威 |
 |---|---|---|
 | `CONTEXT.md` | 领域术语是什么（由配置 `context` 指定） | 设计 |
-| `DATA.md` | 页面的 `db` 存什么、怎样写：字段、派生字段、写入规则、归类体系的来源 | 设计 |
-| `app/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；与设计冲突时以设计为准 |
-| `app/logic.test.js` | 页面纯逻辑（`LOGIC:BEGIN…END`）的断言 | 实现 |
+| `DATA.md` | 页面的 `db` 存什么、怎样写：字段、派生字段、写入规则、归类体系的来源、留白 | 设计 |
+| `app/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；须符合 `DATA.md` 与测试断言 |
+| `app/logic.test.js` | 页面规则，写成对页面纯逻辑（`LOGIC:BEGIN…END`）的断言 | 实现；页面行为的权威 |
 
-读设计：术语先读 `CONTEXT.md`，涉及取舍再读相关 ADR；改页面或数据前先读 `DATA.md`。
+分工：术语表管概念的定义（含其中的数字），`DATA.md` 管数据，页面行为以 `app/logic.test.js` 的断言为准；一处改了，另一处在同一轮一起改。
+
+读设计：术语先读 `CONTEXT.md`，涉及取舍再读相关 ADR；改页面或数据前先读 `DATA.md`，改页面规则前先读 `app/logic.test.js`。写或改 ADR 时，除 `WRITING.md` 外也按 `design-writing` 的「设计文件只写现状」。

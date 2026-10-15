@@ -71,7 +71,7 @@ assert.deepStrictEqual(ids(L.dailyList(g.slice(1), '2026-10-14', 1)), ['q2', 'q4
 const drawn = [
   { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
 assert.deepStrictEqual(ids(L.paperLayout(drawn)), ['a', 'q2', 'q4', 'b', 'c']);
-// 检验卷记录与作答历史（0003）
+// 检验卷记录与作答历史
 const P = { id: 'P1', exerciseIds: ['x1', 'gone', 'x2', 'x3'] };
 const hx = [
   { id: 'x1', attempts: [{ date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'right', judgedBy: 'auto', at: '2026-10-14T19:40' }] },
@@ -81,7 +81,7 @@ const hx = [
 assert.deepStrictEqual(Array.from(L.paperAttempts(P, hx), r => r.ex ? r.attempt.result : null), ['right', null, 'wrong', 'right']);
 // 得分只算仍在的题
 assert.deepStrictEqual({ ...L.paperScore(P, hx) }, { right: 2, partial: 0, wrong: 1, total: 3 });
-// 0004：选词判对、必须用的词、一句检查
+// 选词判对、必须用的词、一句检查
 assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, 'Although'), 'right');
 assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, 'despite'), 'wrong');
 assert.strictEqual(L.judgeAuto({ format: 'pick', answer: 'although' }, ''), 'wrong');
@@ -99,7 +99,7 @@ assert.deepStrictEqual(mu('"Can you help me?" asked Tom.', ['asked']), [[], fals
 assert.deepStrictEqual(mu("'Can you help me?' asked Tom.", ['asked']), [[], false]);
 assert.deepStrictEqual(mu("Mr. Tan said that he didn't know.", ['said']), [[], false]);
 assert.deepStrictEqual(Array.from(L.parseList('a; b\nc ;; ')), ['a', 'b', 'c']);
-// 0005：讲解三段
+// 讲解三段
 const ex1 = L.parseExplanation('Key idea: Use [[contrast]] connectors.\nSteps:\n1. Read both sentences.\n- Pick the word.\nWatch out: "Although" cannot start a new sentence.');
 assert.deepStrictEqual([ex1.structured, ex1.keyIdea, Array.from(ex1.steps), Array.from(ex1.watchOut)],
   [true, 'Use [[contrast]] connectors.', ['Read both sentences.', 'Pick the word.'], ['"Although" cannot start a new sentence.']]);
@@ -107,7 +107,7 @@ const ex2 = L.parseExplanation('steps: 1. first\n2. second\nWATCH OUT:\n- a\n- b
 assert.deepStrictEqual([ex2.keyIdea, Array.from(ex2.steps), Array.from(ex2.watchOut)], ['', ['first', 'second'], ['a', 'b']]);
 const ex3 = L.parseExplanation('One paragraph.\n\nSecond paragraph.');
 assert.deepStrictEqual([ex3.structured, Array.from(ex3.paras)], [false, ['One paragraph.', 'Second paragraph.']]);
-// 0005：错题排序与分页
+// 错题排序与分页
 const sx = [
   { id: 'a', recordedAt: '2026-10-14T19:00', createdAt: '2026-10-14', due: '2026-10-16', wrongCount: 1, lastAttemptAt: '2026-10-14' },
   { id: 'b', createdAt: '2026-10-14', due: null, wrongCount: 3, lastAttemptAt: null },
@@ -125,14 +125,14 @@ let pgx = L.pageSlice(many, 1, 20); assert.deepStrictEqual([pgx.page, pgx.pages,
 pgx = L.pageSlice(many, 3, 20); assert.deepStrictEqual([pgx.items.length, pgx.items[0]], [5, 40]);
 pgx = L.pageSlice(many, 9, 20); assert.strictEqual(pgx.page, 3);
 pgx = L.pageSlice([], 1, 20); assert.deepStrictEqual([pgx.page, pgx.pages, pgx.items.length], [1, 1, 0]);
-// 0005：YAML 与导出
+// YAML 与导出
 assert.strictEqual(L.toYaml({ a: 'x "q"\nnew', b: [], c: {}, d: null, e: 3, f: true }), 'a: "x \\"q\\"\\nnew"\nb: []\nc: {}\nd: null\ne: 3\nf: true');
 assert.strictEqual(L.toYaml({ list: [{ id: 'x', tags: ['p', 'q'] }, 'plain'] }), 'list:\n  - id: "x"\n    tags:\n      - "p"\n      - "q"\n  - "plain"');
 const exd = L.exportData([{ id: 'x1', images: ['i1', 'i2'], attempts: [{ paperId: 'P1', result: 'right' }] }], [{ id: 's1', images: [] }],
   [{ id: 'P1', exerciseIds: ['x1'], score: { right: 9 } }], { dailyLimit: 10 }, '2026-10-14T20:00');
 assert.deepStrictEqual([exd.exportedAt, exd.exercises[0].images, exd.sets[0].images, { ...exd.papers[0].score }, exd.settings.dailyLimit],
   ['2026-10-14T20:00', 2, 0, { right: 1, partial: 0, wrong: 0, total: 1 }, 10]);
-// 0006：进度看板
+// 进度看板
 const T0 = '2026-10-20';
 const at = (date, result) => ({ date, result, mode: 'daily' });
 // 连续天数

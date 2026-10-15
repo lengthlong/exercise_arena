@@ -1,6 +1,6 @@
 ---
 name: design-writing
-description: 写或复审本工作区的设计文字（write / review design docs）：领域、架构、详设、能力清单、研究笔记、给人看的总述。用于：新写或改写这些文件；复审它们的写法。
+description: 写或复审本工作区的设计文字（write / review design docs）：术语表、ADR、数据契约、研究笔记、给人看的总述。用于：新写或改写这些文件；复审它们的写法。
 ---
 
 # design-writing
@@ -13,21 +13,13 @@ description: 写或复审本工作区的设计文字（write / review design doc
 
 | 文件 | 写什么 | 不做什么 |
 |---|---|---|
-| `domain/CONTEXT.md` | 一两句话的定义 + `_Avoid_` 列表（写法见 `WRITING.md`） | 不讲理由 |
-| `adr/` | 理由与取舍（写法见 `WRITING.md`） | 不复述模型结构 |
-| `domain/OVERVIEW.md` | 结构与关系，引用 ADR | 不复述论证 |
-| `CAPABILITIES.md` | 待建能力 | 不解释模型 |
-| `architecture/CONTAINERS.md` | 运行单元、边界、主要连接与组件归属 | 不展开组件内部职责 |
-| `architecture/components/<container>.md` | 单个 Container 内的软件职责、操作与状态责任 | 不混入其他 Container 的组件分解 |
-| `architecture/RUNTIME.md` | 关键场景与时序 | 不成为另一份领域规则 |
-| `design/<topic>/` | 已有内容的主题目录是字段形状、提交、校验步骤与错误分支的权威；改变领域语义仍回 `domain/CONTEXT.md` / ADR | 不预建空目录；不复述 ADR 理由；不是新的领域 |
-
-- **领域文件约束架构文件。** 架构为领域行为分配软件责任，不自行改变领域规则；规则要变，先裁决、再同步领域文件。架构收录要开发、部署、维护的软件单元，按应用与内部组件分层，不平铺成一层。
-- **组件身份与领域概念身份是两条轴。** 多数组件不是模型术语；少数组件因某条领域规则离开它就说不出来，同时是 `domain/CONTEXT.md` 的词条。
+| `CONTEXT.md` | 一两句话的定义 + `_Avoid_` 列表（写法见 `WRITING.md`） | 不讲理由 |
+| `adr/` | 理由与取舍（写法见 `WRITING.md`） | 不复述数据契约 |
+| `DATA.md` | `db` 的字段、派生字段、写入规则、归类体系的来源、留白 | 不写页面规则；页面规则写成 `app/logic.test.js` 的断言 |
 
 ## 内容标准
 
-- **领域 Overview 只装必要概念。**
+- **设计文件只写现状。** 决定变了就改写原文件（含 ADR），不加「历史」一节。
 - **设计文档描述模型，不描述 MVP 边界。** 模型说「是什么」，「先做哪一半」留给规划期。
 
 ## 表达方式

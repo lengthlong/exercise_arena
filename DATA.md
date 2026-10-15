@@ -6,7 +6,7 @@
 
 ## `exercises/{id}`：错题
 
-作答嵌在错题文档的 `attempts` 数组里，不单独成集合：一份数据库最多 25,000 份文档，嵌入后文档数只随错题数增长。
+作答嵌在错题文档的 `attempts` 数组里，不单独成集合（理由见 ADR 0004）。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -101,3 +101,7 @@ step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttempt
 
 - 科学、数学取自两张知识图：科学 `https://claude.ai/artifact/28476983-ebca-49fd-b882-f428e4e45012`（MOE 2023 大纲），数学 `https://claude.ai/artifact/8ujg7zbHmtuCPqTVMs3hvK`（MOE 2021 大纲）。练习场只取 id 与名称，讲解留在知识图里；知识图更新后要重新提取。概念与题型链接到 `<知识图链接>#<id>`；claude.ai 外壳是否把 `#` 传给页面未实测。
 - 英文体系由 agent 按新加坡小学英文语法与 PSLE 英文卷二的结构起草，未对照 MOE 大纲或 SEAB 考纲原文。
+
+## 留白
+
+- 变式题：同一概念换情境的新题。将来作为一道错题录入，多一个指向原题的字段，不改整体结构。
