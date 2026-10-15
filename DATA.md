@@ -62,7 +62,7 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `title` | 字符串 | 例如「科学 · 水、繁殖 · 10-14」 |
+| `title` | 字符串 | 例如「Science · Water, Reproduction · 14 Oct」；没选专题时写 All topics |
 | `createdAt` | 日期 | |
 | `subject` | 同错题 | |
 | `topics` | 字符串数组 | 专题 id；空数组表示该科目全部专题 |
