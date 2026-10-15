@@ -11,7 +11,6 @@
 | `DATA.md` | `db` 的数据契约：字段、派生字段、写入规则、归类体系的来源 |
 | `CONTEXT.md` | 术语表：界面与对话里用的词，`_Avoid_` 列出不用的说法 |
 | `adr/NNNN-*.md` | 取舍：为什么这么定、否掉了什么 |
-| `.agents/skills/record-exercises/` | 在对话里录入错题（`.claude/skills/` 下有同名链接） |
 | `discuss/` | 早先按讨论流程留下的记录，只读归档 |
 
 `AGENTS.md` 是本文件的符号链接。
