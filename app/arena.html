@@ -1,13 +1,13 @@
 <!--
-  Sophia's Exercise Arena — 练习场页面（实现）。
+  Exercise Arena — 练习场页面（实现）。
   数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
   能力：db、assets、sample（images）、downloads、user（profile）。
 -->
-<title>Sophia's Exercise Arena</title>
+<title>Exercise Arena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Patrick+Hand&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Patrick+Hand&display=swap">
 <style>
 /* Layout: an exercise book — ruled paper, a red margin line on each question, ticks and crosses in a marking-pen hand; Sophia writes in fountain-pen blue. */
 :root {
@@ -32,9 +32,8 @@
   --c-right: #1f7a4a;
   --c-partial: #d69e1a;
   --c-wrong: #b3261e;
-  --font-body: "Lexend", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-hand: "Patrick Hand", "Lexend", "Noto Sans SC", cursive;
-  --font-zh: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Lexend", sans-serif;
+  --font-body: "Lexend", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-hand: "Patrick Hand", "Lexend", cursive;
   --r: 10px;
 }
 @media (prefers-color-scheme: dark) {
@@ -58,7 +57,6 @@ body { background: var(--paper); color: var(--ink); font: 400 15.5px/1.6 var(--f
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
 a { color: var(--pen); text-underline-offset: 2px; }
-[lang="zh"], .zh { font-family: var(--font-zh); }
 mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-radius: 3px; }
 
 .wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 64px; display: grid; gap: 18px; }
@@ -69,7 +67,8 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .seg button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .tabs { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); background: var(--paper); margin-top: -18px; padding-top: 6px; }
-.tabs button { border: 0; background: none; padding: 8px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font-zh); }
+.tabs button { border: 0; background: none; padding: 8px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+@media (max-width: 480px) { .tabs button { padding: 8px 6px; font-size: 14px; } }
 .tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--pen); font-weight: 500; }
 
 /* generic */
@@ -95,7 +94,6 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .note.err { background: var(--red-soft); color: var(--red); }
 .note.ok { background: var(--green-soft); color: var(--green); }
 label.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
-label.f > span { font-family: var(--font-zh); }
 input[type=text], input[type=number], input[type=date], select, textarea {
   width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 15px;
 }
@@ -239,7 +237,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .pick:hover { border-style: solid; }
 .pick:focus-within { outline: 2px solid var(--pen); outline-offset: 2px; }
 .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.pick-main { font: 600 19px/1.3 var(--font-zh); }
+.pick-main { font: 600 19px/1.3 var(--font-body); }
 .pick-sub { font-size: 13px; color: var(--muted); }
 .pick.off { border-color: var(--line); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
 .tray { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -251,6 +249,8 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .rec-go .btn { padding: 11px 14px; font-size: 16px; }
 @media (max-width: 480px) { .rec-go { grid-template-columns: minmax(0, 1fr); } }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
+.set-group { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.set-group:first-of-type { border-top: 0; padding-top: 0; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -265,6 +265,8 @@ const TAX = /*TAXONOMY:BEGIN*/{"english":{"layers":[["V","动词","Verbs"],["W",
 <script>
 /* LOGIC:BEGIN — 纯函数：按用户的视图与归属人、复习阶梯、判对、每日清单、抽题、看板、计划与回顾、设置（断言见 app/logic.test.js） */
 const GAPS = [0, 1, 2, 4, 7];
+const SUBJECTS = [['english', 'English'], ['math', 'Math'], ['science', 'Science']];
+const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s[0], { en: s[1] }]));
 function pad2(n) { return String(n).padStart(2, '0'); }
 function localToday(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 function addDays(iso, n) {
@@ -426,14 +428,18 @@ function visiblePapers(papers, view, uid, today) {
   // 卷子列表：全部检验卷，加我的每日卷；更早没交的每日卷作废，不再列出
   return papers.filter(p => !isDaily(p) || (p.for === uid && (p.createdAt === today || handedInAt(p, view, uid))));
 }
-function makeDailyPaper(list, uid, owner, today, fmt) {
-  // 每日卷：按当天清单的顺序，只给 uid 做
-  return { kind: 'daily', for: uid, owner, title: "Today's redo · " + (fmt ? fmt(today) : today), createdAt: today,
-    subject: null, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
+function dailyBySubject(list) {
+  // 今天的清单按科目分开：按 SUBJECTS 顺序，组内保持清单顺序，空科目不出
+  return SUBJECTS.map(s => [s[0], list.filter(e => e.subject === s[0])]).filter(x => x[1].length);
 }
-function openDailyPaper(papers, view, uid, today) {
-  // 今天给我的、我还没交过的每日卷；更早没交的作废
-  return papers.find(p => isDaily(p) && p.for === uid && p.createdAt === today && !handedInAt(p, view, uid)) || null;
+function makeDailyPaper(list, uid, owner, today, fmt, subject) {
+  // 每日卷：一个科目，按当天清单的顺序，只给 uid 做
+  return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today,
+    subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
+}
+function openDailyPaper(papers, view, uid, today, subject) {
+  // 今天给我的、这个科目的、我还没交过的每日卷；subject 为 null 取旧式混合卷（缺 subject 按 null）；更早没交的作废
+  return papers.find(p => isDaily(p) && p.for === uid && p.createdAt === today && (p.subject || null) === (subject || null) && !handedInAt(p, view, uid)) || null;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -738,7 +744,7 @@ function weekTips(plan, week, checks, settings, topicName) {
   const tips = [];
   if (plan.clearOn === null) {
     tips.push(plan.needLimit
-      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — change the daily limit in 设置.`
+      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — change the daily limit in Settings.`
       : `${are(plan.waiting)} waiting — do your redo every day, oldest first.`);
   } else if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
   if (unmet('days')) tips.push(`Little and often: aim for ${settings.practiceDays} days a week — you practised on ${week.practised} of the last 7.`);
@@ -753,13 +759,11 @@ function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).f
 
 <script>
 /* ---------- 常量与工具 ---------- */
-const SUBJECTS = [['english', 'English', '英文'], ['math', 'Math', '数学'], ['science', 'Science', '科学']];
-const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s[0], { en: s[1], zh: s[2] }]));
 const MAPS = { science: 'https://claude.ai/artifact/28476983-ebca-49fd-b882-f428e4e45012', math: 'https://claude.ai/artifact/8ujg7zbHmtuCPqTVMs3hvK' };
-const CAUSES = [['concept', '概念没懂', "Didn't get the idea"], ['misread', '审题错', 'Misread the question'], ['careless', '粗心', 'Careless slip'], ['incomplete', '答法不完整', 'Incomplete answer']];
-const CAUSE = Object.fromEntries(CAUSES.map(c => [c[0], { zh: c[1], en: c[2] }]));
-const FORMATS = [['mcq', '选择'], ['pick', '选词'], ['short', '短答'], ['open', '主观']];
-const RESULT = { right: { en: 'Right', zh: '对', sym: '✓' }, partial: { en: 'Partly', zh: '部分对', sym: '½' }, wrong: { en: 'Wrong', zh: '错', sym: '✗' } };
+const CAUSES = [['concept', "Didn't get the idea"], ['misread', 'Misread the question'], ['careless', 'Careless slip'], ['incomplete', 'Incomplete answer']];
+const CAUSE = Object.fromEntries(CAUSES.map(c => [c[0], { en: c[1] }]));
+const FORMATS = [['mcq', 'Multiple choice'], ['pick', 'Word pick'], ['short', 'Short answer'], ['open', 'Open-ended']];
+const RESULT = { right: { en: 'Right', sym: '✓' }, partial: { en: 'Partly', sym: '½' }, wrong: { en: 'Wrong', sym: '✗' } };
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 const IDX = {};
@@ -779,10 +783,10 @@ const hl = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<mark>$1</mark>');
 const ul = s => esc(s).replace(/\[\[(.+?)\]\]/g, '<u>$1</u>');
 const plain = s => String(s || '').replace(/\[\[(.+?)\]\]/g, '$1');
 const nameOf = (s, kind, id) => (IDX[s] && IDX[s][kind][id]) || null;
-const topicLabel = (s, id, lang) => { const t = nameOf(s, 'topic', id); return t ? (lang === 'zh' ? t.zh : t.en) : (id || '—'); };
+const topicLabel = (s, id) => { const t = nameOf(s, 'topic', id); return t ? t.en : (id || '—'); };
 const blobUrl = id => '/_blob/' + id;
 const fmtDate = iso => { if (!iso) return '—'; const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
-const ladderHtml = e => e.mastered ? '<span class="ladder m" title="已掌握">★ mastered</span>' : `<span class="ladder" title="复习阶梯第 ${e.step} 级">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
+const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Review ladder step ${e.step}">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
 const subjChip = s => `<span class="chip s-${esc(s)}">${esc(SUBJ[s] ? SUBJ[s].en : s)}</span>`;
 function mapLink(subject, id, label) {
   if (!id || !MAPS[subject]) return esc(label);
@@ -803,7 +807,7 @@ const S = {
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
   drafts: [], recOwner: undefined, recSubject: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
-  filters: { subject: '', topic: '', cause: '', state: '' },
+  filters: { owner: '', subject: '', topic: '', cause: '', state: '' }, paperOwner: '',
   detailId: null, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null   // errMsg：写数据出错，显示在当前标签页最上方
@@ -825,7 +829,13 @@ function ownerOptions(sel) {
   const ids = S.userIds.slice();
   if (sel && !ids.includes(sel)) ids.push(sel);
   // 只列用户；没有归属人的旧错题不预选，必须选一位
-  return (sel ? '' : `<option value="" selected disabled>选归属人</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? '（我）' : ''}</option>`).join('');
+  return (sel ? '' : `<option value="" selected disabled>Choose owner</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
+}
+function ownerFilterOptions(sel, docs) {
+  // 筛选用：All 加每位用户与数据里出现过的归属人，本人标 (me)
+  const ids = S.userIds.slice();
+  for (const x of docs) if (x.owner && !ids.includes(x.owner)) ids.push(x.owner);
+  return `<option value="">All</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
 async function loadNames() {
   // 名字只在显示时向平台现取；取不到的显示 Someone
@@ -861,7 +871,7 @@ function materialBlock(set, open) {
   if (!set) return '';
   return `<details class="material" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo')}</details>`;
 }
-const setChip = e => { const x = e.setId && setById(e.setId); return x ? `<span class="chip">题组 · ${esc(x.title || '未命名')}</span>` : ''; };
+const setChip = e => { const x = e.setId && setById(e.setId); return x ? `<span class="chip">Set · ${esc(x.title || 'Untitled')}</span>` : ''; };
 function newSetDraft(x) {
   x = x || {};
   return { key: setSeq++, subject: SUBJ[x.subject] ? x.subject : '', title: String(x.title || ''), text: String(x.text || ''), source: String(x.source || ''), images: Array.isArray(x.images) ? x.images.slice() : [], wordBank: parseList(x.wordBank).join('; '), savedId: null, error: '' };
@@ -888,13 +898,13 @@ function locked() {
 }
 function softRender() { if (!locked()) render(); }
 
-const TABS = [['today', 'Today'], ['record', '录入'], ['exercises', '错题'], ['papers', '检验卷'], ['settings', '设置']];
+const TABS = [['today', 'Today'], ['record', 'Record'], ['exercises', 'Exercises'], ['papers', 'Papers'], ['settings', 'Settings']];
 function render() {
   const app = $('#app');
   let h = `<nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
-  else if (S.status === 'nodb') h += `<div class="panel"><p class="h2 zh">数据不可用</p><p class="zh muted">请用受邀的 Claude 账号登录后打开本页。练习场的错题和作答都存在页面的数据库里，只有登录后才能读写。</p></div>`;
-  else if (S.errMsg && !S.run) h += `<p class="note err zh">${esc(S.errMsg)}</p>`;
+  else if (S.status === 'nodb') h += `<div class="panel"><p class="h2">Data unavailable</p><p class="muted">Sign in with an invited Claude account, then open this page again. The exercises and answers live in this page's database, which can only be read and written after signing in.</p></div>`;
+  else if (S.errMsg && !S.run) h += `<p class="note err">${esc(S.errMsg)}</p>`;
   if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
@@ -911,17 +921,17 @@ function renderPractice() {
   const dateLine = new Date().toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' });
   if (!S.exercises.length) {
     return `<section class="hello"><div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div></section>
-      <div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in 录入.</p></div>`;
+      <div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in Record.</p></div>`;
   }
   const sc = todayScope(S.exercises, S.me, S.settings.defaultOwner);
   const due = dailyList(sc.todo, today, S.settings.dailyLimit);
-  const openD = openDailyPaper(S.papers, sc.done, S.me, today);
+  const redo = redoButtons(due, sc.done, today);
   const open = papersToDo(S.papers, sc.done, S.settings.defaultOwner, S.me).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   const db = dashboardData(sc.todo, sc.done, today);
   const plan = planForecast(sc.todo, today, S.settings.dailyLimit);
   const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
-  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0 || !!openD))
-    + todayBlock(today, due, open, sc.todo, openD)
+  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0 || redo.some(b => b.paper)))
+    + todayBlock(today, redo, open, sc.todo)
     + planBlock(plan, today, sc.done)
     + reviewBlock(plan, week)
     + progressBlock(db);
@@ -942,17 +952,27 @@ function helloBlock(dateLine, db, message) {
 }
 
 /* 今天：每日重做与未做的检验卷 */
-function todayBlock(today, due, open, todo, openD) {
-  // 有今天没交的每日卷时，题数与按钮都按这张卷
-  const n = openD ? openD.exerciseIds.length : due.length;
+function redoButtons(due, view, today) {
+  // 有今天没交的旧式混合每日卷时只出它；否则每科一个：有今天没交的该科每日卷就接着用、题数按卷，否则题数按今天清单里这一科
+  const mixed = openDailyPaper(S.papers, view, S.me, today, null);
+  if (mixed) return [{ subject: null, paper: mixed, n: mixed.exerciseIds.length }];
+  const bySubj = Object.fromEntries(dailyBySubject(due));
+  return SUBJECTS.map(([s]) => {
+    const p = openDailyPaper(S.papers, view, S.me, today, s);
+    return { subject: s, paper: p, n: p ? p.exerciseIds.length : (bySubj[s] || []).length };
+  }).filter(b => b.n);
+}
+function todayBlock(today, redo, open, todo) {
+  // 大数字是各按钮题数之和
+  const n = redo.reduce((t, b) => t + b.n, 0);
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
   let h = `<section class="today" aria-label="Today">
     <div class="big num" aria-hidden="true">${n}</div>
     <div class="txt">
       <p class="h2">${n ? `${plural(n, 'question')} to redo today` : 'Nothing due today'}</p>
-      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in 设置.` : n ? (allDue > n ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
-      ${n ? `<div><button type="button" class="btn primary" data-act="start-daily">${openD ? 'Continue' : 'Start'} today's redo</button></div>` : ''}
+      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? (allDue > n ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
+      ${n ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject || ''}">${!b.subject ? "Continue today's redo" : `${b.paper ? 'Continue ' : ''}${esc(SUBJ[b.subject].en)} · ${b.n}`}</button>`).join('')}</div>` : ''}
     </div>`;
   if (open.length) {
     h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
@@ -1146,44 +1166,44 @@ function renderPaperRun() {
   return h;
 }
 
-/* ---------- 管理标签（中文） ---------- */
+/* ---------- 管理标签 ---------- */
 function renderManage() {
   let h = '';
   if (S.tab === 'record') h = renderRecord();
   else if (S.tab === 'exercises') h = renderExercises();
   else if (S.tab === 'papers') h = S.paperView ? renderPaperSheet(S.paperView) : renderPapers();
   else h = renderSettings();
-  return `<div class="zh" style="display:grid;gap:16px">${h}</div>`;
+  return `<div style="display:grid;gap:16px">${h}</div>`;
 }
 
 function subjectOptions(sel, withAuto) {
-  return (withAuto ? `<option value="">AI 判断</option>` : `<option value="">选科目</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[2]} ${s[1]}</option>`).join('');
+  return (withAuto ? `<option value="">Let AI decide</option>` : `<option value="">Choose subject</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
 }
 
 function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
   const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy;
   let h = `<section class="panel">
-    <p class="h2">录入错题</p>
-    <p class="small muted">拍照或贴题目文字，AI 拆成一道道草稿；保存前请逐条核对，尤其是答案。</p>`;
+    <p class="h2">Record exercises</p>
+    <p class="small muted">Take a photo or paste the question text; AI splits it into drafts. Check each draft before saving, especially the answer.</p>`;
   if (canPhoto) {
     h += `<label class="pick${full || busy ? ' off' : ''}"><input type="file" id="rec-files" accept="${esc((L.mediaTypes || ['image/*']).join(','))}" multiple ${full || busy ? 'disabled' : ''}>
-      <span class="pick-main">📷 拍照 / 选照片</span><span class="pick-sub">${full ? `已到 ${max} 张上限` : `可以一张张加，最多 ${max} 张`}</span></label>`;
-    if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="照片 ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="去掉照片 ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">已选 ${n} / ${max}</span></div>`;
-  } else if (canSample) h += `<p class="small muted">本页现在不能把照片交给 AI，可以贴题目文字。</p>`;
-  h += `<label class="f"><span>也可以贴题目文字</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="例：Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
+      <span class="pick-main">📷 Take / choose photos</span><span class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</span></label>`;
+    if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
+  } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
+  h += `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
     <div class="rec-go">
-      <label class="f"><span>科目</span><select id="rec-subject" data-bind="recSubject">${subjectOptions(S.recSubject, true)}</select></label>
-      <label class="f"><span>归属人</span><select id="rec-owner" data-bind="recOwner">${ownerOptions(recOwner())}</select></label>
-      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${busy ? '识别中…' : 'AI识别'}</button>
+      <label class="f"><span>Subject</span><select id="rec-subject" data-bind="recSubject">${subjectOptions(S.recSubject, true)}</select></label>
+      <label class="f"><span>Owner</span><select id="rec-owner" data-bind="recOwner">${ownerOptions(recOwner())}</select></label>
+      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${busy ? 'Reading…' : 'Read with AI'}</button>
     </div>
-    ${!canSample ? '<p class="note err">AI 识别现在不可用，本页暂时不能录入。</p>' : ''}
+    ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
     ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
   </section>`;
   const newDrafts = S.drafts.filter(d => !d.editId);
   const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
   if (newDrafts.length || S.setDrafts.length) {
-    h += `<div id="rec-drafts" style="display:grid;gap:8px"><div class="row"><p class="h2 grow">待核对 ${newDrafts.length} 道${S.setDrafts.length ? `，题组 ${S.setDrafts.length} 个` : ''}</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>${saveNote}</div>`;
+    h += `<div id="rec-drafts" style="display:grid;gap:8px"><div class="row"><p class="h2 grow">To check: ${plural(newDrafts.length, 'exercise')}${S.setDrafts.length ? `, ${plural(S.setDrafts.length, 'question set')}` : ''}</p><button type="button" class="btn primary" data-act="save-all">Save all</button><button type="button" class="btn ghost" data-act="discard-all">Discard all</button></div>${saveNote}</div>`;
     for (const sd of S.setDrafts) {
       const members = newDrafts.filter(d => d.setRef === 'new:' + sd.key);
       h += setForm(sd, members.length);
@@ -1201,29 +1221,29 @@ function clearPhotos() {
 function addPhotos(files) {
   const L = S.imgLimits, skipped = [];
   for (const f of files) {
-    if (S.recPhotos.length >= L.maxCount) skipped.push(`「${f.name}」超过 ${L.maxCount} 张上限`);
-    else if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`「${f.name}」太大（最大 ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB），换一张或压缩后再加`);
+    if (S.recPhotos.length >= L.maxCount) skipped.push(`"${f.name}" is over the limit of ${L.maxCount} photos`);
+    else if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`"${f.name}" is too large (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo or shrink it first`);
     else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null });
   }
-  if (skipped.length) S.recMsg = { kind: 'err', text: '没加上：' + skipped.join('；') + '。' };
+  if (skipped.length) S.recMsg = { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' };
 }
 
 function setForm(sd, nMembers) {
   const k = sd.key, edit = k === 'edit';
   const inp = (field, v, ph) => `<input type="text" id="s${k}-${field}" data-s="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
   let h = `<section class="panel setcard" id="set-${k}">
-    <div class="row"><p class="h3 grow">${edit ? '编辑题组' : (sd.savedId ? '题组（已保存）' : '题组草稿')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">放弃题组</button>`}</div>
+    <div class="row"><p class="h3 grow">${edit ? 'Edit question set' : (sd.savedId ? 'Question set (saved)' : 'Question set draft')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">Discard set</button>`}</div>
     <div class="grid2">
-      ${edit ? `<div class="f small"><span class="muted">科目</span><div>${esc(SUBJ[sd.subject] ? SUBJ[sd.subject].zh : '')}</div></div>` : `<label class="f"><span>科目 *</span><select id="s${k}-subject" data-s="${k}" data-f="subject" data-rerender="1">${subjectOptions(sd.subject)}</select></label>`}
-      <label class="f"><span>标题</span>${inp('title', sd.title, '例：School carnival flyer')}</label>
-      <label class="f"><span>出处</span>${inp('source', sd.source, '例：2026 P5 SA2 卷二 Booklet B')}</label>
+      ${edit ? `<div class="f small"><span class="muted">Subject</span><div>${esc(SUBJ[sd.subject] ? SUBJ[sd.subject].en : '')}</div></div>` : `<label class="f"><span>Subject *</span><select id="s${k}-subject" data-s="${k}" data-f="subject" data-rerender="1">${subjectOptions(sd.subject)}</select></label>`}
+      <label class="f"><span>Title</span>${inp('title', sd.title, 'e.g. School carnival flyer')}</label>
+      <label class="f"><span>Source</span>${inp('source', sd.source, 'e.g. 2026 P5 SA2 Paper 2 Booklet B')}</label>
     </div>
-    <label class="f"><span>材料文字（文章、传单或实验装置的文字；[[ ]] 显示为下划线）</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>
-    <label class="f"><span>词表（语法完形框里的词，用 ; 或换行分隔；没有就留空）</span><textarea id="s${k}-wordBank" data-s="${k}" data-f="wordBank" data-rerender="1" rows="2" placeholder="例：although; despite; which; whose">${esc(sd.wordBank)}</textarea></label>`;
-  if (sd.images.length) h += `<div class="imgs thumbs">${sd.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="材料照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-simg" data-s="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
-  if (!edit && nMembers === 0) h += `<p class="small muted">还没有小题挂在这个题组下；没有小题的题组不会保存。</p>`;
+    <label class="f"><span>Material text (the passage, flyer or experiment set-up; [[ ]] shows as underlined)</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>
+    <label class="f"><span>Word bank (the words in the grammar cloze box, separated by ; or new lines; leave empty if none)</span><textarea id="s${k}-wordBank" data-s="${k}" data-f="wordBank" data-rerender="1" rows="2" placeholder="e.g. although; despite; which; whose">${esc(sd.wordBank)}</textarea></label>`;
+  if (sd.images.length) h += `<div class="imgs thumbs">${sd.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="Material photo ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-simg" data-s="${k}" data-i="${i}">Remove photo</button></span>`).join('')}</div>`;
+  if (!edit && nMembers === 0) h += `<p class="small muted">No questions belong to this set yet; a set without questions won't be saved.</p>`;
   if (sd.error) h += `<p class="note err">${esc(sd.error)}</p>`;
-  if (edit) h += `<div class="row"><button type="button" class="btn primary" data-act="save-set">保存题组</button><button type="button" class="btn ghost" data-act="cancel-set">取消</button></div>`;
+  if (edit) h += `<div class="row"><button type="button" class="btn primary" data-act="save-set">Save set</button><button type="button" class="btn ghost" data-act="cancel-set">Cancel</button></div>`;
   return h + '</section>';
 }
 
@@ -1232,48 +1252,48 @@ function draftForm(d) {
   const k = d.key;
   const topics = T ? T.layers.map(l => {
     const ts = T.topics.filter(t => t[1] === l[0]);
-    return ts.length ? `<optgroup label="${esc(l[1] + ' ' + l[2])}">${ts.map(t => `<option value="${t[0]}" ${d.topic === t[0] ? 'selected' : ''}>${esc(t[2] + ' · ' + t[3])}</option>`).join('')}</optgroup>` : '';
+    return ts.length ? `<optgroup label="${esc(l[2])}">${ts.map(t => `<option value="${t[0]}" ${d.topic === t[0] ? 'selected' : ''}>${esc(t[3])}</option>`).join('')}</optgroup>` : '';
   }).join('') : '';
-  const concepts = T ? T.concepts.filter(c => c[1] === d.topic).map(c => `<option value="${c[0]}" ${d.concept === c[0] ? 'selected' : ''}>${esc(c[2] + ' · ' + c[3])}</option>`).join('') : '';
-  const qtypes = T ? T.qtypes.map(q => `<option value="${q[0]}" ${d.qtype === q[0] ? 'selected' : ''}>${esc(q[1] + ' · ' + q[2])}</option>`).join('') : '';
+  const concepts = T ? T.concepts.filter(c => c[1] === d.topic).map(c => `<option value="${c[0]}" ${d.concept === c[0] ? 'selected' : ''}>${esc(c[3])}</option>`).join('') : '';
+  const qtypes = T ? T.qtypes.map(q => `<option value="${q[0]}" ${d.qtype === q[0] ? 'selected' : ''}>${esc(q[2])}</option>`).join('') : '';
   const f = (name, label, html) => `<label class="f"><span>${label}</span>${html}</label>`;
   const inp = (field, v, ph) => `<input type="text" id="d${k}-${field}" data-d="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
   const ta = (field, v, rows, ph) => `<textarea id="d${k}-${field}" data-d="${k}" data-f="${field}" rows="${rows}" placeholder="${esc(ph || '')}">${esc(v)}</textarea>`;
   let h = `<section class="panel draft" id="draft-${k}">
-    <div class="row"><p class="h3 grow">${d.editId ? '编辑错题' : '草稿'}</p>${d.editId ? '' : `<button type="button" class="btn ghost small" data-act="drop-draft" data-k="${k}">放弃这道</button>`}</div>
+    <div class="row"><p class="h3 grow">${d.editId ? 'Edit exercise' : 'Draft'}</p>${d.editId ? '' : `<button type="button" class="btn ghost small" data-act="drop-draft" data-k="${k}">Discard this one</button>`}</div>
     <div class="grid2">
-      ${f('subject', '科目 *', `<select id="d${k}-subject" data-d="${k}" data-f="subject" data-rerender="1">${subjectOptions(s)}</select>`)}
-      ${f('topic', '专题 *', `<select id="d${k}-topic" data-d="${k}" data-f="topic" data-rerender="1"><option value="">选专题</option>${topics}</select>`)}
-      ${f('concept', '概念', `<select id="d${k}-concept" data-d="${k}" data-f="concept"><option value="">（不填）</option>${concepts}</select>`)}
-      ${f('qtype', '题型', `<select id="d${k}-qtype" data-d="${k}" data-f="qtype"><option value="">（不填）</option>${qtypes}</select>`)}
-      ${f('format', '作答形式', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
-      ${f('cause', '错因', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
-      ${d.editId ? f('owner', '归属人', `<select id="d${k}-owner" data-d="${k}" data-f="owner">${ownerOptions(d.owner)}</select>`) : ''}
+      ${f('subject', 'Subject *', `<select id="d${k}-subject" data-d="${k}" data-f="subject" data-rerender="1">${subjectOptions(s)}</select>`)}
+      ${f('topic', 'Topic *', `<select id="d${k}-topic" data-d="${k}" data-f="topic" data-rerender="1"><option value="">Choose topic</option>${topics}</select>`)}
+      ${f('concept', 'Concept', `<select id="d${k}-concept" data-d="${k}" data-f="concept"><option value="">(none)</option>${concepts}</select>`)}
+      ${f('qtype', 'Question type', `<select id="d${k}-qtype" data-d="${k}" data-f="qtype"><option value="">(none)</option>${qtypes}</select>`)}
+      ${f('format', 'Answer format', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
+      ${f('cause', 'Error cause', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
+      ${d.editId ? f('owner', 'Owner', `<select id="d${k}-owner" data-d="${k}" data-f="owner">${ownerOptions(d.owner)}</select>`) : ''}
     </div>
-    ${f('setRef', '所属题组', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">无（独立的题）</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>本批新建：${esc(sd.title || '未命名题组')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || '未命名题组')}</option>`).join('')}</select>`)}
-    ${f('stem', (d.setRef ? '题目文字（只写这一问，材料在题组里）' : '题目文字') + '；[[ ]] 显示为下划线', ta('stem', d.stem, 4))}`;
-  if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="题目照片 ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">去掉照片</button></span>`).join('')}</div>`;
+    ${f('setRef', 'Question set', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">None (stand-alone question)</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>New in this batch: ${esc(sd.title || 'Untitled set')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || 'Untitled set')}</option>`).join('')}</select>`)}
+    ${f('stem', (d.setRef ? 'Question text (only this question; the material is in the set)' : 'Question text') + '; [[ ]] shows as underlined', ta('stem', d.stem, 4))}`;
+  if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="Question photo ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">Remove photo</button></span>`).join('')}</div>`;
   if (d.format === 'mcq') {
-    h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `选项 (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
-      <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">加一个选项</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">去掉最后一个</button>` : ''}</div>
-      <div class="grid2">${f('answer', '正确选项 *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
-      ${f('wrongAnswer', '当时选的', inp('wrongAnswer', d.wrongAnswer, '例：(1)'))}</div>`;
+    h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `Option (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
+      <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">Add an option</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">Remove the last one</button>` : ''}</div>
+      <div class="grid2">${f('answer', 'Correct option *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
+      ${f('wrongAnswer', 'Chosen at the time', inp('wrongAnswer', d.wrongAnswer, 'e.g. (1)'))}</div>`;
   } else if (d.format === 'pick') {
     const sd = setOfDraft(d), bank = sd ? parseList(sd.wordBank) : [];
     h += bank.length
-      ? `<div class="grid2">${f('answer', '正确的词 *（取自所属题组的词表）', `<select id="d${k}-answer" data-d="${k}" data-f="answer"><option value="">选词</option>${bank.map(w => `<option value="${esc(w)}" ${normAnswer(d.answer) === normAnswer(w) ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>`)}${f('wrongAnswer', '当时填的', inp('wrongAnswer', d.wrongAnswer))}</div>`
-      : `<p class="note err">选词题要属于带词表的题组：先选所属题组，并在题组卡片里填好词表。</p>`;
+      ? `<div class="grid2">${f('answer', "Correct word * (from the set's word bank)", `<select id="d${k}-answer" data-d="${k}" data-f="answer"><option value="">Choose word</option>${bank.map(w => `<option value="${esc(w)}" ${normAnswer(d.answer) === normAnswer(w) ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>`)}${f('wrongAnswer', 'Filled in at the time', inp('wrongAnswer', d.wrongAnswer))}</div>`
+      : `<p class="note err">A word-pick question must belong to a question set with a word bank: choose the set first, and fill in the word bank on the set's card.</p>`;
   } else if (d.format === 'short') {
-    h += `<div class="grid2">${f('answer', '正确答案 *', inp('answer', d.answer))}${f('accepted', '其他可接受答案（用 ; 分隔）', inp('accepted', d.accepted, '例：0.5; 1/2'))}${f('wrongAnswer', '当时的答案', inp('wrongAnswer', d.wrongAnswer))}</div>`;
+    h += `<div class="grid2">${f('answer', 'Correct answer *', inp('answer', d.answer))}${f('accepted', 'Other accepted answers (separated by ;)', inp('accepted', d.accepted, 'e.g. 0.5; 1/2'))}${f('wrongAnswer', 'Answer at the time', inp('wrongAnswer', d.wrongAnswer))}</div>`;
   } else {
-    h += f('answer', '标准答法 *（得分关键词用 [[ ]] 括起来）', ta('answer', d.answer, 3, '例：Warmer [[water vapour]] in the surrounding air [[loses heat]] to the [[cooler surface]] and [[condenses]].'));
-    h += f('wrongAnswer', '当时的答案', ta('wrongAnswer', d.wrongAnswer, 2));
-    h += f('mustUse', '必须用的词（句子改写用；; 分隔，分开的词组写成 Neither…nor）', inp('mustUse', d.mustUse, '例：Despite'));
+    h += f('answer', 'Model answer * (wrap the words that earn marks in [[ ]])', ta('answer', d.answer, 3, 'e.g. Warmer [[water vapour]] in the surrounding air [[loses heat]] to the [[cooler surface]] and [[condenses]].'));
+    h += f('wrongAnswer', 'Answer at the time', ta('wrongAnswer', d.wrongAnswer, 2));
+    h += f('mustUse', 'Must-use words (for synthesis; separated by ;, write split pairs as Neither…nor)', inp('mustUse', d.mustUse, 'e.g. Despite'));
   }
-  h += f('solution', '讲解（三段：Key idea: … / Steps: 1. … / Watch out: …；关键词用 [[ ]]）', ta('solution', d.solution, 5, 'Key idea: …\nSteps:\n1. …\n2. …\nWatch out: …'));
-  h += `<div class="grid2">${f('source', '出处', inp('source', d.source, '例：2026 P5 SA2 卷二 Q7'))}</div>`;
+  h += f('solution', 'Explanation (three parts: Key idea: … / Steps: 1. … / Watch out: …; key words in [[ ]])', ta('solution', d.solution, 5, 'Key idea: …\nSteps:\n1. …\n2. …\nWatch out: …'));
+  h += `<div class="grid2">${f('source', 'Source', inp('source', d.source, 'e.g. 2026 P5 SA2 Paper 2 Q7'))}</div>`;
   if (d.error) h += `<p class="note err">${esc(d.error)}</p>`;
-  h += `<div class="row"><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">${d.editId ? '保存修改' : '保存这道'}</button>${d.editId ? `<button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">取消</button>` : ''}</div></section>`;
+  h += `<div class="row"><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">${d.editId ? 'Save changes' : 'Save this one'}</button>${d.editId ? `<button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">Cancel</button>` : ''}</div></section>`;
   return h;
 }
 
@@ -1293,7 +1313,7 @@ function newDraft(x) {
     accepted: Array.isArray(x.accepted) ? x.accepted.filter(a => normAnswer(a) !== normAnswer(x.answer)).join('; ') : String(x.accepted || ''),
     solution: String(x.solution || ''), wrongAnswer: String(x.wrongAnswer || ''),
     cause: CAUSE[x.cause] ? x.cause : 'concept', source: String(x.source || ''),
-    images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? 'Claude 给的专题不在体系里，请选一个。' : '',
+    images: Array.isArray(x.images) ? x.images.slice() : [], error: (x.topic && !topic) ? "Claude's topic isn't in the list; please choose one." : '',
     setRef: x.setRef != null ? String(x.setRef) : String(x.setId || ''), origSetId: x.setId || null, setPos: x.setPos || null,
     mustUse: parseList(x.mustUse).join('; ')
   };
@@ -1301,23 +1321,23 @@ function newDraft(x) {
 
 function draftToDoc(d) {
   const err = [];
-  if (!SUBJ[d.subject]) err.push('科目');
-  if (!d.topic) err.push('专题');
+  if (!SUBJ[d.subject]) err.push('subject');
+  if (!d.topic) err.push('topic');
   const sd = setOfDraft(d);
-  if (d.setRef && !sd) err.push('所属题组');
-  if (sd && sd.subject && sd.subject !== d.subject) err.push('与题组相同的科目');
+  if (d.setRef && !sd) err.push('question set');
+  if (sd && sd.subject && sd.subject !== d.subject) err.push('the same subject as its set');
   const hasMat = sd && (String(sd.text || '').trim() || (sd.images || []).length);
-  if (!d.stem.trim() && !d.images.length && !hasMat) err.push('题目文字或照片');
+  if (!d.stem.trim() && !d.images.length && !hasMat) err.push('question text or photo');
   const options = d.format === 'mcq' ? d.options.map(o => o.trim()) : [];
-  if (d.format === 'mcq' && options.filter(Boolean).length < 2) err.push('至少两个选项');
-  if (!String(d.answer).trim()) err.push('答案');
+  if (d.format === 'mcq' && options.filter(Boolean).length < 2) err.push('at least two options');
+  if (!String(d.answer).trim()) err.push('answer');
   if (d.format === 'pick') {
     const bank = sd ? parseList(sd.wordBank) : [];
-    if (!bank.length) err.push('带词表的所属题组');
-    else if (!bank.some(w => normAnswer(w) === normAnswer(d.answer))) err.push('词表里的答案');
+    if (!bank.length) err.push('a question set with a word bank');
+    else if (!bank.some(w => normAnswer(w) === normAnswer(d.answer))) err.push('an answer from the word bank');
   }
-  if (!(d.editId ? d.owner : recOwner())) err.push('归属人');
-  if (err.length) return { error: '还缺：' + err.join('、') };
+  if (!(d.editId ? d.owner : recOwner())) err.push('owner');
+  if (err.length) return { error: 'Still missing: ' + err.join(', ') };
   const accepted = d.format === 'short' ? [d.answer.trim()].concat(d.accepted.split(';').map(a => a.trim()).filter(Boolean)) : [];
   return { doc: {
     subject: d.subject, topic: d.topic, concept: d.concept || null, qtype: d.qtype || null, format: d.format,
@@ -1332,35 +1352,36 @@ function renderExercises() {
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
-  const list = mine().filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
+  const list = mine().filter(e => (!F.owner || sameOwner(e.owner, F.owner)) && (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
     && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered)));
   const sorted = sortExercises(list, S.listSort.key, S.listSort.dir);
   const pg = pageSlice(sorted, S.listPage, 20);
   S.listPage = pg.page;
-  const topicOpts = F.subject ? TAX[F.subject].topics.map(t => `<option value="${t[0]}" ${F.topic === t[0] ? 'selected' : ''}>${esc(t[2])}</option>`).join('') : '';
-  const byCause = CAUSES.map(c => [c[1], S.exercises.filter(e => e.cause === c[0] && (!F.subject || e.subject === F.subject)).length]);
+  const topicOpts = F.subject ? TAX[F.subject].topics.map(t => `<option value="${t[0]}" ${F.topic === t[0] ? 'selected' : ''}>${esc(t[3])}</option>`).join('') : '';
+  const byCause = CAUSES.map(c => [c[1], S.exercises.filter(e => e.cause === c[0] && (!F.owner || sameOwner(e.owner, F.owner)) && (!F.subject || e.subject === F.subject)).length]);
   let h = `<section class="panel">
     <div class="grid2">
-      <label class="f"><span>科目</span><select id="flt-subject" data-filter="subject"><option value="">全部</option>${SUBJECTS.map(s => `<option value="${s[0]}" ${F.subject === s[0] ? 'selected' : ''}>${s[2]}</option>`).join('')}</select></label>
-      <label class="f"><span>专题</span><select id="flt-topic" data-filter="topic" ${F.subject ? '' : 'disabled'}><option value="">全部</option>${topicOpts}</select></label>
-      <label class="f"><span>错因</span><select id="flt-cause" data-filter="cause"><option value="">全部</option>${CAUSES.map(c => `<option value="${c[0]}" ${F.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select></label>
-      <label class="f"><span>状态</span><select id="flt-state" data-filter="state"><option value="">全部</option><option value="learning" ${F.state === 'learning' ? 'selected' : ''}>在阶梯上</option><option value="due" ${F.state === 'due' ? 'selected' : ''}>今天到期</option><option value="mastered" ${F.state === 'mastered' ? 'selected' : ''}>已掌握</option></select></label>
+      <label class="f"><span>Owner</span><select id="flt-owner" data-filter="owner">${ownerFilterOptions(F.owner, S.exercises)}</select></label>
+      <label class="f"><span>Subject</span><select id="flt-subject" data-filter="subject"><option value="">All</option>${SUBJECTS.map(s => `<option value="${s[0]}" ${F.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
+      <label class="f"><span>Topic</span><select id="flt-topic" data-filter="topic" ${F.subject ? '' : 'disabled'}><option value="">All</option>${topicOpts}</select></label>
+      <label class="f"><span>Error cause</span><select id="flt-cause" data-filter="cause"><option value="">All</option>${CAUSES.map(c => `<option value="${c[0]}" ${F.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select></label>
+      <label class="f"><span>Status</span><select id="flt-state" data-filter="state"><option value="">All</option><option value="learning" ${F.state === 'learning' ? 'selected' : ''}>On the ladder</option><option value="due" ${F.state === 'due' ? 'selected' : ''}>Due today</option><option value="mastered" ${F.state === 'mastered' ? 'selected' : ''}>Mastered</option></select></label>
     </div>
     <div class="row">
-      <label class="f"><span>排序</span><select id="list-sort" data-act-change="list-sort">${[['recorded', '录入时间'], ['due', '到期日'], ['wrong', '错的次数'], ['last', '上次作答']].map(k => `<option value="${k[0]}" ${S.listSort.key === k[0] ? 'selected' : ''}>${k[1]}</option>`).join('')}</select></label>
-      <button type="button" class="btn ghost small" data-act="list-dir" style="align-self:end">${S.listSort.dir === 'desc' ? '降序 ↓' : '升序 ↑'}</button>
-      <span class="small muted grow" style="align-self:end">共 ${sorted.length} 道</span>
+      <label class="f"><span>Sort by</span><select id="list-sort" data-act-change="list-sort">${[['recorded', 'Recorded'], ['due', 'Due date'], ['wrong', 'Times wrong'], ['last', 'Last answered']].map(k => `<option value="${k[0]}" ${S.listSort.key === k[0] ? 'selected' : ''}>${k[1]}</option>`).join('')}</select></label>
+      <button type="button" class="btn ghost small" data-act="list-dir" style="align-self:end">${S.listSort.dir === 'desc' ? 'Descending ↓' : 'Ascending ↑'}</button>
+      <span class="small muted grow" style="align-self:end">${plural(sorted.length, 'exercise')}</span>
     </div>
     <div class="stats">${byCause.map(c => `<span>${c[0]} <b class="num">${c[1]}</b></span>`).join('')}</div>
   </section>`;
-  if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>还没有错题</b><span>到「录入」拍一张做错的题，或者在 Claude Code 对话里把题目发给 Claude。</span></div></div>`;
+  if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>No exercises yet</b><span>Go to Record and take a photo of a question that was wrong, or send the question to Claude in a Claude Code chat.</span></div></div>`;
   h += `<div class="list">${pg.items.length ? pg.items.map(e => `
     <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
-      <span class="t">${esc(plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）'))}</span>
-      <span class="side">${ladderHtml(e)}<span class="num">${e.mastered ? '' : '到期 ' + fmtDate(e.due)}</span></span>
-      <span class="meta">${subjChip(e.subject)}<span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· ${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '')}</span><span>· 错 ${e.wrongCount} 次</span>${setChip(e)}<span class="num">· 录入 ${esc(e.recordedAt ? e.recordedAt.replace('T', ' ') : e.createdAt)}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</span>
-    </button>`).join('') : '<div class="empty">没有符合筛选的错题。</div>'}</div>`;
-  if (pg.pages > 1) h += `<nav class="pager row" aria-label="分页"><button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>上一页</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="list-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>下一页</button></nav>`;
+      <span class="t">${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span>
+      <span class="side">${ladderHtml(e)}<span class="num">${e.mastered ? '' : 'Due ' + fmtDate(e.due)}</span></span>
+      <span class="meta">${subjChip(e.subject)}<span>${esc(topicLabel(e.subject, e.topic))}</span><span>· ${esc(CAUSE[e.cause] ? CAUSE[e.cause].en : '')}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}<span class="num">· recorded ${esc(e.recordedAt ? e.recordedAt.replace('T', ' ') : e.createdAt)}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</span>
+    </button>`).join('') : '<div class="empty">No exercises match these filters.</div>'}</div>`;
+  if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="list-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h;
 }
 
@@ -1368,39 +1389,39 @@ function renderDetail() {
   const e = myEx(S.detailId);
   if (!e) { S.detailId = null; return renderExercises(); }
   const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
-  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← 返回列表</button></div>`;
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← Back to the list</button></div>`;
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
-    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">题组「${esc(qs.title || '未命名')}」共 ${S.exercises.filter(x => x.setId === qs.id).length} 道错题。删掉或移出全部错题后，题组自动删除。</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">编辑题组</button></div>`;
+    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
   }
   h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
     <div class="grid2 small">
-      <div><span class="muted">专题</span><div>${esc(topicLabel(e.subject, e.topic, 'zh'))}</div></div>
-      <div><span class="muted">概念</span><div>${c ? mapLink(e.subject, e.concept, c.zh) : '—'}</div></div>
-      <div><span class="muted">题型</span><div>${q ? mapLink(e.subject, e.qtype, q.zh) : '—'}</div></div>
-      <div><span class="muted">错因</span><div>${esc(CAUSE[e.cause] ? CAUSE[e.cause].zh : '—')}</div></div>
-      <div><span class="muted">归属人</span><div>${esc(userName(e.owner))}</div></div>
-      <div><span class="muted">当时的答案</span><div>${esc(e.wrongAnswer || '—')}</div></div>
-      <div><span class="muted">出处</span><div>${esc(e.source || '—')}</div></div>
-      <div><span class="muted">录入</span><div class="num">${esc(e.recordedAt ? e.recordedAt.replace('T', ' ') : e.createdAt)}</div></div>
-      <div><span class="muted">阶梯</span><div>${ladderHtml(e)} <span class="num muted">${e.mastered ? '' : '到期 ' + esc(e.due)}</span></div></div>
+      <div><span class="muted">Topic</span><div>${esc(topicLabel(e.subject, e.topic))}</div></div>
+      <div><span class="muted">Concept</span><div>${c ? mapLink(e.subject, e.concept, c.en) : '—'}</div></div>
+      <div><span class="muted">Question type</span><div>${q ? mapLink(e.subject, e.qtype, q.en) : '—'}</div></div>
+      <div><span class="muted">Error cause</span><div>${esc(CAUSE[e.cause] ? CAUSE[e.cause].en : '—')}</div></div>
+      <div><span class="muted">Owner</span><div>${esc(userName(e.owner))}</div></div>
+      <div><span class="muted">Answer at the time</span><div>${esc(e.wrongAnswer || '—')}</div></div>
+      <div><span class="muted">Source</span><div>${esc(e.source || '—')}</div></div>
+      <div><span class="muted">Recorded</span><div class="num">${esc(e.recordedAt ? e.recordedAt.replace('T', ' ') : e.createdAt)}</div></div>
+      <div><span class="muted">Ladder</span><div>${ladderHtml(e)} <span class="num muted">${e.mastered ? '' : 'Due ' + esc(e.due)}</span></div></div>
     </div>
   </section>
-  <section class="panel"><p class="h3">作答记录 · 只能改判自己的</p>`;
+  <section class="panel"><p class="h3">Answers · you can only override your own</p>`;
   const groups = attemptGroups(e, S.me);
-  if (!groups.length) h += `<p class="small muted">还没有人重做过。</p>`;
+  if (!groups.length) h += `<p class="small muted">Nobody has redone it yet.</p>`;
   for (const g of groups) {
     const own = g.by === S.me;
-    h += `<p class="small"><b>${esc(userName(g.by))}</b>${own ? '（我）' : ''}</p><div class="tbl"><table><thead><tr><th>日期</th><th>方式</th><th>回答</th><th>结果</th><th>判定</th></tr></thead><tbody>${g.items.map(({ a, i }) => `
-    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? '检验卷' : '检验卷（已删除）') : '每日重做'}</td><td>${esc(a.response || '—')}</td>
-    <td>${own ? `<select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].zh}</option>`).join('')}</select>` : esc(RESULT[a.result] ? RESULT[a.result].zh : '')}</td>
+    h += `<p class="small"><b>${esc(userName(g.by))}</b>${own ? ' (me)' : ''}</p><div class="tbl"><table><thead><tr><th>Date</th><th>Mode</th><th>Answer</th><th>Result</th><th>Judged</th></tr></thead><tbody>${g.items.map(({ a, i }) => `
+    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? 'Check paper' : 'Check paper (deleted)') : 'Daily redo'}</td><td>${esc(a.response || '—')}</td>
+    <td>${own ? `<select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].en}</option>`).join('')}</select>` : esc(RESULT[a.result] ? RESULT[a.result].en : '')}</td>
     <td>${JUDGE[a.judgedBy] || ''}</td></tr>`).join('')}</tbody></table></div>`;
   }
-  h += `</section><div class="row"><button type="button" class="btn" data-act="edit" data-id="${esc(e.id)}">编辑</button>`;
-  if (S.confirmDel === e.id) h += `<span class="confirm">删除后不能恢复，所有人在这道题上的作答一起删掉。<button type="button" class="btn danger" data-act="delete-ex" data-id="${esc(e.id)}">确认删除</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>`;
-  else h += `<button type="button" class="btn danger" data-act="ask-del" data-id="${esc(e.id)}">删除</button>`;
+  h += `</section><div class="row"><button type="button" class="btn" data-act="edit" data-id="${esc(e.id)}">Edit</button>`;
+  if (S.confirmDel === e.id) h += `<span class="confirm">This can't be undone; everyone's answers to this exercise are deleted with it.<button type="button" class="btn danger" data-act="delete-ex" data-id="${esc(e.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>`;
+  else h += `<button type="button" class="btn danger" data-act="ask-del" data-id="${esc(e.id)}">Delete</button>`;
   return h + '</div>';
 }
 
@@ -1414,56 +1435,56 @@ function renderPapers() {
   const T = TAX[P.subject];
   const counts = {};
   for (const e of paperPool()) if (e.subject === P.subject) counts[e.topic] = (counts[e.topic] || 0) + 1;
-  const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[2])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
-  let h = `<section class="panel"><p class="h2">组一张检验卷</p>
-    <p class="small muted">从默认归属人（${esc(userName(S.settings.defaultOwner))}）的错题里抽题，在设置里可改。</p>
+  const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[3])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
+  let h = `<section class="panel"><p class="h2">Make a check paper</p>
+    <p class="small muted">Questions are drawn from the default owner's (${esc(userName(S.settings.defaultOwner))}) exercises; change it in Settings.</p>
     <div class="grid2">
-      <label class="f"><span>科目</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[2]}</option>`).join('')}</select></label>
-      <label class="f"><span>题数</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
+      <label class="f"><span>Subject</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
+      <label class="f"><span>Questions</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
     </div>
-    <div class="f small"><span class="muted">专题（不选即全部）</span><div class="checks">${topicChecks || '<span class="muted">这个科目还没有错题。</span>'}</div></div>
-    <p class="small muted">抽题顺序：错的次数多的在前；次数相同时，已掌握的在前；再按上次作答早的在前。抽中的同组题在卷面上排在一起。</p>
-    <div class="row"><button type="button" class="btn" data-act="paper-preview">抽题预览</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>生成检验卷（${S.paperPreview.length} 题）</button>` : ''}</div>
-    ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '（见题组材料）' : '（只有照片）'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic, 'zh'))}</span><span>· 错 ${e.wrongCount} 次</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">范围内没有错题。</p>') : ''}
+    <div class="f small"><span class="muted">Topics (none ticked means all)</span><div class="checks">${topicChecks || '<span class="muted">No exercises in this subject yet.</span>'}</div></div>
+    <p class="small muted">Draw order: most times wrong first; on a tie, mastered ones first; then the longest since last answered. Drawn questions from one set sit together on the paper.</p>
+    <div class="row"><button type="button" class="btn" data-act="paper-preview">Preview the draw</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>Create check paper (${plural(S.paperPreview.length, 'question')})</button>` : ''}</div>
+    ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  const papers = visiblePapers(S.papers, mine(), S.me, localToday()).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
-  h += `<section class="panel"><p class="h3">历次检验卷</p>`;
-  if (!papers.length) h += `<p class="small muted">还没有检验卷。组好的卷子会出现在默认归属人相同的用户的 Today；谁都可以在这里开始做。</p>`;
+  const papers = visiblePapers(S.papers, mine(), S.me, localToday()).filter(p => !S.paperOwner || sameOwner(p.owner, S.paperOwner)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
+  h += `<section class="panel"><div class="row"><p class="h3 grow">Papers</p><label class="f"><span>Owner</span><select id="paper-owner" data-act-change="paper-owner">${ownerFilterOptions(S.paperOwner, S.papers)}</select></label></div>`;
+  if (!papers.length) h += `<p class="small muted">${S.paperOwner ? 'No papers for this owner.' : "No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here."}</p>`;
   else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
       <span class="t">${esc(p.title)}</span>
-      <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>我未做</span>'}</span>
-      <span class="meta">${isDaily(p) ? '<span class="chip">每日</span>' : `${subjChip(p.subject)}<span>归属人 ${esc(userName(p.owner))}</span>`}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
-        ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">查看详情</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">开始</button>`}
-        ${S.confirmDel === p.id ? `<span class="confirm">删除这张卷？已写进阶梯的作答不受影响。<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">确认</button><button type="button" class="btn ghost" data-act="cancel-del">取消</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">删除</button>`}
+      <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
+      <span class="meta">${isDaily(p) ? `<span class="chip">Daily</span>${p.subject ? subjChip(p.subject) : ''}` : `${subjChip(p.subject)}<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">${esc(p.createdAt)}</span>${p.test ? '<span class="chip test">TEST</span>' : ''}
+        ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">View details</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">Start</button>`}
+        ${S.confirmDel === p.id ? `<span class="confirm">Delete this paper? Answers already on the ladder stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
       </span></div>`).join('')}</div>`;
   return h + `</section>`;
 }
 
-const JUDGE = { auto: '自动', self: '自评', parent: '改判' };
+const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
 function renderPaperSheet(paperId) {
   // 检验卷详情（可改判）
   const p = S.papers.find(x => x.id === paperId);
-  const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← 返回卷子列表</button>`;
-  if (!p) return `<div class="row">${back}</div><p class="note">这张卷已删除。</p>`;
+  const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← Back to papers</button>`;
+  if (!p) return `<div class="row">${back}</div><p class="note">This paper has been deleted.</p>`;
   const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
-  const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : '未做';
+  const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
   let h = `<div class="row">${back}</div>
   <section class="panel"><p class="h2">${esc(p.title)}</p>
-    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><span class="muted">对 ${sc.right} · 部分对 ${sc.partial} · 错 ${sc.wrong}</span></div>
-    <div class="stats"><span>完成 <b>${esc(when)}</b></span></div>
+    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><span class="muted">Right ${sc.right} · Partly ${sc.partial} · Wrong ${sc.wrong}</span></div>
+    <div class="stats"><span>Handed in <b>${esc(when)}</b></span></div>
   </section>`;
   rows.forEach((r, i) => {
-    if (!r.ex) { h += `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">这道错题已删除。</p></article>`; return; }
+    if (!r.ex) { h += `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">This exercise has been deleted.</p></article>`; return; }
     const e = r.ex, a = r.attempt;
     if (e.setId && (i === 0 || !rows[i - 1].ex || rows[i - 1].ex.setId !== e.setId)) h += materialBlock(setById(e.setId), true);
     h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true })}`;
-    if (a) h += `<div class="row">${markHtml(a.result)}<span class="small muted">判定：${JUDGE[a.judgedBy] || ''}</span></div>`;
-    else h += `<p class="small muted">这道题没有这张卷的作答。</p>`;
+    if (a) h += `<div class="row">${markHtml(a.result)}<span class="small muted">Judged: ${JUDGE[a.judgedBy] || ''}</span></div>`;
+    else h += `<p class="small muted">No answer to this question on this paper.</p>`;
     h += solutionBlock(e);
     if (a) {
       const ai = e.allAttempts.indexOf(a);   // 原文档里的下标
-      h += `<div class="row"><label class="f"><span>改判</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].zh}</option>`).join('')}</select></label><button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">错题详情</button></div>`;
+      h += `<div class="row"><label class="f"><span>Override</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select></label><button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Exercise details</button></div>`;
     }
     h += '</article>';
   });
@@ -1471,21 +1492,31 @@ function renderPaperSheet(paperId) {
 }
 
 function renderSettings() {
-  return `<section class="panel"><p class="h2">设置</p>
-    <div class="grid2">
-      <label class="f"><span>每日重做最多几题（1–50）</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
-      <label class="f"><span>每周练几天（1–7）</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
-      <label class="f"><span>每周做几张检验卷（0–3）</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
-      <label class="f"><span>默认归属人（每日重做与组卷取谁的错题，录入时默认归谁）</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
+  // 三组：取谁的错题、每日重做、每周目标；保存在最后，四个字段一起写
+  return `<section class="panel"><p class="h2">Settings</p>
+    <div class="set-group"><p class="h3">Whose exercises</p>
+      <label class="f"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
+      <p class="small muted">Today's redo and new check papers use this person's exercises, and new exercises are recorded under them.</p>
     </div>
-    <p class="small muted">每周目标按周一到周日算，显示在 Today 的「Next 7 days」；「Last 7 days」用它和最近 7 天比较并给出建议。</p>
-    <div class="row"><button type="button" class="btn primary" data-act="save-settings">保存</button></div>
+    <div class="set-group"><p class="h3">Daily redo</p>
+      <label class="f"><span>Questions per day (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
+    </div>
+    <div class="set-group"><p class="h3">Weekly goal</p>
+      <div class="grid2">
+        <label class="f"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
+        <label class="f"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
+      </div>
+      <p class="small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today, and Last 7 days compares against it.</p>
+    </div>
+    <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button></div>
     ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
-    <p class="small muted">复习阶梯：录入后第 1、3、7、14 天各重做一次；做对升一级，做错回第 1 级，部分对留在原级；第 4 级做对即掌握。</p>
   </section>
-  <section class="panel"><p class="h2">导出</p>
-    <p class="small muted">把全部错题（含作答记录）、题组、检验卷与设置导出为 YAML 文本，不含照片（照片只记张数）。文件名形如 arena-export-日期.yaml.txt；需要时把 .txt 去掉。</p>
-    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>导出 YAML</button>${S.downloads ? '' : '<span class="small muted">本页不能保存文件，导出不可用。</span>'}</div>
+  <section class="panel"><p class="h2">How the review ladder works</p>
+    <p class="small muted">After an exercise is recorded, it comes back for a redo on day 1, 3, 7 and 14. Right moves it up a step, wrong sends it back to step 1, partly right keeps it on the same step. Right on step 4 means mastered.</p>
+  </section>
+  <section class="panel"><p class="h2">Export</p>
+    <p class="small muted">Exports every exercise (with all answers), question set, paper and these settings as YAML text, without photos (only how many there are). The file is named like arena-export-date.yaml.txt; drop the .txt if needed.</p>
+    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button>${S.downloads ? '' : '<span class="small muted">This page can\'t save files, so export is unavailable.</span>'}</div>
     ${S.exportMsg ? `<p class="note ${S.exportMsg.kind}">${esc(S.exportMsg.text)}</p>` : ''}
   </section>`;
 }
@@ -1498,9 +1529,9 @@ async function writeAttempts(e, attempts) {
 async function addAttempt(e, a) { await writeAttempts(e, (e.attempts || []).concat([Object.assign({ by: S.me }, a)])); }
 function dbErr(err) {
   const c = err && err.code;
-  if (c === 'quota_exceeded') return '数据库已满，删掉一些旧错题后再试。';
-  if (c === 'invalid_argument') return '这个账号不能写入数据。';
-  return '保存没有成功（' + (c || '未知错误') + '），请稍后再试。';
+  if (c === 'quota_exceeded') return 'The database is full; delete some old exercises and try again.';
+  if (c === 'invalid_argument') return "This account can't write data.";
+  return 'Saving failed (' + (c || 'unknown error') + '); please try again later.';
 }
 
 /* ---------- 事件 ---------- */
@@ -1517,13 +1548,14 @@ document.addEventListener('click', async ev => {
       case 'export': await exportAll(); break;
 
       case 'start-daily': {
-        // 有今天没交的每日卷就接着用；否则按今天的每日清单生成一张
-        const today = localToday();
-        let p = openDailyPaper(S.papers, mine(), S.me, today);
+        // 这一科有今天没交的每日卷就接着用；否则按今天的每日清单里这一科的题生成一张（空 subject 是旧式混合卷）
+        const today = localToday(), subj = b.dataset.subject || null;
+        let p = openDailyPaper(S.papers, mine(), S.me, today, subj);
         if (!p) {
-          const list = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit);
+          if (!subj) break;
+          const list = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit).filter(e => e.subject === subj);
           if (!list.length) break;
-          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate);
+          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj);
           const ref = S.db.collection('papers').doc();
           await ref.set(doc);
           p = Object.assign({ id: ref.id }, doc);
@@ -1589,10 +1621,10 @@ document.addEventListener('click', async ev => {
       case 'cancel-set': S.setEdit = null; render(); break;
       case 'save-set': {
         const E = S.setEdit;
-        if (!E.text.trim() && !E.images.length) { E.error = '材料文字或照片至少要有一项。'; render(); break; }
+        if (!E.text.trim() && !E.images.length) { E.error = 'Add material text or at least one photo.'; render(); break; }
         const bank = parseList(E.wordBank);
         const lost = S.exercises.filter(x => x.setId === E.id && x.format === 'pick' && !bank.some(w => normAnswer(w) === normAnswer(x.answer)));
-        if (lost.length) { E.error = '不能保存：这些选词题的答案不在新词表里——' + lost.map(x => `「${plain(x.stem) || x.answer}」（答案 ${x.answer}）`).join('、') + '。先改词表或这些题。'; render(); break; }
+        if (lost.length) { E.error = "Can't save: these word-pick answers aren't in the new word bank — " + lost.map(x => `"${plain(x.stem) || x.answer}" (answer ${x.answer})`).join(', ') + '. Change the word bank or these questions first.'; render(); break; }
         const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), wordBank: bank, createdAt: E.createdAt || localToday() };
         if (E.test) doc.test = true;
         await S.db.doc('sets/' + E.id).set(doc);
@@ -1607,7 +1639,7 @@ document.addEventListener('click', async ev => {
         for (const d of draftsInOrder()) { if (await saveDraft(d)) n++; }
         const left = S.drafts.filter(x => !x.editId).length;
         S.recMsg = null;
-        S.saveMsg = { kind: left ? 'err' : 'ok', text: `已保存 ${n} 道。` + (left ? `还有 ${left} 道没填完，见下方提示。` : '') };
+        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (left ? ` ${left} still incomplete; see the notes below.` : '') };
         render(); break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
@@ -1626,10 +1658,10 @@ document.addEventListener('click', async ev => {
       }
       case 'paper-create': {
         const P = S.paperForm, today = localToday();
-        const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t, 'en')).join(', ') : 'All topics';
+        const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
         const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
         await S.db.collection('papers').doc().set(doc);
-        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: '检验卷已生成。' }; render(); break;
+        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Check paper created.' }; render(); break;
       }
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
@@ -1639,7 +1671,7 @@ document.addEventListener('click', async ev => {
       case 'save-settings': {
         const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
         await S.db.doc('settings/' + S.me).set(v);
-        S.settingsMsg = { kind: 'ok', text: `已保存：每日最多 ${v.dailyLimit} 题，每周练 ${v.practiceDays} 天、做 ${v.papersPerWeek} 张检验卷，默认归属人：${userName(v.defaultOwner)}。` }; render(); break;
+        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} a day; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'check paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
       }
     }
   } catch (err) {
@@ -1685,6 +1717,7 @@ document.addEventListener('change', async ev => {
   const act = t.dataset.actChange;
   try {
     if (act === 'list-sort') { S.listSort.key = t.value; S.listPage = 1; render(); }
+    else if (act === 'paper-owner') { S.paperOwner = t.value; render(); }
     else if (act === 'paper-subject') { S.paperForm.subject = t.value; S.paperForm.topics = []; S.paperPreview = null; render(); }
     else if (act === 'paper-count') { S.paperForm.count = t.value; S.paperPreview = null; }
     else if (act === 'paper-topic') { const P = S.paperForm; P.topics = t.checked ? P.topics.concat([t.value]) : P.topics.filter(x => x !== t.value); S.paperPreview = null; render(); }
@@ -1708,7 +1741,7 @@ async function saveDraft(d) {
       const sd = setOfDraft(d);
       if (!sd.savedId) {
         sd.subject = sd.subject || d.subject;
-        if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = '题组还缺材料文字或照片。'; return false; }
+        if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = 'The question set still needs material text or a photo.'; return false; }
         const ref = S.db.collection('sets').doc();
         await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
         sd.savedId = ref.id;
@@ -1794,26 +1827,26 @@ ${taxonomyText(subs)}`;
 async function recognise() {
   const photos = S.recPhotos.slice();
   const text = S.recText.trim();
-  if (!photos.length && !text) { S.recMsg = { kind: 'err', text: '先加照片或贴题目文字。' }; render(); return; }
+  if (!photos.length && !text) { S.recMsg = { kind: 'err', text: 'Add a photo or paste the question text first.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   // 先传还没有 asset id 的照片；有一张没传上就停下，不识别，重试只传没传上的
   const todo = photos.filter(p => !p.assetId);
-  if (todo.length) { S.recMsg = { kind: '', text: '正在上传照片…' }; render(); }
+  if (todo.length) { S.recMsg = { kind: '', text: 'Uploading photos…' }; render(); }
   for (const p of todo) {
     try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
-    catch (err) { S.recBusy = false; S.recMsg = { kind: 'err', text: `照片「${p.file.name}」没传上（${err && err.code || '未知'}），请再按 AI识别。` }; render(); return; }
+    catch (err) { S.recBusy = false; S.recMsg = { kind: 'err', text: `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.` }; render(); return; }
   }
-  S.recMsg = { kind: '', text: '正在识别，通常要半分钟左右…' }; render();
+  S.recMsg = { kind: '', text: 'Reading… this usually takes about half a minute.' }; render();
   const imageIds = photos.map(p => p.assetId), files = photos.map(p => p.file);
   let drafts = null, sets = [], fail = '';
   try {
     const out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), files.length ? { images: files, modelTier: 'complex' } : { modelTier: 'complex' });
     if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
     else if (out && Array.isArray(out.drafts)) { drafts = out.drafts.filter(x => x && typeof x === 'object'); sets = Array.isArray(out.sets) ? out.sets.filter(x => x && typeof x === 'object') : []; }
-    else fail = '识别没有成功：回来的内容不是题目清单。';
+    else fail = "Reading failed: the reply wasn't a list of questions.";
   } catch (err) {
     const c = err && err.code;
-    fail = c === 'rate_limited' ? '识别太频繁了，请过一会儿再试。' : c === 'not_granted' ? '没有允许本页使用 Claude，识别不可用。' : c === 'invalid_json' ? '识别没有成功：回来的内容读不出来。' : `识别不可用（${c || '未知错误'}）。`;
+    fail = c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
   }
   S.recBusy = false;
   if (drafts && drafts.length) {
@@ -1827,12 +1860,12 @@ async function recognise() {
       const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
       S.drafts.push(newDraft(Object.assign({}, x, { images: setKeys.length ? [] : imageIds, setRef: si === null ? '' : 'new:' + setKeys[si] })));
     }
-    S.recMsg = { kind: 'ok', text: (setKeys.length ? `拆出 ${setKeys.length} 个题组、` : '拆出 ') + `${drafts.length} 道草稿。请逐条核对后保存，答案是 AI 读出或解出的。` };
+    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` };
     S.recText = ''; clearPhotos();
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (fail || '没有识别出题目。') + ' 照片和文字都还在，可以改一改再按 AI识别。' };
+    S.recMsg = { kind: 'err', text: (fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' };
     render();
   }
 }
@@ -1841,12 +1874,12 @@ async function recognise() {
 async function exportAll() {
   const now = nowLocal();
   const data = exportData(S.exercises, S.sets, S.papers, S.settings, now, S.userIds);
-  const text = '# Sophia\'s Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
+  const text = '# Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
   try {
     await S.downloads.save({ filename: `arena-export-${now.slice(0, 10)}.yaml.txt`, data: text });
-    S.exportMsg = { kind: 'ok', text: `已交给浏览器保存：${S.exercises.length} 道错题、${S.sets.length} 个题组、${S.papers.length} 张卷子。` };
+    S.exportMsg = { kind: 'ok', text: `Handed to the browser to save: ${plural(S.exercises.length, 'exercise')}, ${plural(S.sets.length, 'question set')}, ${plural(S.papers.length, 'paper')}.` };
   } catch (err) {
-    S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `导出没有成功（${err && err.code || '未知'}）。` };
+    S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `Export failed (${err && err.code || 'unknown'}).` };
   }
   render();
 }

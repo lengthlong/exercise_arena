@@ -52,7 +52,7 @@
 | `paperId` | 字符串或 `null` | 检验卷或每日卷 id；旧的每日重做作答为 `null` |
 | `response` | 字符串 | 作答人的回答 |
 | `result` | `"right"` · `"partial"` · `"wrong"` | 对、部分对、错 |
-| `judgedBy` | `"auto"` · `"self"` · `"parent"` | 自动判、自评、改判（存储值仍为 `"parent"`，界面显示「改判」） |
+| `judgedBy` | `"auto"` · `"self"` · `"parent"` | 自动判、自评、改判（存储值仍为 `"parent"`，界面显示 Override） |
 | `at` | 时刻，可省 | 作答时刻；旧作答没有 |
 
 ## `sets/{id}`：题组
@@ -74,9 +74,9 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `title` | 字符串 | 例如「Science · Water, Reproduction · 14 Oct」；没选专题时写 All topics |
+| `title` | 字符串 | 例如「Science · Water, Reproduction · 14 Oct」；没选专题时写 All topics；每日卷如「English redo · 15 Oct」 |
 | `createdAt` | 日期 | |
-| `subject` | 同错题，或 `null` | 每日卷为 `null` |
+| `subject` | 同错题，或 `null` | 每日卷为它所含的科目，旧的每日卷为 `null` |
 | `topics` | 字符串数组 | 专题 id；空数组表示该科目全部专题 |
 | `count` | 数 | 要的题数 |
 | `exerciseIds` | 字符串数组 | 抽出的错题，按卷面顺序 |
@@ -89,7 +89,7 @@
 
 一位用户交过一张卷，当且仅当 `handedIn` 里有该用户；旧卷没有 `handedIn` 时，当且仅当有带本卷 `paperId`、`by` 为本人的作答。完成时刻取 `handedIn` 里的时刻，旧卷取这些作答中最晚的 `at`（没有 `at` 时取 `date`）。每位用户每张卷只交一次。
 
-每日卷只属于 `for` 的用户。只有 `createdAt` 是今天、本人还没交过的每日卷才接着用，当天改了设置也照用；更早没交的作废、不再列出，文档不删。
+每日卷只属于 `for` 的用户。每个科目只接着用 `createdAt` 是今天、本人还没交过的那张（缺 `subject` 按 `null` 算），当天没交的旧式混合每日卷（`subject` 为 `null`）交卷前也接着用；当天改了设置也照用；更早没交的作废、不再列出，文档不删。
 
 ## `settings/{用户 id}`
 

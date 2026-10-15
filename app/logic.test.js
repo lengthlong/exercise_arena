@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,papersToDo,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,papersToDo,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -273,7 +273,7 @@ assert.deepStrictEqual(Array.from(L.weekTips(okPlan, wr, ch, S6, nameT)), [
   'Little and often: aim for 6 days a week — you practised on 4 of the last 7.',
   'Make a check paper on en-prep.']);                                    // 最多 3 条，④ 被挤掉
 assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 65, needLimit: 30 }, wr, ch, S6, nameT)).slice(0, 1),
-  ['65 questions are waiting. Doing 30 a day clears them in the next 7 days — change the daily limit in 设置.']);
+  ['65 questions are waiting. Doing 30 a day clears them in the next 7 days — change the daily limit in Settings.']);
 assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 400, needLimit: null }, wr, ch, S6, nameT)).slice(0, 1),
   ['400 questions are waiting — do your redo every day, oldest first.']);
 // 天数、检验卷都达到、没有过期：只剩 ④；错 3 次出 ④，2 次不出
@@ -334,9 +334,22 @@ assert.strictEqual(L.goalProgress(pwA, [PX, PD2], '2026-10-12', '2026-10-18', 'u
 // 组卷排序：按卷子归属人的阶梯
 assert.deepStrictEqual(ids(L.drawPaper(L.viewFor(shared, 'uS'), { subject: 'science', topics: [], count: 1 })), ['v2']);   // Sophia 在 v2 错 3 次
 // 每日卷：按清单顺序生成，只给本人
-const dpx = L.makeDailyPaper([{ id: 'q2' }, { id: 'q4' }, { id: 's1' }], 'uA', 'uS', '2026-10-16', d => 'D' + d.slice(8));
+const dpx = L.makeDailyPaper([{ id: 'q2' }, { id: 'q4' }, { id: 's1' }], 'uA', 'uS', '2026-10-16', d => 'D' + d.slice(8), 'english');
 assert.deepStrictEqual([dpx.kind, dpx.for, dpx.owner, dpx.title, dpx.createdAt, dpx.subject, dpx.topics.length, dpx.count, Array.from(dpx.exerciseIds)],
-  ['daily', 'uA', 'uS', "Today's redo · D16", '2026-10-16', null, 0, 3, ['q2', 'q4', 's1']]);
+  ['daily', 'uA', 'uS', 'English redo · D16', '2026-10-16', 'english', 0, 3, ['q2', 'q4', 's1']]);
+// 按科目分开：按 SUBJECTS 顺序（英文、数学、科学），组内保持清单顺序，题组不拆，空科目不出，各科之和等于清单
+const bsx = [{ id: 'k1', subject: 'science' }, { id: 'k2', subject: 'english', setId: 'G' }, { id: 'k3', subject: 'english', setId: 'G' }, { id: 'k4', subject: 'science' }, { id: 'k5', subject: 'english' }];
+const bs = L.dailyBySubject(bsx);
+assert.deepStrictEqual(Array.from(bs, x => [x[0], ids(x[1])]), [['english', ['k2', 'k3', 'k5']], ['science', ['k1', 'k4']]]);
+assert.strictEqual(bs.reduce((n, x) => n + x[1].length, 0), bsx.length);
+assert.deepStrictEqual(Array.from(L.dailyBySubject([])), []);
+// 按题组装出的清单再按科目分，组内的题仍连在一起
+const bsl = L.dailyBySubject(L.dailyList([
+  { id: 'm1', subject: 'math', due: '2026-10-10', createdAt: '2026-10-01', mastered: false },
+  { id: 'g1', subject: 'english', setId: 'G', setPos: 1, due: '2026-10-11', createdAt: '2026-10-02', mastered: false },
+  { id: 'e1', subject: 'english', due: '2026-10-12', createdAt: '2026-10-03', mastered: false },
+  { id: 'g2', subject: 'english', setId: 'G', setPos: 2, due: '2026-10-13', createdAt: '2026-10-02', mastered: false }], '2026-10-14', 10));
+assert.deepStrictEqual(Array.from(bsl, x => [x[0], ids(x[1])]), [['english', ['g1', 'g2', 'e1']], ['math', ['m1']]]);
 assert.ok(L.isDaily(dpx) && !L.isDaily(PX));
 // 接着用的每日卷：今天、给我、我没交过；昨天的、别人的、交过的都不取
 const T16 = '2026-10-16';
@@ -344,8 +357,14 @@ const dOld = { id: 'dO', kind: 'daily', for: 'uA', createdAt: '2026-10-15', exer
 const dOther = { id: 'dX', kind: 'daily', for: 'uS', createdAt: T16, exerciseIds: [] };
 const dDone = { id: 'dD', kind: 'daily', for: 'uA', createdAt: T16, exerciseIds: [], handedIn: { uA: '2026-10-16T08:00' } };
 const dOpen = { id: 'dN', kind: 'daily', for: 'uA', createdAt: T16, exerciseIds: [] };
-assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone], pwA, 'uA', T16), null);
-assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone, dOpen], pwA, 'uA', T16).id, 'dN');
+assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone], pwA, 'uA', T16, null), null);
+assert.strictEqual(L.openDailyPaper([dOld, dOther, dDone, dOpen], pwA, 'uA', T16, null).id, 'dN');   // 缺 subject 的旧式混合卷按 null
+// 按科目取：别的科目、旧式混合卷都不被取到
+const dEn = { id: 'dE', kind: 'daily', for: 'uA', createdAt: T16, subject: 'english', exerciseIds: [] };
+const dSc = { id: 'dS', kind: 'daily', for: 'uA', createdAt: T16, subject: 'science', exerciseIds: [] };
+assert.strictEqual(L.openDailyPaper([dOpen, dSc, dEn], pwA, 'uA', T16, 'english').id, 'dE');
+assert.strictEqual(L.openDailyPaper([dOpen, dSc], pwA, 'uA', T16, 'english'), null);
+assert.strictEqual(L.openDailyPaper([dSc, dEn], pwA, 'uA', T16, null), null);
 // 列表：全部检验卷 + 我的每日卷（今天的，或交过的）；别人的、更早没交的不列
 assert.deepStrictEqual(ids(L.visiblePapers([PX, dOther, dOpen, PZ, dOld, Object.assign({}, dOld, { id: 'dOH', handedIn: { uA: '2026-10-15T20:00' } })], pwA, 'uA', T16)), ['PX', 'dN', 'PZ', 'dOH']);
 console.log('all logic tests passed');
