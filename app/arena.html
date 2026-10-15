@@ -29,6 +29,9 @@
   --amber-soft: #fbefd9;
   --hl: #ffe57a;
   --hl-ink: #1b2231;
+  --c-right: #1f7a4a;
+  --c-partial: #d69e1a;
+  --c-wrong: #b3261e;
   --font-body: "Lexend", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-hand: "Patrick Hand", "Lexend", "Noto Sans SC", cursive;
   --font-zh: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Lexend", sans-serif;
@@ -39,7 +42,7 @@
     --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
     --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
     --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
-    --hl: #6b5a12; --hl-ink: #fff4c4;
+    --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
     color-scheme: dark;
   }
 }
@@ -47,7 +50,7 @@
   --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
   --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
   --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
-  --hl: #6b5a12; --hl-ink: #fff4c4;
+  --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -184,6 +187,32 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .why p, .exp p { margin: 2px 0; }
 .why ol, .why ul { margin: 2px 0; padding-left: 20px; }
 .pager { justify-content: center; }
+.cheer { display: grid; gap: 8px; }
+.cheer-msg { margin: 0; font: 400 24px/1.25 var(--font-hand); color: var(--pen); text-wrap: balance; }
+.cheer-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.streak { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.streak-n { font: 400 24px/1 var(--font-hand); color: var(--red); }
+.streak-l { font-size: 13px; color: var(--muted); }
+.badge { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.badge.earned { background: var(--amber-soft); border-color: var(--amber); color: var(--ink); }
+.badge.next { color: var(--muted); border-style: dashed; }
+.dash { gap: 18px; }
+.dash-block { display: grid; gap: 6px; min-width: 0; }
+.meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--green); border-radius: 999px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.chart { width: 100%; max-width: 440px; height: auto; display: block; }
+.chart .ch-val { font: 500 11px var(--font-body); fill: var(--muted); }
+.chart .ch-x { font: 400 11px var(--font-body); fill: var(--muted); }
+.chart .ch-hit:hover { fill: var(--surface-2); fill-opacity: .5; }
+.ladder-bars { display: grid; gap: 6px; }
+.lb-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 13px; }
+.lb-k { color: var(--muted); }
+.lb-bar { height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.lb-bar i { display: block; height: 100%; background: var(--pen); border-radius: 3px; }
+.lb-bar i.m { background: var(--green); }
+.lb-v { text-align: right; }
 .pager button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .tabs button:disabled { opacity: .4; cursor: not-allowed; }
 .opt.word { grid-template-columns: auto; padding: 6px 12px; }
@@ -442,6 +471,71 @@ function exportData(exs, sets, papers, settings, exportedAt) {
     papers: papers.map(p => Object.assign({}, p, { score: paperScore(p, exs) }))
   };
 }
+const MILESTONES = [10, 25, 50, 100];
+function streakInfo(exs, today) {
+  // 连续天数（design/arena/README.md「进度看板」）：按作答的 date 计天；今天还没有作答时从昨天往回数
+  const days = new Set();
+  for (const e of exs) for (const a of e.attempts || []) if (a.date) days.add(a.date);
+  const doneToday = days.has(today);
+  let d = doneToday ? today : addDays(today, -1), n = 0;
+  while (days.has(d)) { n++; d = addDays(d, -1); }
+  return { streak: n, doneToday };
+}
+function masteryTransitions(e) {
+  // 与 deriveState 同一套逐次规则：返回变成掌握（+1）与失去掌握（-1）的日期
+  let step = 1, mastered = false;
+  const out = [];
+  for (const a of e.attempts || []) {
+    if (mastered) {
+      if (a.result === 'wrong') { mastered = false; step = 1; out.push({ date: a.date, d: -1 }); }
+      continue;
+    }
+    if (a.result === 'right') { if (step === 4) { mastered = true; out.push({ date: a.date, d: 1 }); } else step++; }
+    else if (a.result !== 'partial') step = 1;
+  }
+  return out;
+}
+function masteredOn(e) {
+  const t = masteryTransitions(e);
+  const last = t[t.length - 1];
+  return last && last.d === 1 ? last.date : null;
+}
+function masteryPeak(exs) {
+  // 历史最高掌握数：全部掌握变化按日期累计，取每天结束时的最大值
+  const byDay = {};
+  for (const e of exs) for (const t of masteryTransitions(e)) byDay[t.date] = (byDay[t.date] || 0) + t.d;
+  let cum = 0, peak = 0;
+  for (const d of Object.keys(byDay).sort()) { cum += byDay[d]; if (cum > peak) peak = cum; }
+  return Math.max(peak, exs.filter(e => e.mastered).length);
+}
+function dashboardData(exs, today) {
+  const mastered = exs.filter(e => e.mastered).length;
+  const weekStart = addDays(today, -6);
+  const newMastered7 = exs.filter(e => { const m = e.mastered && masteredOn(e); return m && m >= weekStart && m <= today; }).length;
+  const newMasteredToday = exs.filter(e => e.mastered && masteredOn(e) === today).length;
+  const days = [];
+  for (let i = 13; i >= 0; i--) days.push({ date: addDays(today, -i), right: 0, partial: 0, wrong: 0 });
+  const idx = Object.fromEntries(days.map((d, i) => [d.date, i]));
+  for (const e of exs) for (const a of e.attempts || []) if (a.date in idx && days[idx[a.date]][a.result] != null) days[idx[a.date]][a.result]++;
+  const ladder = { 1: 0, 2: 0, 3: 0, 4: 0, mastered };
+  for (const e of exs) if (!e.mastered && ladder[e.step] != null) ladder[e.step]++;
+  const peak = masteryPeak(exs);
+  const next = MILESTONES.find(m => m > peak) || null;
+  const st = streakInfo(exs, today);
+  const t = days[days.length - 1];
+  return { total: exs.length, mastered, newMastered7, newMasteredToday, days, ladder, peak,
+    badges: MILESTONES.filter(m => peak >= m), next, toGo: next ? next - peak : 0,
+    streak: st.streak, doneToday: st.doneToday, todayRight: t.right, todayAny: t.right + t.partial + t.wrong };
+}
+function encouragement(d, hasWork) {
+  // 鼓励语（D7）：按顺序取第一条成立的
+  const tail = d.streak >= 2 ? ` ${d.streak}-day streak, keep it going!` : '';
+  if (d.newMasteredToday > 0) return `You mastered ${d.newMasteredToday} today!` + tail;
+  if (d.todayRight > 0) return `${d.todayRight} right today — nice work!` + tail;
+  if (d.todayAny > 0) return 'You practised today — every mistake helps you learn!';
+  if (hasWork) return d.streak > 0 ? `Do today's redo to keep your ${d.streak}-day streak!` : "Start today's redo to begin a streak!";
+  return 'All caught up. See you tomorrow!';
+}
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 /* LOGIC:END */
 </script>
@@ -574,8 +668,6 @@ function renderPractice() {
   const today = localToday();
   const due = dailyList(S.exercises, today, S.settings.dailyLimit);
   const allDue = S.exercises.filter(e => !e.mastered && e.due && e.due <= today).length;
-  const learning = S.exercises.filter(e => !e.mastered).length;
-  const mastered = S.exercises.length - learning;
   const next = S.exercises.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
   const open = S.papers.filter(p => p.status === 'open').sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   const d = new Date();
@@ -584,6 +676,8 @@ function renderPractice() {
     h += `<div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in 录入.</p></div>`;
     return h;
   }
+  const db = dashboardData(S.exercises, today);
+  h += cheerBlock(db, encouragement(db, due.length > 0 || open.length > 0));
   h += `<section class="today">
     <div class="big num" aria-hidden="true">${due.length}</div>
     <div class="txt">
@@ -600,8 +694,70 @@ function renderPractice() {
         <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
       </button>`).join('')}</div></section>`;
   }
-  h += `<div class="stats"><span><b class="num">${learning}</b> on the ladder</span><span><b class="num">${mastered}</b> mastered</span><span>Ladder: day 1 → 3 → 7 → 14</span></div>`;
+  h += progressBlock(db);
   return h;
+}
+
+/* ---------- 进度看板（design/arena/README.md「进度看板」） ---------- */
+function cheerBlock(db, message) {
+  const badges = db.badges.map(m => `<span class="badge earned" title="Milestone: ${m} mastered">★ ${m} mastered</span>`).join('');
+  const nextB = db.next ? `<span class="badge next">Next badge: ${db.next} mastered · ${db.toGo} to go</span>` : '';
+  return `<section class="cheer" aria-label="Your progress">
+    <p class="cheer-msg">${esc(message)}</p>
+    <div class="cheer-row">
+      <span class="streak"><span class="streak-n num">${db.streak}</span><span class="streak-l">day${db.streak === 1 ? '' : 's'} in a row${db.doneToday || !db.streak ? '' : ' · do today to keep it'}</span></span>
+      ${badges}${nextB}
+    </div>
+  </section>`;
+}
+function activityChart(days) {
+  // 近 14 天作答：按对、部分对、错叠起来的柱子（含今天）；每天一个提示
+  const W = 14 * 22, H = 120, top = 16, base = H - 20, bw = 14;
+  const max = Math.max(1, ...days.map(d => d.right + d.partial + d.wrong));
+  const sc = v => v / max * (base - top);
+  const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
+  let bars = '', labels = '';
+  days.forEach((d, i) => {
+    const x = i * 22 + 4, tot = d.right + d.partial + d.wrong;
+    let y = base;
+    const segs = order.filter(([k]) => d[k] > 0);
+    segs.forEach(([k, c], si) => {
+      // 自下而上叠；除最上一段外，每段顶部留 2px 底色间隔
+      const full = sc(d[k]), isTop = si === segs.length - 1;
+      y -= full;
+      const gap = isTop ? 0 : Math.min(2, full / 2);
+      bars += `<rect x="${x}" y="${(y + gap).toFixed(1)}" width="${bw}" height="${Math.max(1, full - gap).toFixed(1)}" rx="${isTop ? 3 : 0}" fill="${c}"></rect>`;
+    });
+    if (!tot) bars += `<rect x="${x}" y="${base - 2}" width="${bw}" height="2" rx="1" fill="var(--line)"></rect>`;
+    else labels += `<text x="${x + bw / 2}" y="${(base - sc(tot) - 4).toFixed(1)}" text-anchor="middle" class="ch-val">${tot}</text>`;
+    const day = d.date.slice(8).replace(/^0/, '');
+    if (i === 0 || i === 13 || i === 7) labels += `<text x="${i === 0 ? x : i === 13 ? x + bw : x + bw / 2}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === 13 ? 'end' : 'middle'}" class="ch-x">${i === 13 ? 'Today' : day + ' ' + fmtDate(d.date).split(' ')[1]}</text>`;
+    bars += `<rect x="${x - 4}" y="0" width="22" height="${H}" fill="transparent" class="ch-hit"><title>${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong</title></rect>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Answers in the last 14 days">${bars}${labels}<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-width="1"></line></svg>`;
+}
+function progressBlock(db) {
+  const pct = db.total ? Math.round(db.mastered / db.total * 100) : 0;
+  const steps = [['Step 1', db.ladder[1]], ['Step 2', db.ladder[2]], ['Step 3', db.ladder[3]], ['Step 4', db.ladder[4]], ['Mastered', db.ladder.mastered]];
+  const maxStep = Math.max(1, ...steps.map(s => s[1]));
+  const tot14 = db.days.reduce((a, d) => a + d.right + d.partial + d.wrong, 0);
+  return `<section class="panel dash" aria-label="Progress">
+    <div class="dash-block">
+      <div class="row"><p class="h3 grow">Mastered</p><span class="num"><b>${db.mastered}</b> / ${db.total}</span></div>
+      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${db.total}" aria-valuenow="${db.mastered}" aria-label="Mastered"><i style="width:${pct}%"></i></div>
+      <p class="small muted">${db.newMastered7 ? `+${db.newMastered7} in the last 7 days` : 'A question is mastered when you get it right at step 4.'}</p>
+    </div>
+    <div class="dash-block">
+      <div class="row"><p class="h3 grow">Last 14 days</p><span class="small muted num">${tot14} answer${tot14 === 1 ? '' : 's'}</span></div>
+      <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
+      ${activityChart(db.days)}
+    </div>
+    <div class="dash-block">
+      <p class="h3">On the ladder</p>
+      <div class="ladder-bars">${steps.map(([k, v]) => `<div class="lb-row"><span class="lb-k">${k}</span><span class="lb-bar"><i style="width:${(v / maxStep * 100).toFixed(1)}%" class="${k === 'Mastered' ? 'm' : ''}"></i></span><span class="lb-v num">${v}</span></div>`).join('')}</div>
+      <p class="small muted">Ladder: day 1 → 3 → 7 → 14</p>
+    </div>
+  </section>`;
 }
 
 function exById(id) { return S.exercises.find(e => e.id === id); }
