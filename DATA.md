@@ -2,11 +2,19 @@
 
 练习场页面的 `db` 里存什么、怎样写。页面（`app/arena.html`）与用 `ArtifactData` 改数据的 agent 都按这里读写；数据比代码活得久，旧数据要能照常读。改字段、写入方式或派生规则时先改这里。
 
-所有日期是设备本地日期，写成 `YYYY-MM-DD`；时刻是设备本地时间，写成 `YYYY-MM-DDTHH:mm`。
+所有日期是设备本地日期，写成 `YYYY-MM-DD`；时刻是设备本地时间，写成 `YYYY-MM-DDTHH:mm`。用户 id 一律存平台 `id()` 的原值。
+
+## `users/{id}`：用户
+
+文档 id 是平台给的用户 id：不透明，只在拥有本 Artifact 的组织范围内可比。页面在当前用户第一次打开、这份文档不存在时写入。名字、头像不存，显示时向平台现取。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `joinedAt` | 日期 | 第一次打开练习场的日期 |
 
 ## `exercises/{id}`：错题
 
-作答嵌在错题文档的 `attempts` 数组里，不单独成集合（理由见 ADR 0004）。
+作答嵌在错题文档的 `attempts` 数组里，不单独成集合，每条记下作答人（理由见 ADR 0004）。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -21,14 +29,15 @@
 | `answer` | 字符串 | 选择题为选项字母；选词题为所属题组词表中的词；短答题为首选答案；主观题为标准答法（句子改写写整句） |
 | `accepted` | 字符串数组 | 短答题的全部可接受答案，含 `answer`；其他形式为空数组 |
 | `solution` | 字符串 | 讲解，按 `Key idea:` / `Steps:` / `Watch out:` 三段写；得分关键词写成 `[[关键词]]` |
-| `wrongAnswer` | 字符串 | Sophia 当时的错答 |
+| `wrongAnswer` | 字符串 | 当时的错答 |
 | `mustUse` | 字符串数组，可省 | 只用于主观题：必须用的词；用「…」分开的项表示须按顺序出现的几部分，例如 `Neither…nor` |
 | `cause` | `"concept"` · `"misread"` · `"careless"` · `"incomplete"` | 错因：概念没懂、审题错、粗心、答法不完整 |
 | `source` | 字符串 | 出处，例如「2026 P5 SA2 卷二第 7 题」 |
 | `createdAt` | 日期 | 录入日期 |
 | `recordedAt` | 时刻，可省 | 录入时刻；新录入的都写，旧错题没有 |
 | `attempts` | 作答数组 | 见下表，按时间顺序追加 |
-| `step` · `due` · `mastered` · `wrongCount` · `lastAttemptAt` | 派生 | 见「派生字段」；每次写 `attempts` 时一并写回 |
+| `owner` | 字符串或 `null`，可省 | 归属人的用户 id；省略等同 `null`，即公开错题 |
+| `step` · `due` · `mastered` · `wrongCount` · `lastAttemptAt` | —— | 不再写入，已有的忽略；按用户现算，见「派生字段」 |
 | `setId` | 字符串或 `null`，可省 | 所属题组；省略等同 `null`，即独立的错题 |
 | `setPos` | 数，可省 | 组内顺序；本批按草稿顺序，后来补录的取组内最大值加一 |
 | `test` | 布尔，可省 | 测试数据标记 |
@@ -37,15 +46,18 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
+| `by` | 字符串 | 作答人的用户 id，必填 |
 | `date` | 日期 | 作答日 |
 | `mode` | `"daily"` · `"paper"` | 每日重做或检验卷 |
 | `paperId` | 字符串或 `null` | 检验卷 id |
-| `response` | 字符串 | 她的回答 |
+| `response` | 字符串 | 作答人的回答 |
 | `result` | `"right"` · `"partial"` · `"wrong"` | 对、部分对、错 |
 | `judgedBy` | `"auto"` · `"self"` · `"parent"` | 自动判、自评、改判（存储值仍为 `"parent"`，界面显示「改判」） |
 | `at` | 时刻，可省 | 作答时刻；旧作答没有 |
 
 ## `sets/{id}`：题组
+
+题组没有归属人；归属人只在错题上。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -68,24 +80,28 @@
 | `topics` | 字符串数组 | 专题 id；空数组表示该科目全部专题 |
 | `count` | 数 | 要的题数 |
 | `exerciseIds` | 字符串数组 | 抽出的错题，按卷面顺序 |
-| `status` | `"open"` · `"done"` | 未做、已出结果 |
-| `finishedAt` | 时刻，可省 | 完成时刻；旧检验卷没有 |
-| `takenOn` · `score` | —— | 不再写入，已有的忽略；得分每次显示时由带本卷 `paperId` 的作答算出 |
+| `owner` | 字符串或 `null`，可省 | 组卷时组卷人的默认归属人；省略等同 `null` |
+| `status` · `finishedAt` · `takenOn` · `score` | —— | 不再写入，已有的忽略；完成与得分每次显示时由带本卷 `paperId` 的作答按人算出 |
 | `test` | 布尔，可省 | 测试数据标记 |
 
-## `settings/main`
+一位用户做完一张检验卷，当且仅当有带本卷 `paperId`、`by` 为本人的作答；完成时刻取这些作答中最晚的 `at`（没有 `at` 时取 `date`）。每位用户每张卷只做一次。
+
+## `settings/{用户 id}`
+
+每位用户一份，文档 id 是该用户的 id；缺文档时全按默认值。
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `dailyLimit` | `10` | 每日重做的题数上限，1–50 |
 | `practiceDays` | `6` | 每周目标：每周有作答的天数，1–7 |
 | `papersPerWeek` | `1` | 每周目标：每周做完几张检验卷，0–3 |
+| `defaultOwner` | `null` | 默认归属人的用户 id；`null` 表示公开 |
 
-缺字段或不是数时按默认值读，超出范围时收紧到范围内，`0` 照常保留。设置页保存时三个字段一起写。
+前三项缺字段或不是数时按默认值读，超出范围时收紧到范围内，`0` 照常保留；`defaultOwner` 不是字符串时读成 `null`。设置页保存时四个字段一起写。
 
 ## 派生字段
 
-错题的派生字段完全由 `createdAt` 与 `attempts` 依次推出（页面里的 `deriveState`，断言在 `app/logic.test.js`）。新录入、没有作答的错题写起点：
+一位用户对一道错题的阶梯（`step`、`due`、`mastered`、`wrongCount`、`lastAttemptAt`），由 `createdAt` 与该用户的作答（`by` 等于其 id）依次推出（页面里的 `deriveState`，断言在 `app/logic.test.js`），页面渲染时现算、不存。没有作答时为起点，对所有用户相同：
 
 ```text
 step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttemptAt = null
@@ -97,6 +113,8 @@ step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttempt
 - **题组随最后一道错题消失。** 一道错题移出题组或被删除后，原题组里没有错题挂着，就删除这个题组。
 - **选词题的答案在词表里。** 选词题必须属于带词表的题组；改词表时，组内选词题的答案不能落空。
 - **题目文字或照片至少一项**，属于题组的可以由题组的材料满足。
+- **作答只动自己的。** 新作答写本人的 `by`；改判只改 `by` 为本人的作答；写回 `attempts` 时保留别人的作答，不写派生字段。两人同时写同一道错题的代价见 ADR 0004。
+- **删除错题连带所有人的作答。**
 - **照片先传后写。** 照片先上传到页面的 `assets`，再把 id 写进题组或错题的 `images`。
 
 ## 归类体系
