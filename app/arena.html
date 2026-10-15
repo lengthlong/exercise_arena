@@ -233,12 +233,14 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .material .stem { font-size: 15.5px; }
 .member { margin-left: 14px; }
 /* 录入：照片大按钮、缩略图、科目与 AI识别 一行 */
-.pick { position: relative; display: grid; justify-items: center; gap: 2px; padding: 22px 16px; border: 2px dashed var(--pen); border-radius: var(--r); background: var(--pen-soft); color: var(--pen); cursor: pointer; text-align: center; }
+.picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pick { position: relative; display: grid; justify-items: center; gap: 2px; padding: 18px 10px; border: 2px dashed var(--pen); border-radius: var(--r); background: var(--pen-soft); color: var(--pen); cursor: pointer; text-align: center; }
 .pick:hover { border-style: solid; }
 .pick:focus-within { outline: 2px solid var(--pen); outline-offset: 2px; }
 .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.pick-main { font: 600 19px/1.3 var(--font-body); }
-.pick-sub { font-size: 13px; color: var(--muted); }
+.pick-ico { font-size: 24px; line-height: 1; }
+.pick-main { font: 600 16px/1.3 var(--font-body); white-space: nowrap; }
+.pick-sub { margin: -4px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
 .pick.off { border-color: var(--line); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
 .tray { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .tray-item { position: relative; }
@@ -251,6 +253,17 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .set-group { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .set-group:first-of-type { border-top: 0; padding-top: 0; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.filters > * { min-width: 0; }
+.filters select { width: 100%; text-overflow: ellipsis; }
+select.compact { padding: 6px 8px; font-size: 14px; }
+.list-bar select.compact { width: auto; }
+select.compact.on { border-color: var(--pen); color: var(--pen); background: var(--pen-soft); }
+.list-bar { border-top: 1px solid var(--rule); padding-top: 10px; }
+.sortbox { display: flex; gap: 8px; margin-left: auto; }
+.list-bar b, .list-bar .btn { white-space: nowrap; }
+.list-tools { grid-template-columns: minmax(0, 1fr); }
+.list-tools .stats { font-size: 12.5px; gap: 2px 14px; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -831,11 +844,11 @@ function ownerOptions(sel) {
   // 只列用户；没有归属人的旧错题不预选，必须选一位
   return (sel ? '' : `<option value="" selected disabled>Choose owner</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
-function ownerFilterOptions(sel, docs) {
+function ownerFilterOptions(sel, docs, allLabel) {
   // 筛选用：All 加每位用户与数据里出现过的归属人，本人标 (me)
   const ids = S.userIds.slice();
   for (const x of docs) if (x.owner && !ids.includes(x.owner)) ids.push(x.owner);
-  return `<option value="">All</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
+  return `<option value="">${allLabel || 'All'}</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
 async function loadNames() {
   // 名字只在显示时向平台现取；取不到的显示 Someone
@@ -1187,8 +1200,12 @@ function renderRecord() {
     <p class="h2">Record exercises</p>
     <p class="small muted">Take a photo or paste the question text; AI splits it into drafts. Check each draft before saving, especially the answer.</p>`;
   if (canPhoto) {
-    h += `<label class="pick${full || busy ? ' off' : ''}"><input type="file" id="rec-files" accept="${esc((L.mediaTypes || ['image/*']).join(','))}" multiple ${full || busy ? 'disabled' : ''}>
-      <span class="pick-main">📷 Take / choose photos</span><span class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</span></label>`;
+    // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
+    const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
+    h += `<div class="picks">
+      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-camera" data-photos="1" accept="${acc}" capture="environment" ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">📷</span><span class="pick-main">Take photo</span></label>
+      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-files" data-photos="1" accept="${acc}" multiple ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">🖼️</span><span class="pick-main">Choose photos</span></label>
+    </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
     if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
   } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
   h += `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
@@ -1359,18 +1376,23 @@ function renderExercises() {
   S.listPage = pg.page;
   const topicOpts = F.subject ? TAX[F.subject].topics.map(t => `<option value="${t[0]}" ${F.topic === t[0] ? 'selected' : ''}>${esc(t[3])}</option>`).join('') : '';
   const byCause = CAUSES.map(c => [c[1], S.exercises.filter(e => e.cause === c[0] && (!F.owner || sameOwner(e.owner, F.owner)) && (!F.subject || e.subject === F.subject)).length]);
-  let h = `<section class="panel">
-    <div class="grid2">
-      <label class="f"><span>Owner</span><select id="flt-owner" data-filter="owner">${ownerFilterOptions(F.owner, S.exercises)}</select></label>
-      <label class="f"><span>Subject</span><select id="flt-subject" data-filter="subject"><option value="">All</option>${SUBJECTS.map(s => `<option value="${s[0]}" ${F.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
-      <label class="f"><span>Topic</span><select id="flt-topic" data-filter="topic" ${F.subject ? '' : 'disabled'}><option value="">All</option>${topicOpts}</select></label>
-      <label class="f"><span>Error cause</span><select id="flt-cause" data-filter="cause"><option value="">All</option>${CAUSES.map(c => `<option value="${c[0]}" ${F.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select></label>
-      <label class="f"><span>Status</span><select id="flt-state" data-filter="state"><option value="">All</option><option value="learning" ${F.state === 'learning' ? 'selected' : ''}>On the ladder</option><option value="due" ${F.state === 'due' ? 'selected' : ''}>Due today</option><option value="mastered" ${F.state === 'mastered' ? 'selected' : ''}>Mastered</option></select></label>
+  // 筛选一行：下拉框不另加标签，第一项写明「全部」；选了的高亮；排序与题数一行
+  const on = k => F[k] ? ' on' : '';
+  const sel = (k, label, opts, dis) => `<select id="flt-${k}" class="compact${on(k)}" data-filter="${k}" aria-label="${label}" ${dis ? 'disabled' : ''}>${opts}</select>`;
+  const opt = (k, v, t) => `<option value="${v}" ${F[k] === v ? 'selected' : ''}>${t}</option>`;
+  const anyF = ['owner', 'subject', 'topic', 'cause', 'state'].some(k => F[k]);
+  let h = `<section class="panel list-tools">
+    <div class="filters">
+      ${sel('owner', 'Owner', ownerFilterOptions(F.owner, S.exercises, 'All owners'))}
+      ${sel('subject', 'Subject', opt('subject', '', 'All subjects') + SUBJECTS.map(s => opt('subject', s[0], s[1])).join(''))}
+      ${sel('topic', 'Topic', opt('topic', '', 'All topics') + topicOpts, !F.subject)}
+      ${sel('cause', 'Error cause', opt('cause', '', 'All error causes') + CAUSES.map(c => opt('cause', c[0], c[1])).join(''))}
+      ${sel('state', 'Status', opt('state', '', 'Any status') + opt('state', 'learning', 'On the ladder') + opt('state', 'due', 'Due today') + opt('state', 'mastered', 'Mastered'))}
     </div>
-    <div class="row">
-      <label class="f"><span>Sort by</span><select id="list-sort" data-act-change="list-sort">${[['recorded', 'Recorded'], ['due', 'Due date'], ['wrong', 'Times wrong'], ['last', 'Last answered']].map(k => `<option value="${k[0]}" ${S.listSort.key === k[0] ? 'selected' : ''}>${k[1]}</option>`).join('')}</select></label>
-      <button type="button" class="btn ghost small" data-act="list-dir" style="align-self:end">${S.listSort.dir === 'desc' ? 'Descending ↓' : 'Ascending ↑'}</button>
-      <span class="small muted grow" style="align-self:end">${plural(sorted.length, 'exercise')}</span>
+    <div class="row list-bar">
+      <b>${plural(sorted.length, 'exercise')}</b>${anyF ? '<button type="button" class="btn ghost small" data-act="clear-filters">Clear filters</button>' : ''}<span class="sortbox">
+      <select id="list-sort" class="compact" data-act-change="list-sort" aria-label="Sort by">${[['recorded', 'Recorded'], ['due', 'Due date'], ['wrong', 'Times wrong'], ['last', 'Last answered']].map(k => `<option value="${k[0]}" ${S.listSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
+      <button type="button" class="btn ghost small" data-act="list-dir" aria-label="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.listSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>
     <div class="stats">${byCause.map(c => `<span>${c[0]} <b class="num">${c[1]}</b></span>`).join('')}</div>
   </section>`;
@@ -1543,6 +1565,7 @@ document.addEventListener('click', async ev => {
   try {
     switch (act) {
       case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; render(); break;
+      case 'clear-filters': S.filters = { owner: '', subject: '', topic: '', cause: '', state: '' }; S.listPage = 1; render(); break;
       case 'list-dir': S.listSort.dir = S.listSort.dir === 'desc' ? 'asc' : 'desc'; S.listPage = 1; render(); break;
       case 'list-page': S.listPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'export': await exportAll(); break;
@@ -1700,7 +1723,7 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'rec-files') { addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
+  if (t.dataset.photos) { addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
