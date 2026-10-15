@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -176,4 +176,100 @@ assert.strictEqual(L.encouragement(base, false), 'All caught up. See you tomorro
 const mast27 = Array.from({ length: 27 }, () => ({ attempts: four(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']), mastered: true, step: 4 }));
 const dm = L.dashboardData(mast27, T0);
 assert.deepStrictEqual([dm.peak, Array.from(dm.badges), dm.next, dm.toGo], [27, [10, 25], 50, 23]);
+// 设置：缺字段与非数按默认，超出范围收紧，0 保留
+assert.deepStrictEqual({ ...L.readSettings(null) }, { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 18 }) }, { dailyLimit: 18, practiceDays: 6, papersPerWeek: 1 });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 0, practiceDays: 9, papersPerWeek: 0 }) }, { dailyLimit: 1, practiceDays: 7, papersPerWeek: 0 });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 'x', practiceDays: -2, papersPerWeek: 5 }) }, { dailyLimit: 10, practiceDays: 1, papersPerWeek: 3 });
+// 计划：未来 7 天按上限做、假设都做对；做过的题按间隔回来
+const q = (id, due, step, extra) => Object.assign({ id, due, step, createdAt: '2026-10-01', mastered: false }, extra || {});
+let pf = L.planForecast([q('a', '2026-10-15', 1), q('b', '2026-10-15', 1), q('c', '2026-10-15', 1)], '2026-10-15', 2);
+// 15 号做 a、b（升到第 2 级，17 号回来）；16 号做 c；17 号 a、b 回来升第 3 级，21 号再回来
+assert.deepStrictEqual(Array.from(pf.days, d => d.count), [2, 1, 2, 1, 0, 0, 2]);
+assert.deepStrictEqual([pf.waiting, pf.clearOn, pf.needLimit], [3, '2026-10-16', null]);
+assert.strictEqual(L.planLine(pf, 2, d => 'D' + d.slice(8)), "At 2 a day, you'll be caught up by D16.");
+// 当天全做完：clearOn 是今天
+pf = L.planForecast([q('a', '2026-10-15', 1), q('m', null, 4, { mastered: true })], '2026-10-15', 5);
+assert.deepStrictEqual([pf.days[0].count, pf.waiting, pf.clearOn], [1, 1, '2026-10-15']);
+assert.strictEqual(L.planLine(pf, 5), "Today's set covers everything due.");
+// 第 4 级做对即掌握，不再回来
+pf = L.planForecast([q('a', '2026-10-15', 4)], '2026-10-15', 5);
+assert.deepStrictEqual(Array.from(pf.days, d => d.count), [1, 0, 0, 0, 0, 0, 0]);
+// 题组不拆：上限 1 时整组放入
+pf = L.planForecast([q('g1', '2026-10-15', 3, { setId: 'S', setPos: 1 }), q('g2', '2026-10-15', 3, { setId: 'S', setPos: 2 })], '2026-10-15', 1);
+assert.strictEqual(pf.days[0].count, 2);
+// 7 天清不完：needLimit 是能清完的最小上限
+const pile = Array.from({ length: 30 }, (_, i) => q('p' + i, '2026-10-15', 1));
+pf = L.planForecast(pile, '2026-10-15', 3);
+assert.deepStrictEqual([pf.waiting, pf.clearOn], [30, null]);
+assert.ok(pf.needLimit > 3 && L.planForecast(pile, '2026-10-15', pf.needLimit).clearOn !== null && L.planForecast(pile, '2026-10-15', pf.needLimit - 1).clearOn === null);
+assert.strictEqual(L.planLine(pf, 3), `At 3 a day, you won't catch up in the next 7 days. ${pf.needLimit} a day would.`);
+// 50 也清不完
+const huge = Array.from({ length: 400 }, (_, i) => q('h' + i, '2026-10-15', 1));
+pf = L.planForecast(huge, '2026-10-15', 10);
+assert.deepStrictEqual([pf.clearOn, pf.needLimit], [null, null]);
+assert.strictEqual(L.planLine(pf, 10), "At 10 a day, you won't catch up in the next 7 days.");
+// 本周的周一
+assert.strictEqual(L.weekStart('2026-10-12'), '2026-10-12');   // 周一
+assert.strictEqual(L.weekStart('2026-10-18'), '2026-10-12');   // 周日
+assert.strictEqual(L.weekStart('2026-11-01'), '2026-10-26');   // 跨月
+// 目标进度：有作答的天数、完成的检验卷（旧卷用 createdAt；未完成不算）
+const gx = [{ attempts: [at('2026-10-12', 'right'), at('2026-10-13', 'wrong')] }, { attempts: [at('2026-10-13', 'right'), at('2026-10-11', 'right')] }];
+const gp = [{ status: 'done', finishedAt: '2026-10-14T19:00', createdAt: '2026-10-10' }, { status: 'done', createdAt: '2026-10-12' },
+  { status: 'open', createdAt: '2026-10-13' }, { status: 'done', finishedAt: '2026-10-11T08:00', createdAt: '2026-10-11' }];
+assert.deepStrictEqual({ ...L.goalProgress(gx, gp, '2026-10-12', '2026-10-18') }, { days: 2, papers: 2 });
+// 回顾：最近 7 天（含今天）
+const T1 = '2026-10-20';
+const rx = [
+  { id: 'r1', subject: 'english', topic: 'en-prep', concept: 'en-pp-fixed', step: 2, mastered: false, due: '2026-10-22',
+    attempts: [at('2026-10-13', 'wrong'), at('2026-10-14', 'wrong'), at('2026-10-19', 'right'), at('2026-10-20', 'wrong')] },
+  { id: 'r2', subject: 'english', topic: 'en-prep', concept: 'en-pp-fixed', step: 1, mastered: false, due: '2026-10-19',
+    attempts: [at('2026-10-18', 'wrong'), at('2026-10-18', 'wrong')] },
+  { id: 'r3', subject: 'science', topic: 'S-elec', concept: null, step: 4, mastered: false, due: '2026-10-25', attempts: [] }];
+let wr = L.weekReview(rx, [], T1);
+assert.deepStrictEqual([wr.from, wr.questions, wr.answers, wr.right, wr.partial, wr.wrong, wr.practised, wr.overdue],
+  ['2026-10-14', 2, 5, 1, 0, 4, 4, 1]);                                   // 13 号不在窗口；14 号在
+assert.deepStrictEqual([wr.days.length, wr.days[0].date, { ...wr.days[6] }], [7, '2026-10-14', { date: '2026-10-20', right: 0, partial: 0, wrong: 1 }]);
+assert.deepStrictEqual({ ...wr.topWrong }, { subject: 'english', topic: 'en-prep', n: 4 });
+assert.deepStrictEqual([wr.newlyMastered.length, wr.fallback], [0, 'Almost there: 1 question is at step 4.']);
+rx[2].step = 3;
+assert.strictEqual(L.weekReview(rx, [], T1).fallback, '1 question moved up the ladder in the last 7 days.');
+assert.strictEqual(L.weekReview(rx.slice(1), [], T1).fallback, '');
+// 新掌握按概念分组，没填概念的按专题
+const mm = (id, concept, topic, d) => ({ id, subject: 'english', topic, concept, mastered: true, step: 4, due: null, attempts: four(d) });
+const nm = L.weekReview([mm('k1', 'en-pp-fixed', 'en-prep', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-15']),
+  mm('k2', 'en-pp-fixed', 'en-prep', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-14']),
+  mm('k3', null, 'en-tense', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-20']),
+  mm('k4', 'en-c-coord', 'en-conj', ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-13'])], [], T1);   // k4 在窗口外
+assert.deepStrictEqual(Array.from(nm.newlyMastered, g => [g.kind, g.id, g.n]), [['concept', 'en-pp-fixed', 2], ['topic', 'en-tense', 1]]);
+assert.strictEqual(nm.fallback, '');
+// 三行对比；检验卷目标为 0 时不出这一行
+const S6 = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
+assert.deepStrictEqual(Array.from(L.goalChecks(wr, S6), c => [c.key, c.ok]), [['days', false], ['papers', false], ['overdue', false]]);
+assert.deepStrictEqual(Array.from(L.goalChecks(wr, { practiceDays: 4, papersPerWeek: 0 }), c => [c.key, c.ok]), [['days', true], ['overdue', false]]);
+// 建议
+const nameT = t => t.topic;
+const okPlan = { clearOn: '2026-10-20', waiting: 2, needLimit: null };
+let ch = L.goalChecks(wr, S6);
+assert.deepStrictEqual(Array.from(L.weekTips(okPlan, wr, ch, S6, nameT)), [
+  '1 question is overdue — do it first.',
+  'Little and often: aim for 6 days a week — you practised on 4 of the last 7.',
+  'Make a check paper on en-prep.']);                                    // 最多 3 条，④ 被挤掉
+assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 65, needLimit: 30 }, wr, ch, S6, nameT)).slice(0, 1),
+  ['65 questions are waiting. Doing 30 a day clears them in the next 7 days — change the daily limit in 设置.']);
+assert.deepStrictEqual(Array.from(L.weekTips({ clearOn: null, waiting: 400, needLimit: null }, wr, ch, S6, nameT)).slice(0, 1),
+  ['400 questions are waiting — do your redo every day, oldest first.']);
+// 天数、检验卷都达到、没有过期：只剩 ④；错 3 次出 ④，2 次不出
+const good = { practised: 6, papersDone: 1, overdue: 0, topWrong: { subject: 'english', topic: 'en-prep', n: 3 } };
+ch = L.goalChecks(good, S6);
+assert.deepStrictEqual(Array.from(L.weekTips(okPlan, good, ch, S6, nameT)), ['Read the Key idea again for en-prep before you redo it.']);
+good.topWrong.n = 2;
+assert.deepStrictEqual(Array.from(L.weekTips(okPlan, good, ch, S6, nameT)), ['Great week — keep the same rhythm!']);
+// 检验卷没做够、最近 7 天没错：组混合专题
+const noWrong = { practised: 6, papersDone: 0, overdue: 0, topWrong: null };
+assert.deepStrictEqual(Array.from(L.weekTips(okPlan, noWrong, L.goalChecks(noWrong, S6), S6, nameT)), ['Make a check paper on mixed topics.']);
+// 周一、最近 7 天没练、检验卷目标为 0、没有积压：不说 Great week
+const idle = { practised: 0, papersDone: 0, overdue: 0, topWrong: null }, S0 = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 0 };
+assert.deepStrictEqual(Array.from(L.weekTips(okPlan, idle, L.goalChecks(idle, S0), S0, nameT)),
+  ['Little and often: aim for 6 days a week — you practised on 0 of the last 7.']);
 console.log('all logic tests passed');

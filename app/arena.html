@@ -64,15 +64,11 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 64px; display: grid; gap: 18px; }
 @media (min-width: 720px) { .wrap { padding-inline: 28px; } }
 
-/* top bar */
-.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.brand { display: grid; gap: 0; }
-.brand b { font: 600 20px/1.2 var(--font-body); letter-spacing: -.01em; text-wrap: balance; }
-.brand span { font: 400 13px/1.4 var(--font-body); color: var(--muted); }
+/* tab bar: first line of the page, sticks to the top */
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 3px; gap: 2px; }
 .seg button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); }
+.tabs { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); background: var(--paper); margin-top: -18px; padding-top: 6px; }
 .tabs button { border: 0; background: none; padding: 8px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font-zh); }
 .tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--pen); font-weight: 500; }
 
@@ -108,12 +104,31 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* home */
-.hello { display: grid; gap: 4px; }
+.hello { display: grid; gap: 6px; }
 .hello .day { font: 400 13px var(--font-body); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
 .hello h1 { margin: 0; font: 600 clamp(24px, 4vw, 32px)/1.15 var(--font-body); letter-spacing: -.015em; text-wrap: balance; }
 .today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
 .today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
 .today .txt { display: grid; gap: 8px; min-width: 0; }
+.today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.plan .sub, .review .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.days7 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.days7 li { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.days7 .d { font-size: 12px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+@media (max-width: 480px) { .days7 { gap: 4px; } .days7 .d { font-size: 11px; letter-spacing: -.02em; } }
+.days7 .n { font: 400 24px/1 var(--font-hand); color: var(--pen); }
+.days7 li.zero .n { color: var(--muted); }
+.days7 li.is-today { border-color: var(--pen); background: var(--pen-soft); }
+.days7 li.is-today .d { color: var(--pen); font-weight: 600; }
+.plan-line { margin: 0; font-size: 14.5px; }
+.checklist, .tips, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14.5px; }
+.checklist li, .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tick { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
+.tick.ok { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 700; }
+.tips li { position: relative; padding-left: 18px; }
+.tips li::before { content: "→"; position: absolute; left: 0; color: var(--pen); }
+.rv-head { display: flex; align-items: baseline; gap: 10px; }
+.rv-n { font: 400 48px/1 var(--font-hand); color: var(--red); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
 .stats b { color: var(--ink); font-weight: 600; }
 
@@ -251,7 +266,7 @@ const TAX = /*TAXONOMY:BEGIN*/{"english":{"layers":[["V","动词","Verbs"],["W",
 </script>
 
 <script>
-/* LOGIC:BEGIN — 纯函数：复习阶梯、判对、每日清单、抽题、看板（断言见 app/logic.test.js） */
+/* LOGIC:BEGIN — 纯函数：复习阶梯、判对、每日清单、抽题、看板、计划与回顾、设置（断言见 app/logic.test.js） */
 const GAPS = [0, 1, 2, 4, 7];
 function pad2(n) { return String(n).padStart(2, '0'); }
 function localToday(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -552,6 +567,135 @@ function encouragement(d, hasWork) {
   if (hasWork) return d.streak > 0 ? `Do today's redo to keep your ${d.streak}-day streak!` : "Start today's redo to begin a streak!";
   return 'All caught up. See you tomorrow!';
 }
+/* ---------- 设置、计划与回顾 ---------- */
+const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
+function readSettings(v) {
+  // 缺字段或不是数按默认值；超出范围收紧；0 照常保留
+  v = v || {};
+  const num = (k, lo, hi) => {
+    const n = Number(v[k]);
+    if (v[k] == null || v[k] === '' || typeof v[k] === 'boolean' || !Number.isFinite(n)) return SETTINGS_DEFAULT[k];
+    return Math.max(lo, Math.min(hi, Math.round(n)));
+  };
+  return { dailyLimit: num('dailyLimit', 1, 50), practiceDays: num('practiceDays', 1, 7), papersPerWeek: num('papersPerWeek', 0, 3) };
+}
+function simulatePlan(exs, today, limit) {
+  // 从今天起 7 天按上限做当天的题，假设都做对：第 4 级做对即掌握，否则升一级、按间隔排下次到期
+  const st = exs.filter(e => !e.mastered && e.due).map(e => ({ id: e.id, setId: e.setId || null, setPos: e.setPos, createdAt: e.createdAt, due: e.due, step: e.step || 1, mastered: false }));
+  const days = [];
+  let clearOn = null;
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(today, i);
+    const list = dailyList(st, day, limit);
+    for (const e of list) {
+      if (e.step >= 4) { e.mastered = true; e.due = null; }
+      else { e.step++; e.due = addDays(day, GAPS[e.step]); }
+    }
+    days.push({ date: day, count: list.length });
+    if (clearOn === null && !st.some(e => !e.mastered && e.due && e.due <= day)) clearOn = day;
+  }
+  return { days, clearOn };
+}
+function planForecast(exs, today, limit) {
+  const sim = simulatePlan(exs, today, limit);
+  const waiting = exs.filter(e => !e.mastered && e.due && e.due <= today).length;
+  let needLimit = null;
+  if (sim.clearOn === null) {
+    for (let m = limit + 1; m <= 50; m++) if (simulatePlan(exs, today, m).clearOn !== null) { needLimit = m; break; }
+  }
+  return { days: sim.days, waiting, clearOn: sim.clearOn, needLimit };
+}
+function planLine(plan, limit, fmt) {
+  fmt = fmt || (d => d);
+  if (plan.clearOn === plan.days[0].date) return "Today's set covers everything due.";
+  if (plan.clearOn) return `At ${limit} a day, you'll be caught up by ${fmt(plan.clearOn)}.`;
+  return `At ${limit} a day, you won't catch up in the next 7 days.` + (plan.needLimit ? ` ${plan.needLimit} a day would.` : '');
+}
+function weekStart(today) {
+  // 含今天的那个周一
+  const p = String(today).split('-').map(Number);
+  const dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+  return addDays(today, -((dow + 6) % 7));
+}
+function paperDoneOn(p) { return p.finishedAt ? String(p.finishedAt).slice(0, 10) : p.createdAt; }
+function goalProgress(exs, papers, from, to) {
+  // 区间内有作答的天数、完成的检验卷张数（旧卷没有 finishedAt 时取 createdAt）
+  const days = new Set();
+  for (const e of exs) for (const a of e.attempts || []) if (a.date >= from && a.date <= to) days.add(a.date);
+  const done = papers.filter(p => p.status === 'done' && paperDoneOn(p) >= from && paperDoneOn(p) <= to).length;
+  return { days: days.size, papers: done };
+}
+function weekReview(exs, papers, today) {
+  // 最近 7 天（含今天）
+  const from = addDays(today, -6);
+  const days = [];
+  for (let i = 6; i >= 0; i--) days.push({ date: addDays(today, -i), right: 0, partial: 0, wrong: 0 });
+  const idx = Object.fromEntries(days.map((d, i) => [d.date, i]));
+  const ans = { right: 0, partial: 0, wrong: 0 }, wrongBy = {}, moved = new Set();
+  let questions = 0;
+  for (const e of exs) {
+    let hit = false, step = 1, mastered = false;
+    for (const a of e.attempts || []) {
+      const inW = a.date >= from && a.date <= today;
+      if (inW) {
+        hit = true;
+        if (ans[a.result] != null) { ans[a.result]++; days[idx[a.date]][a.result]++; }
+        if (a.result === 'wrong') { const k = e.subject + '|' + e.topic; wrongBy[k] = (wrongBy[k] || 0) + 1; }
+      }
+      // 与 deriveState 同一套逐次规则，数作答时尚未掌握、做对而升级的题
+      if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
+      if (a.result === 'right') { if (inW) moved.add(e.id); if (step === 4) mastered = true; else step++; }
+      else if (a.result !== 'partial') step = 1;
+    }
+    if (hit) questions++;
+  }
+  const top = Object.entries(wrongBy).sort((a, b) => b[1] - a[1] || a[0].split('|')[1].localeCompare(b[0].split('|')[1]))[0];
+  const groups = {};
+  for (const e of exs) {
+    const m = e.mastered && masteredOn(e);
+    if (!m || m < from || m > today) continue;
+    const kind = e.concept ? 'concept' : 'topic', id = e.concept || e.topic, k = e.subject + '|' + kind + '|' + id;
+    (groups[k] = groups[k] || { subject: e.subject, kind, id, n: 0 }).n++;
+  }
+  const newlyMastered = Object.values(groups).sort((a, b) => b.n - a.n || String(a.id).localeCompare(String(b.id)));
+  let fallback = '';
+  if (!newlyMastered.length) {
+    const s4 = exs.filter(e => !e.mastered && e.step === 4).length;
+    if (s4) fallback = `Almost there: ${s4} question${s4 === 1 ? ' is' : 's are'} at step 4.`;
+    else if (moved.size) fallback = `${moved.size} question${moved.size === 1 ? '' : 's'} moved up the ladder in the last 7 days.`;
+  }
+  const g = goalProgress(exs, papers, from, today);
+  return {
+    from, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
+    practised: g.days, papersDone: g.papers, days, newlyMastered, fallback,
+    overdue: exs.filter(e => !e.mastered && e.due && e.due < today).length,
+    topWrong: top ? { subject: top[0].split('|')[0], topic: top[0].split('|')[1], n: top[1] } : null
+  };
+}
+function goalChecks(week, settings) {
+  // 三行对比；每周检验卷目标为 0 时不出检验卷行
+  const rows = [{ key: 'days', value: week.practised, goal: settings.practiceDays, ok: week.practised >= settings.practiceDays }];
+  if (settings.papersPerWeek > 0) rows.push({ key: 'papers', value: week.papersDone, goal: settings.papersPerWeek, ok: week.papersDone >= settings.papersPerWeek });
+  rows.push({ key: 'overdue', value: week.overdue, ok: week.overdue === 0 });
+  return rows;
+}
+function weekTips(plan, week, checks, settings, topicName) {
+  // 建议跟着对比行走，按序取成立的，最多 3 条；三行都达到且没有别的建议时说 Great week
+  const name = topicName || (t => t.topic);
+  const unmet = k => checks.some(c => c.key === k && !c.ok);
+  const are = n => n === 1 ? '1 question is' : `${n} questions are`;
+  const tips = [];
+  if (plan.clearOn === null) {
+    tips.push(plan.needLimit
+      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — change the daily limit in 设置.`
+      : `${are(plan.waiting)} waiting — do your redo every day, oldest first.`);
+  } else if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
+  if (unmet('days')) tips.push(`Little and often: aim for ${settings.practiceDays} days a week — you practised on ${week.practised} of the last 7.`);
+  if (unmet('papers')) tips.push(week.topWrong ? `Make a check paper on ${name(week.topWrong)}.` : 'Make a check paper on mixed topics.');
+  if (week.topWrong && week.topWrong.n >= 3) tips.push(`Read the Key idea again for ${name(week.topWrong)} before you redo it.`);
+  if (!tips.length && checks.every(c => c.ok)) tips.push('Great week — keep the same rhythm!');
+  return tips.slice(0, 3);
+}
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 /* LOGIC:END */
 </script>
@@ -603,7 +747,7 @@ const S = {
   status: 'loading',            // loading | ready | nodb
   tab: store.get('arena.tab') || 'today',   // today | record | exercises | papers | settings
   db: null, assets: null, sample: null, downloads: null, imgLimits: null,
-  exercises: [], papers: [], settings: { dailyLimit: 10 },
+  exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
   drafts: [], recSubject: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
@@ -667,10 +811,7 @@ function softRender() { if (!locked()) render(); }
 const TABS = [['today', 'Today'], ['record', '录入'], ['exercises', '错题'], ['papers', '检验卷'], ['settings', '设置']];
 function render() {
   const app = $('#app');
-  let h = `<header class="top">
-    <div class="brand"><b>Sophia's Exercise Arena</b><span>Redo the ones that tripped you up</span></div>
-  </header>
-  <nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
+  let h = `<nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
   else if (S.status === 'nodb') h += `<div class="panel"><p class="h2 zh">数据不可用</p><p class="zh muted">请用家长的 claude.ai 账号打开本页。练习场的错题和作答都存在页面的数据库里，只有登录后才能读写。</p></div>`;
   else if (S.errMsg && !S.run) h += `<p class="note err zh">${esc(S.errMsg)}</p>`;
@@ -680,46 +821,37 @@ function render() {
 }
 
 /* ---------- Today ---------- */
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const wd = iso => { const p = iso.split('-').map(Number); return WD[new Date(p[0], p[1] - 1, p[2]).getDay()]; };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const tick = ok => ok ? '<span class="tick ok" aria-label="done">✓</span>' : '<span class="tick" aria-label="not yet">○</span>';
 function renderPractice() {
   if (S.run) return S.run.kind === 'daily' ? renderDaily() : renderPaperRun();
   const today = localToday();
-  const due = dailyList(S.exercises, today, S.settings.dailyLimit);
-  const allDue = S.exercises.filter(e => !e.mastered && e.due && e.due <= today).length;
-  const next = S.exercises.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
-  const open = S.papers.filter(p => p.status === 'open').sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
-  const d = new Date();
-  let h = `<section class="hello"><span class="day">${d.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })}</span><h1>Hi Sophia</h1></section>`;
+  const dateLine = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' });
   if (!S.exercises.length) {
-    h += `<div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in 录入.</p></div>`;
-    return h;
+    return `<section class="hello"><span class="day">${dateLine}</span><h1>Hi Sophia</h1></section>
+      <div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in 录入.</p></div>`;
   }
+  const due = dailyList(S.exercises, today, S.settings.dailyLimit);
+  const open = S.papers.filter(p => p.status === 'open').sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   const db = dashboardData(S.exercises, today);
-  h += cheerBlock(db, encouragement(db, due.length > 0 || open.length > 0));
-  h += `<section class="today">
-    <div class="big num" aria-hidden="true">${due.length}</div>
-    <div class="txt">
-      <p class="h2">${due.length ? `${due.length} question${due.length > 1 ? 's' : ''} to redo today` : 'Nothing due today'}</p>
-      <p class="muted small">${due.length ? (allDue > due.length ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
-      ${due.length ? `<div><button type="button" class="btn primary" data-act="start-daily">Start today's redo</button></div>` : ''}
-    </div>
-  </section>`;
-  if (open.length) {
-    h += `<section class="panel"><p class="h3">Check papers</p><div class="list">${open.map(p => `
-      <button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">
-        <span class="t">${esc(p.title)}</span>
-        <span class="side"><span>${p.exerciseIds.length} questions</span></span>
-        <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
-      </button>`).join('')}</div></section>`;
-  }
-  h += progressBlock(db);
-  return h;
+  const plan = planForecast(S.exercises, today, S.settings.dailyLimit);
+  const week = weekReview(S.exercises, S.papers, today);
+  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0))
+    + todayBlock(today, due, open)
+    + planBlock(plan, today)
+    + reviewBlock(plan, week)
+    + progressBlock(db);
 }
 
-/* ---------- 进度看板 ---------- */
-function cheerBlock(db, message) {
+/* 问候、鼓励语、连续天数与徽章 */
+function helloBlock(dateLine, db, message) {
   const badges = db.badges.map(m => `<span class="badge earned" title="Milestone: ${m} mastered">★ ${m} mastered</span>`).join('');
   const nextB = db.next ? `<span class="badge next">Next badge: ${db.next} mastered · ${db.toGo} to go</span>` : '';
-  return `<section class="cheer" aria-label="Your progress">
+  return `<section class="hello" aria-label="Hello">
+    <span class="day">${dateLine}</span>
+    <h1>Hi Sophia</h1>
     <p class="cheer-msg">${esc(message)}</p>
     <div class="cheer-row">
       <span class="streak"><span class="streak-n num">${db.streak}</span><span class="streak-l">day${db.streak === 1 ? '' : 's'} in a row${db.doneToday || !db.streak ? '' : ' · do today to keep it'}</span></span>
@@ -727,15 +859,79 @@ function cheerBlock(db, message) {
     </div>
   </section>`;
 }
+
+/* 今天：每日重做与未做的检验卷 */
+function todayBlock(today, due, open) {
+  const allDue = S.exercises.filter(e => !e.mastered && e.due && e.due <= today).length;
+  const next = S.exercises.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
+  let h = `<section class="today" aria-label="Today">
+    <div class="big num" aria-hidden="true">${due.length}</div>
+    <div class="txt">
+      <p class="h2">${due.length ? `${plural(due.length, 'question')} to redo today` : 'Nothing due today'}</p>
+      <p class="muted small">${due.length ? (allDue > due.length ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
+      ${due.length ? `<div><button type="button" class="btn primary" data-act="start-daily">Start today's redo</button></div>` : ''}
+    </div>`;
+  if (open.length) {
+    h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
+      <button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">
+        <span class="t">${esc(p.title)}</span>
+        <span class="side"><span>${p.exerciseIds.length} questions</span></span>
+        <span class="meta">${subjChip(p.subject)}<span>set ${fmtDate(p.createdAt)}</span></span>
+      </button>`).join('')}</div></div>`;
+  }
+  return h + `</section>`;
+}
+
+/* 计划：未来 7 天的预计题数与本周目标 */
+function planBlock(plan, today) {
+  const st = S.settings, ws = weekStart(today);
+  const g = goalProgress(S.exercises, S.papers, ws, addDays(ws, 6));
+  const goals = [`<li>${tick(g.days >= st.practiceDays)}<span>Practise on ${st.practiceDays} days: <b class="num">${g.days}/${st.practiceDays}</b></span></li>`];
+  if (st.papersPerWeek > 0) goals.push(`<li>${tick(g.papers >= st.papersPerWeek)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b></span></li>`);
+  return `<section class="panel plan" aria-label="Next 7 days">
+    <div class="row"><p class="h3 grow">Next 7 days</p><span class="small muted">If every answer is right</span></div>
+    <ol class="days7">${plan.days.map((x, i) => `<li class="${i === 0 ? 'is-today' : ''}${x.count ? '' : ' zero'}" title="${fmtDate(x.date)}: ${plural(x.count, 'question')}"><span class="d">${i === 0 ? 'Today' : wd(x.date)}</span><span class="n num">${x.count}</span></li>`).join('')}</ol>
+    <p class="plan-line">${esc(planLine(plan, st.dailyLimit, fmtDate))}</p>
+    <div class="sub"><p class="h3">This week</p><ul class="checklist">${goals.join('')}</ul></div>
+  </section>`;
+}
+
+/* 回顾：最近 7 天 */
+function reviewBlock(plan, week) {
+  const st = S.settings;
+  const checks = goalChecks(week, st);
+  const tips = weekTips(plan, week, checks, st, t => topicLabel(t.subject, t.topic, 'en'));
+  const label = g => {
+    if (g.kind === 'concept') { const c = nameOf(g.subject, 'concept', g.id); return mapLink(g.subject, g.id, c ? c.en : g.id); }
+    return esc(topicLabel(g.subject, g.id, 'en'));
+  };
+  const row = c => c.key === 'days' ? `Practised on ${c.value} of 7 days · goal ${c.goal}`
+    : c.key === 'papers' ? `Check papers: ${c.value} · goal ${c.goal}`
+    : c.ok ? 'Caught up' : `${c.value} question${c.value === 1 ? ' is' : 's are'} overdue`;
+  let mastered = '';
+  if (week.newlyMastered.length) mastered = `<ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul>`;
+  else if (week.fallback) mastered = `<p class="small">${esc(week.fallback)}</p>`;
+  return `<section class="panel review" aria-label="Last 7 days">
+    <p class="h3">Last 7 days</p>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
+    <p class="small muted">${plural(week.answers, 'answer')}: ${week.right} right · ${week.partial} partly · ${week.wrong} wrong · practised on ${week.practised} of 7 days</p>
+    <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
+    ${activityChart(week.days)}
+    ${mastered ? `<div class="sub"><p class="h3">Newly mastered</p>${mastered}</div>` : ''}
+    <div class="sub"><p class="h3">Compared with your goals</p><ul class="checklist">${checks.map(c => `<li>${tick(c.ok)}<span>${row(c)}</span></li>`).join('')}</ul></div>
+    <div class="sub"><p class="h3">Tips</p><ul class="tips">${tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
+  </section>`;
+}
+
 function activityChart(days) {
-  // 近 14 天作答：按对、部分对、错叠起来的柱子（含今天）；每天一个提示
-  const W = 14 * 22, H = 120, top = 16, base = H - 20, bw = 14;
+  // 每天一根按对、部分对、错叠起来的柱子（最后一天是今天）；每天一个提示
+  const n = days.length, slot = 40, bw = 24, W = n * slot, H = 120, top = 16, base = H - 20;
   const max = Math.max(1, ...days.map(d => d.right + d.partial + d.wrong));
   const sc = v => v / max * (base - top);
   const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
   let bars = '', labels = '';
   days.forEach((d, i) => {
-    const x = i * 22 + 4, tot = d.right + d.partial + d.wrong;
+    const x = i * slot + (slot - bw) / 2, tot = d.right + d.partial + d.wrong;
     let y = base;
     const segs = order.filter(([k]) => d[k] > 0);
     segs.forEach(([k, c], si) => {
@@ -747,27 +943,22 @@ function activityChart(days) {
     });
     if (!tot) bars += `<rect x="${x}" y="${base - 2}" width="${bw}" height="2" rx="1" fill="var(--line)"></rect>`;
     else labels += `<text x="${x + bw / 2}" y="${(base - sc(tot) - 4).toFixed(1)}" text-anchor="middle" class="ch-val">${tot}</text>`;
-    const day = d.date.slice(8).replace(/^0/, '');
-    if (i === 0 || i === 13 || i === 7) labels += `<text x="${i === 0 ? x : i === 13 ? x + bw : x + bw / 2}" y="${H - 4}" text-anchor="${i === 0 ? 'start' : i === 13 ? 'end' : 'middle'}" class="ch-x">${i === 13 ? 'Today' : day + ' ' + fmtDate(d.date).split(' ')[1]}</text>`;
-    bars += `<rect x="${x - 4}" y="0" width="22" height="${H}" fill="transparent" class="ch-hit"><title>${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong</title></rect>`;
+    labels += `<text x="${x + bw / 2}" y="${H - 4}" text-anchor="middle" class="ch-x">${i === n - 1 ? 'Today' : wd(d.date)}</text>`;
+    bars += `<rect x="${i * slot}" y="0" width="${slot}" height="${H}" fill="transparent" class="ch-hit"><title>${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong</title></rect>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Answers in the last 14 days">${bars}${labels}<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-width="1"></line></svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Answers in the last ${n} days">${bars}${labels}<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-width="1"></line></svg>`;
 }
+
+/* 总进度：掌握进度与阶梯分布 */
 function progressBlock(db) {
   const pct = db.total ? Math.round(db.mastered / db.total * 100) : 0;
   const steps = [['Step 1', db.ladder[1]], ['Step 2', db.ladder[2]], ['Step 3', db.ladder[3]], ['Step 4', db.ladder[4]], ['Mastered', db.ladder.mastered]];
   const maxStep = Math.max(1, ...steps.map(s => s[1]));
-  const tot14 = db.days.reduce((a, d) => a + d.right + d.partial + d.wrong, 0);
   return `<section class="panel dash" aria-label="Progress">
     <div class="dash-block">
       <div class="row"><p class="h3 grow">Mastered</p><span class="num"><b>${db.mastered}</b> / ${db.total}</span></div>
       <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${db.total}" aria-valuenow="${db.mastered}" aria-label="Mastered"><i style="width:${pct}%"></i></div>
-      <p class="small muted">${db.newMastered7 ? `+${db.newMastered7} in the last 7 days` : 'A question is mastered when you get it right at step 4.'}</p>
-    </div>
-    <div class="dash-block">
-      <div class="row"><p class="h3 grow">Last 14 days</p><span class="small muted num">${tot14} answer${tot14 === 1 ? '' : 's'}</span></div>
-      <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
-      ${activityChart(db.days)}
+      <p class="small muted">A question is mastered when you get it right at step 4.</p>
     </div>
     <div class="dash-block">
       <p class="h3">On the ladder</p>
@@ -1218,7 +1409,12 @@ function renderPaperSheet(paperId) {
 
 function renderSettings() {
   return `<section class="panel"><p class="h2">设置</p>
-    <div class="grid2"><label class="f"><span>每日重做最多几题</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label></div>
+    <div class="grid2">
+      <label class="f"><span>每日重做最多几题（1–50）</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
+      <label class="f"><span>每周练几天（1–7）</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
+      <label class="f"><span>每周做几张检验卷（0–3）</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
+    </div>
+    <p class="small muted">每周目标按周一到周日算，显示在 Today 的「Next 7 days」；「Last 7 days」用它和最近 7 天比较并给出建议。</p>
     <div class="row"><button type="button" class="btn primary" data-act="save-settings">保存</button></div>
     ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
     <p class="small muted">复习阶梯：录入后第 1、3、7、14 天各重做一次；做对升一级，做错回第 1 级，部分对留在原级；第 4 级做对即掌握。</p>
@@ -1379,9 +1575,9 @@ document.addEventListener('click', async ev => {
       case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
 
       case 'save-settings': {
-        const v = Math.max(1, Math.min(50, Number($('#set-limit').value) || 10));
-        await S.db.doc('settings/main').set({ dailyLimit: v });
-        S.settingsMsg = { kind: 'ok', text: `已保存：每日最多 ${v} 题。` }; render(); break;
+        const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value });
+        await S.db.doc('settings/main').set(v);
+        S.settingsMsg = { kind: 'ok', text: `已保存：每日最多 ${v.dailyLimit} 题，每周练 ${v.practiceDays} 天、做 ${v.papersPerWeek} 张检验卷。` }; render(); break;
       }
     }
   } catch (err) {
@@ -1619,7 +1815,7 @@ async function boot() {
   }, fail);
   db.doc('settings/main').onSnapshot(snap => {
     const v = snap.exists ? snap.data() : null;
-    S.settings = { dailyLimit: v && v.dailyLimit ? v.dailyLimit : 10 };
+    S.settings = readSettings(v);
     softRender();
   }, () => {});
 }
