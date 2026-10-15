@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,papersToDo,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,planForecast,planLine,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,papersToDo,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,todayCounts};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -367,4 +367,15 @@ assert.strictEqual(L.openDailyPaper([dOpen, dSc], pwA, 'uA', T16, 'english'), nu
 assert.strictEqual(L.openDailyPaper([dSc, dEn], pwA, 'uA', T16, null), null);
 // 列表：全部检验卷 + 我的每日卷（今天的，或交过的）；别人的、更早没交的不列
 assert.deepStrictEqual(ids(L.visiblePapers([PX, dOther, dOpen, PZ, dOld, Object.assign({}, dOld, { id: 'dOH', handedIn: { uA: '2026-10-15T20:00' } })], pwA, 'uA', T16)), ['PX', 'dN', 'PZ', 'dOH']);
+// Today 的「已做/一共」：每日卷与检验卷都算已做，一题一次；昨天的、别人的不算；还要做的与已做取并集；不在 todo 的不计；科目按 SUBJECTS 顺序，空科目不出
+const tcx = L.viewFor([
+  { id: 't1', subject: 'science', createdAt: '2026-10-10', attempts: [by('uA', T16, 'right', { mode: 'daily' }), by('uA', T16, 'wrong', { mode: 'paper', paperId: 'PX' })] },
+  { id: 't2', subject: 'english', createdAt: '2026-10-10', attempts: [by('uA', T16, 'right', { mode: 'paper', paperId: 'PX' })] },
+  { id: 't3', subject: 'english', createdAt: '2026-10-10', attempts: [by('uA', '2026-10-15', 'right', { mode: 'daily' })] },
+  { id: 't4', subject: 'english', createdAt: '2026-10-10', attempts: [by('uS', T16, 'right', { mode: 'daily' })] },
+  { id: 't5', subject: 'math', createdAt: '2026-10-10', attempts: [] }], 'uA');
+const tc = L.todayCounts(tcx, T16, ['t2', 't3', 't4', 'zz']);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(tc)), { total: { done: 2, all: 4 }, bySubject: [['english', { done: 1, all: 3 }], ['science', { done: 1, all: 1 }]] });
+assert.deepStrictEqual(JSON.parse(JSON.stringify(L.todayCounts(tcx, T16, []))).total, { done: 2, all: 2 });
+assert.deepStrictEqual(JSON.parse(JSON.stringify(L.todayCounts([], T16, ['t1']))), { total: { done: 0, all: 0 }, bySubject: [] });
 console.log('all logic tests passed');

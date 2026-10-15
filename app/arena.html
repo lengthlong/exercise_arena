@@ -113,6 +113,8 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
 .today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
 .today .txt { display: grid; gap: 8px; min-width: 0; }
+.today .big .of { font-size: .45em; color: var(--muted); }
+.today .done-tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--green); line-height: 1.3; }
 .today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; }
 .plan .sub, .review .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .days7 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
@@ -444,6 +446,16 @@ function visiblePapers(papers, view, uid, today) {
 function dailyBySubject(list) {
   // 今天的清单按科目分开：按 SUBJECTS 顺序，组内保持清单顺序，空科目不出
   return SUBJECTS.map(s => [s[0], list.filter(e => e.subject === s[0])]).filter(x => x[1].length);
+}
+function todayCounts(todo, today, leftIds) {
+  // Today 的「已做/一共」：已做是我今天做过的题（每日卷、检验卷都算，一题一次）；一共是已做与还要做（leftIds）的并集；不在 todo 的 id 不计
+  const byId = Object.fromEntries(todo.map(e => [e.id, e]));
+  const done = new Set(todo.filter(e => (e.attempts || []).some(a => a.date === today)).map(e => e.id));
+  const all = new Set(done);
+  for (const id of leftIds || []) if (byId[id]) all.add(id);
+  const count = (set, s) => [...set].filter(id => byId[id].subject === s).length;
+  return { total: { done: done.size, all: all.size },
+    bySubject: SUBJECTS.map(([s]) => [s, { done: count(done, s), all: count(all, s) }]).filter(x => x[1].all) };
 }
 function makeDailyPaper(list, uid, owner, today, fmt, subject) {
   // 每日卷：一个科目，按当天清单的顺序，只给 uid 做
@@ -968,24 +980,28 @@ function helloBlock(dateLine, db, message) {
 function redoButtons(due, view, today) {
   // 有今天没交的旧式混合每日卷时只出它；否则每科一个：有今天没交的该科每日卷就接着用、题数按卷，否则题数按今天清单里这一科
   const mixed = openDailyPaper(S.papers, view, S.me, today, null);
-  if (mixed) return [{ subject: null, paper: mixed, n: mixed.exerciseIds.length }];
+  if (mixed) return [{ subject: null, paper: mixed, n: mixed.exerciseIds.length, ids: mixed.exerciseIds }];
   const bySubj = Object.fromEntries(dailyBySubject(due));
   return SUBJECTS.map(([s]) => {
     const p = openDailyPaper(S.papers, view, S.me, today, s);
-    return { subject: s, paper: p, n: p ? p.exerciseIds.length : (bySubj[s] || []).length };
+    const ids = p ? p.exerciseIds : (bySubj[s] || []).map(e => e.id);
+    return { subject: s, paper: p, n: ids.length, ids };
   }).filter(b => b.n);
 }
 function todayBlock(today, redo, open, todo) {
-  // 大数字是各按钮题数之和
+  // n 是各按钮题数之和；大数字与按钮写「已做/一共」（已做含检验卷上做的题）；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
+  const tc = todayCounts(todo, today, redo.flatMap(b => b.ids));
+  const frac = c => `${c.done}/${c.all}`;
+  const subjC = Object.fromEntries(tc.bySubject);
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
   let h = `<section class="today" aria-label="Today">
-    <div class="big num" aria-hidden="true">${n}</div>
+    <div class="big num" aria-hidden="true">${tc.total.all ? `${tc.total.done}<span class="of">/${tc.total.all}</span>` : 0}</div>
     <div class="txt">
-      <p class="h2">${n ? `${plural(n, 'question')} to redo today` : 'Nothing due today'}</p>
+      <p class="h2">${n ? `${plural(n, 'question')} to redo today` : tc.total.done ? 'All done for today' : 'Nothing due today'}</p>
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? (allDue > n ? `${allDue} are due; today's set is capped at ${S.settings.dailyLimit}.` : 'Each one you get right moves up the ladder and comes back less often.') : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
-      ${n ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject || ''}">${!b.subject ? "Continue today's redo" : `${b.paper ? 'Continue ' : ''}${esc(SUBJ[b.subject].en)} · ${b.n}`}</button>`).join('')}</div>` : ''}
+      ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject || ''}">${!b.subject ? `Continue today's redo · ${frac(tc.total)}` : `${b.paper ? 'Continue ' : ''}${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}`}</button>`).join('')}${redo.some(b => !b.subject) ? '' : tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (open.length) {
     h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
@@ -1001,7 +1017,7 @@ function todayBlock(today, redo, open, todo) {
 /* 计划：未来 7 天的预计题数与本周目标 */
 function planBlock(plan, today, done) {
   const st = S.settings, ws = weekStart(today);
-  const g = goalProgress(done, S.papers, ws, addDays(ws, 6));
+  const g = goalProgress(done, S.papers, ws, addDays(ws, 6), S.me);
   const goals = [`<li>${tick(g.days >= st.practiceDays)}<span>Practise on ${st.practiceDays} days: <b class="num">${g.days}/${st.practiceDays}</b></span></li>`];
   if (st.papersPerWeek > 0) goals.push(`<li>${tick(g.papers >= st.papersPerWeek)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b></span></li>`);
   return `<section class="panel plan" aria-label="Next 7 days">
@@ -1154,9 +1170,10 @@ function renderPaperRun() {
   const exs = p.exerciseIds.map(exById).filter(Boolean);
   let h = `<div class="progress"><span class="small muted">${esc(p.title)}</span><div class="grow"></div>${R.phase === 'answer' ? '<button type="button" class="btn ghost small" data-act="exit-run">Stop</button>' : ''}</div>`;
   if (R.phase === 'review') {
-    const s = tally(exs.filter(e => R.saved[e.id]).map(e => R.results[e.id]));
+    // 得分立即显示：客观题交卷即判，主观题自评存好后算进
+    const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><p class="h3">${R.handed ? 'Handed in · saved' : 'Not saved yet'}</p>
+    h += `<section class="panel"><p class="h3">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p>
       <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
       <p class="muted small">${toMark ? 'Check your written answers against the model answers below and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
   }
