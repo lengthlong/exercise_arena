@@ -106,11 +106,7 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .hello-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .hello-top h1 { margin: 0; min-width: 0; font: 600 clamp(22px, 4vw, 28px)/1.15 var(--font-body); letter-spacing: -.015em; }
 .hello .day { flex: none; font: 400 13px var(--font-body); color: var(--muted); }
-.hello .cheer-msg { font-size: 19px; }
 .hello-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-.hello-meta { font-size: 13px; color: var(--muted); }
-.hello-meta b { color: var(--red); font-weight: 600; }
-.hello-meta .star { color: var(--amber); white-space: nowrap; }
 .today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
 .today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
 .today .txt { display: grid; gap: 8px; min-width: 0; }
@@ -207,7 +203,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .why p, .exp p { margin: 2px 0; }
 .why ol, .why ul { margin: 2px 0; padding-left: 20px; }
 .pager { justify-content: center; }
-.cheer-msg { margin: 0; font: 400 24px/1.25 var(--font-hand); color: var(--pen); text-wrap: balance; }
+.hello-stats { margin: 0; font: 400 15px/1.25 var(--font-hand); color: var(--pen); text-wrap: balance; }
 .dash { gap: 18px; }
 .dash-block { display: grid; gap: 6px; min-width: 0; }
 .meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
@@ -620,7 +616,6 @@ function exportData(exs, sets, papers, settings, exportedAt, userIds) {
     papers: papers.map(p => Object.assign({}, p))
   };
 }
-const MILESTONES = [10, 25, 50, 100];
 function streakInfo(exs, today) {
   // 连续天数：按作答的 date 计天；今天还没有作答时从昨天往回数
   const days = new Set();
@@ -649,16 +644,8 @@ function masteredOn(e) {
   const last = t[t.length - 1];
   return last && last.d === 1 ? last.date : null;
 }
-function masteryPeak(exs) {
-  // 历史最高掌握数：全部掌握变化按日期累计，取每天结束时的最大值
-  const byDay = {};
-  for (const e of exs) for (const t of masteryTransitions(e)) byDay[t.date] = (byDay[t.date] || 0) + t.d;
-  let cum = 0, peak = 0;
-  for (const d of Object.keys(byDay).sort()) { cum += byDay[d]; if (cum > peak) peak = cum; }
-  return Math.max(peak, exs.filter(e => e.mastered).length);
-}
 function dashboardData(todo, done, today) {
-  // todo（默认归属人的错题）给掌握进度与阶梯分布；done（我的全部错题）给作答、新掌握、里程碑与连续天数
+  // todo（默认归属人的错题）给掌握进度与阶梯分布；done（我的全部错题）给作答、新掌握与连续天数
   const exs = done;
   const mastered = todo.filter(e => e.mastered).length;
   const weekStart = addDays(today, -6);
@@ -670,23 +657,18 @@ function dashboardData(todo, done, today) {
   for (const e of exs) for (const a of e.attempts || []) if (a.date in idx && days[idx[a.date]][a.result] != null) days[idx[a.date]][a.result]++;
   const ladder = { 1: 0, 2: 0, 3: 0, 4: 0, mastered };
   for (const e of todo) if (!e.mastered && ladder[e.step] != null) ladder[e.step]++;
-  const peak = masteryPeak(exs);
-  const next = MILESTONES.find(m => m > peak) || null;
   const st = streakInfo(exs, today);
-  // 鼓励语的「今天对了几题、今天做过没有」只数每日重做（检验卷不算），与重做区一致；连续天数照旧数检验卷
-  const td = { right: 0, any: 0 };
-  for (const e of exs) for (const a of e.attempts || []) if (a.date === today && a.mode !== 'paper') { td.any++; if (a.result === 'right') td.right++; }
-  return { total: todo.length, mastered, newMastered7, newMasteredToday, days, ladder, peak,
-    badges: MILESTONES.filter(m => peak >= m), next, toGo: next ? next - peak : 0,
-    streak: st.streak, doneToday: st.doneToday, todayRight: td.right, todayAny: td.any };
+  // 问候行的今天对了几题只数每日重做（检验卷不算），与重做区一致；连续天数照旧数检验卷
+  let todayRight = 0;
+  for (const e of exs) for (const a of e.attempts || []) if (a.date === today && a.mode !== 'paper' && a.result === 'right') todayRight++;
+  return { total: todo.length, mastered, newMastered7, newMasteredToday, days, ladder,
+    streak: st.streak, doneToday: st.doneToday, todayRight };
 }
-function encouragement(d, hasWork) {
-  // 鼓励语：按顺序取第一条成立的；要短，和连续天数放在一行（连续几天写在后面的小字里）
-  if (d.newMasteredToday > 0) return `Mastered ${d.newMasteredToday} today!`;
-  if (d.todayRight > 0) return `${d.todayRight} right today!`;
-  if (d.todayAny > 0) return 'Good practice today!';
-  if (hasWork) return d.streak > 0 ? 'Keep the streak!' : 'Start a streak today!';
-  return 'All caught up!';
+function helloStats(d) {
+  const items = [`✅ ${d.todayRight} right today`];
+  if (d.newMasteredToday > 0) items.push(`⭐ ${d.newMasteredToday} mastered today`);
+  items.push(`🔥 ${d.streak}-day streak`);
+  return items;
 }
 /* ---------- 设置、计划与回顾 ---------- */
 const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
@@ -966,27 +948,23 @@ function renderPractice() {
   const sc = todayScope(S.exercises, S.me, S.settings.defaultOwner);
   const redo = redoButtons(sc.todo, today);
   const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
-  const open = cps.filter(p => !handedInAt(p, sc.done, S.me));
   const db = dashboardData(sc.todo, sc.done, today);
   const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
   const checks = goalChecks(week, S.settings);
-  return helloBlock(dateLine, db, encouragement(db, redo.length > 0 || open.length > 0))
+  return helloBlock(dateLine, db)
     + todayBlock(today, redo, cps, sc.todo, sc.done)
     + planBlock(dueByDay(sc.todo, today), today, sc.done, week, checks)
     + reviewBlock(week, checks)
     + progressBlock(db);
 }
 
-/* 问候、鼓励语、连续天数与徽章 */
+/* 问候、今天的对题数、新掌握数与连续天数 */
 function hiLine() { const n = S.names[S.me]; return n ? `Hi ${esc(n)}` : 'Hi'; }
-function helloBlock(dateLine, db, message) {
-  // 两行：问候与日期；鼓励语接着连续天数、最高的徽章与下一个徽章（都写短，手机上尽量一行；放不下时折行）
-  const top = db.badges[db.badges.length - 1];
-  const stars = top ? ` <span class="star" title="Milestones: ${db.badges.join(', ')} mastered">★${top}</span>` : '';   // 只显示最高的徽章，悬停看全部
-  const nextB = db.next ? ` · next ★ in ${db.toGo}` : '';
+function helloBlock(dateLine, db) {
+  // 两行：问候与日期；今天的对题数、新掌握数与连续天数，放不下时折行
   return `<section class="hello" aria-label="Hello">
     <div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div>
-    <p class="hello-line"><span class="cheer-msg">${esc(message)}</span> <span class="hello-meta" title="${db.streak}-day streak; ★ badges at 10, 25, 50 and 100 mastered">🔥 <b class="num">${db.streak}</b> day${db.streak === 1 ? '' : 's'}${stars}${nextB}</span></p>
+    <p class="hello-line hello-stats">${esc(helloStats(db).join(' · '))}</p>
   </section>`;
 }
 

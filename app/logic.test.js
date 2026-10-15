@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,masteryPeak,dashboardData,encouragement,readSettings,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,goalChecks,weekTips,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -152,9 +152,6 @@ const mB = { attempts: four(['2026-10-01', '2026-10-03', '2026-10-07', '2026-10-
 assert.strictEqual(L.masteredOn(mB), '2026-10-19');
 const mC = { attempts: four(['2026-10-01', '2026-10-03', '2026-10-07', '2026-10-10']).concat([at('2026-10-12', 'wrong')]), mastered: false, step: 1 };
 assert.strictEqual(L.masteredOn(mC), null);
-// 历史最高：mC 曾掌握（10 号）后丢失，仍计入当日最高
-assert.strictEqual(L.masteryPeak([mA, mC]), 1);                            // 10 号 mC=1，12 号回 0，14 号 mA=1
-assert.strictEqual(L.masteryPeak([mA, mB, mC]), 2);
 // 看板数据
 const dex = [mA, mB, mC, { attempts: [at('2026-10-20', 'partial'), at('2026-10-07', 'wrong')], mastered: false, step: 2 }, { attempts: [], mastered: false, step: 1 }];
 mA.step = 4; mB.step = 4;
@@ -164,25 +161,17 @@ assert.deepStrictEqual([dd.days.length, dd.days[0].date, dd.days[13].date], [14,
 assert.deepStrictEqual({ ...dd.days[0] }, { date: '2026-10-07', right: 3, partial: 0, wrong: 1 });   // 含边界第 1 天
 assert.deepStrictEqual({ ...dd.days[13] }, { date: '2026-10-20', right: 0, partial: 1, wrong: 0 });
 assert.deepStrictEqual({ ...dd.ladder }, { 1: 2, 2: 1, 3: 0, 4: 0, mastered: 2 });
-assert.deepStrictEqual([dd.peak, Array.from(dd.badges), dd.next, dd.toGo], [2, [], 10, 8]);
-// 鼓励语各分支
-// 鼓励语的今天对了几题、做过没有：只数每日重做，检验卷不算
+// 问候行的今天对了几题只数每日重做，检验卷不算
 const dEnc = L.dashboardData([], [{ id: 'z', createdAt: '2026-10-01', attempts: [{ date: T0, result: 'right', mode: 'daily' }, { date: T0, result: 'wrong', mode: 'daily' }, { date: T0, result: 'right', mode: 'paper' }] }], T0);
-assert.deepStrictEqual([dEnc.todayRight, dEnc.todayAny], [1, 2]);
-const base = { streak: 0, newMasteredToday: 0, todayRight: 0, todayAny: 0 };
-assert.strictEqual(L.encouragement(Object.assign({}, base, { newMasteredToday: 2, todayRight: 5, todayAny: 5, streak: 3 }), true), 'Mastered 2 today!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { todayRight: 4, todayAny: 6, streak: 1 }), true), '4 right today!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { todayAny: 3, streak: 5 }), true), 'Good practice today!');
-assert.strictEqual(L.encouragement(Object.assign({}, base, { streak: 4 }), true), 'Keep the streak!');
-assert.strictEqual(L.encouragement(base, true), 'Start a streak today!');
-assert.strictEqual(L.encouragement(base, false), 'All caught up!');
-// 里程碑
-const mast27 = Array.from({ length: 27 }, () => ({ attempts: four(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']), mastered: true, step: 4 }));
-const dm = L.dashboardData(mast27, mast27, T0);
-// todo 与 done 分开：掌握进度与阶梯分布只看 todo；作答、里程碑、连续天数看 done
+assert.strictEqual(dEnc.todayRight, 1);
+// 问候统计：顺序、隐藏零新掌握、保留零对题数与连续天数、连续一天
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 30, newMasteredToday: 2, streak: 3 })), ['✅ 30 right today', '⭐ 2 mastered today', '🔥 3-day streak']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 5, newMasteredToday: 0, streak: 2 })), ['✅ 5 right today', '🔥 2-day streak']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 0, newMasteredToday: 0, streak: 0 })), ['✅ 0 right today', '🔥 0-day streak']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 1, newMasteredToday: 1, streak: 1 })), ['✅ 1 right today', '⭐ 1 mastered today', '🔥 1-day streak']);
+// todo 与 done 分开：掌握进度与阶梯分布只看 todo；作答、连续天数看 done
 const ds = L.dashboardData([dex[4]], dex, T0);
-assert.deepStrictEqual([ds.total, ds.mastered, { ...ds.ladder }, ds.peak, ds.streak, ds.newMastered7], [1, 0, { 1: 1, 2: 0, 3: 0, 4: 0, mastered: 0 }, 2, 2, 2]);
-assert.deepStrictEqual([dm.peak, Array.from(dm.badges), dm.next, dm.toGo], [27, [10, 25], 50, 23]);
+assert.deepStrictEqual([ds.total, ds.mastered, { ...ds.ladder }, ds.streak, ds.newMastered7], [1, 0, { 1: 1, 2: 0, 3: 0, 4: 0, mastered: 0 }, 2, 2]);
 // 设置：缺字段与非数按默认，超出范围收紧，0 保留
 assert.deepStrictEqual({ ...L.readSettings(null) }, { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1, defaultOwner: null });
 assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 18 }) }, { dailyLimit: 18, practiceDays: 6, papersPerWeek: 1, defaultOwner: null });
