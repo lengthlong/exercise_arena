@@ -222,6 +222,22 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .material > summary { cursor: pointer; font-weight: 500; }
 .material .stem { font-size: 15.5px; }
 .member { margin-left: 14px; }
+/* 录入：照片大按钮、缩略图、科目与 AI识别 一行 */
+.pick { position: relative; display: grid; justify-items: center; gap: 2px; padding: 22px 16px; border: 2px dashed var(--pen); border-radius: var(--r); background: var(--pen-soft); color: var(--pen); cursor: pointer; text-align: center; }
+.pick:hover { border-style: solid; }
+.pick:focus-within { outline: 2px solid var(--pen); outline-offset: 2px; }
+.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.pick-main { font: 600 19px/1.3 var(--font-zh); }
+.pick-sub { font-size: 13px; color: var(--muted); }
+.pick.off { border-color: var(--line); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.tray { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tray-item { position: relative; }
+.tray-item img { display: block; height: 84px; max-width: 140px; object-fit: cover; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+.tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
+.tray-x:hover { border-color: var(--red); color: var(--red); }
+.rec-go { display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 10px 12px; align-items: end; }
+.rec-go .btn { padding: 11px 14px; font-size: 16px; }
+@media (max-width: 480px) { .rec-go { grid-template-columns: minmax(0, 1fr); } }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -590,11 +606,11 @@ const S = {
   exercises: [], papers: [], settings: { dailyLimit: 10 },
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recSubject: '', recText: '', recFiles: [], recBusy: false, recMsg: null,
+  drafts: [], recSubject: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
   filters: { subject: '', topic: '', cause: '', state: '' },
   detailId: null, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
-  settingsMsg: null
+  settingsMsg: null, errMsg: null   // errMsg：写数据出错，显示在当前标签页最上方
 };
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
@@ -657,8 +673,9 @@ function render() {
   <nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
   else if (S.status === 'nodb') h += `<div class="panel"><p class="h2 zh">数据不可用</p><p class="zh muted">请用家长的 claude.ai 账号打开本页。练习场的错题和作答都存在页面的数据库里，只有登录后才能读写。</p></div>`;
-  else if (S.tab === 'today' || S.run) h += renderPractice();
-  else h += renderManage();
+  else if (S.errMsg && !S.run) h += `<p class="note err zh">${esc(S.errMsg)}</p>`;
+  if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
+  else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
 }
 
@@ -900,47 +917,61 @@ function renderManage() {
 }
 
 function subjectOptions(sel, withAuto) {
-  return (withAuto ? `<option value="">由 Claude 判断</option>` : `<option value="">选科目</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[2]} ${s[1]}</option>`).join('');
+  return (withAuto ? `<option value="">AI 判断</option>` : `<option value="">选科目</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[2]} ${s[1]}</option>`).join('');
 }
 
 function renderRecord() {
-  const canPhoto = !!(S.assets && S.imgLimits);
-  const canSample = !!S.sample;
+  const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
+  const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy;
   let h = `<section class="panel">
     <p class="h2">录入错题</p>
-    <p class="small muted">拍下或选择题目照片，或把题目文字贴进来，Claude 会拆成一道道草稿，自动填好专题、答案和错因建议。保存前请逐条核对，尤其是答案。</p>
-    <div class="grid2">
+    <p class="small muted">拍照或贴题目文字，AI 拆成一道道草稿；保存前请逐条核对，尤其是答案。</p>`;
+  if (canPhoto) {
+    h += `<label class="pick${full || busy ? ' off' : ''}"><input type="file" id="rec-files" accept="${esc((L.mediaTypes || ['image/*']).join(','))}" multiple ${full || busy ? 'disabled' : ''}>
+      <span class="pick-main">📷 拍照 / 选照片</span><span class="pick-sub">${full ? `已到 ${max} 张上限` : `可以一张张加，最多 ${max} 张`}</span></label>`;
+    if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="照片 ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="去掉照片 ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">已选 ${n} / ${max}</span></div>`;
+  } else if (canSample) h += `<p class="small muted">本页现在不能把照片交给 AI，可以贴题目文字。</p>`;
+  h += `<label class="f"><span>也可以贴题目文字</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="例：Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
+    <div class="rec-go">
       <label class="f"><span>科目</span><select id="rec-subject" data-bind="recSubject">${subjectOptions(S.recSubject, true)}</select></label>
-      ${canPhoto ? `<label class="f"><span>题目照片（可多张，最多 ${S.imgLimits.maxCount} 张）</span><input type="file" id="rec-files" accept="${esc((S.imgLimits.mediaTypes || ['image/*']).join(','))}" multiple></label>` : `<p class="small muted">${S.assets ? '本页无法把照片交给 Claude 识别。' : '本页不能存照片。'}可以贴文字，或手填。</p>`}
+      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${busy ? '识别中…' : 'AI识别'}</button>
     </div>
-    ${S.recFiles.length ? `<p class="small muted">已选 ${S.recFiles.length} 张照片：${esc(S.recFiles.map(f => f.name).join('、'))}</p>` : ''}
-    <label class="f"><span>或者贴题目文字</span><textarea id="rec-text" data-bind="recText" rows="4" placeholder="例：Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
-    <div class="row">
-      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || S.recBusy) ? 'disabled' : ''}>${S.recBusy ? '识别中…' : '识别成草稿'}</button>
-      <button type="button" class="btn" data-act="blank-draft">手填一题</button>
-      <button type="button" class="btn" data-act="new-set">新建题组</button>
-      ${!canSample ? '<span class="small muted">识别不可用：只能手填。</span>' : ''}
-    </div>
+    ${!canSample ? '<p class="note err">AI 识别现在不可用，本页暂时不能录入。</p>' : ''}
     ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
   </section>`;
   const newDrafts = S.drafts.filter(d => !d.editId);
+  const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
   if (newDrafts.length || S.setDrafts.length) {
-    h += `<div class="row"><p class="h2 grow">草稿 ${newDrafts.length} 道${S.setDrafts.length ? `，题组 ${S.setDrafts.length} 个` : ''}</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>`;
+    h += `<div id="rec-drafts" style="display:grid;gap:8px"><div class="row"><p class="h2 grow">待核对 ${newDrafts.length} 道${S.setDrafts.length ? `，题组 ${S.setDrafts.length} 个` : ''}</p><button type="button" class="btn primary" data-act="save-all">全部保存</button><button type="button" class="btn ghost" data-act="discard-all">全部放弃</button></div>${saveNote}</div>`;
     for (const sd of S.setDrafts) {
       const members = newDrafts.filter(d => d.setRef === 'new:' + sd.key);
       h += setForm(sd, members.length);
       h += members.map(d => `<div class="member">${draftForm(d)}</div>`).join('');
     }
     h += newDrafts.filter(d => !S.setDrafts.some(sd => d.setRef === 'new:' + sd.key)).map(draftForm).join('');
-  }
+  } else h += saveNote;
   return h;
+}
+
+function clearPhotos() {
+  for (const p of S.recPhotos) URL.revokeObjectURL(p.url);
+  S.recPhotos = [];
+}
+function addPhotos(files) {
+  const L = S.imgLimits, skipped = [];
+  for (const f of files) {
+    if (S.recPhotos.length >= L.maxCount) skipped.push(`「${f.name}」超过 ${L.maxCount} 张上限`);
+    else if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`「${f.name}」太大（最大 ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB），换一张或压缩后再加`);
+    else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null });
+  }
+  if (skipped.length) S.recMsg = { kind: 'err', text: '没加上：' + skipped.join('；') + '。' };
 }
 
 function setForm(sd, nMembers) {
   const k = sd.key, edit = k === 'edit';
   const inp = (field, v, ph) => `<input type="text" id="s${k}-${field}" data-s="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
   let h = `<section class="panel setcard" id="set-${k}">
-    <div class="row"><p class="h3 grow">${edit ? '编辑题组' : (sd.savedId ? '题组（已保存）' : '题组草稿')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="add-to-set" data-s="${k}">加一道小题</button><button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">放弃题组</button>`}</div>
+    <div class="row"><p class="h3 grow">${edit ? '编辑题组' : (sd.savedId ? '题组（已保存）' : '题组草稿')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">放弃题组</button>`}</div>
     <div class="grid2">
       ${edit ? `<div class="f small"><span class="muted">科目</span><div>${esc(SUBJ[sd.subject] ? SUBJ[sd.subject].zh : '')}</div></div>` : `<label class="f"><span>科目 *</span><select id="s${k}-subject" data-s="${k}" data-f="subject" data-rerender="1">${subjectOptions(sd.subject)}</select></label>`}
       <label class="f"><span>标题</span>${inp('title', sd.title, '例：School carnival flyer')}</label>
@@ -1220,7 +1251,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.detailId = null; S.confirmDel = null; S.paperView = null; render(); break;
+      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; render(); break;
       case 'list-dir': S.listSort.dir = S.listSort.dir === 'desc' ? 'asc' : 'desc'; S.listPage = 1; render(); break;
       case 'list-page': S.listPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'export': await exportAll(); break;
@@ -1291,11 +1322,9 @@ document.addEventListener('click', async ev => {
       }
 
       case 'recognise': await recognise(); break;
-      case 'blank-draft': S.drafts.push(newDraft({ subject: S.recSubject })); render(); break;
+      case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
-      case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; render(); break;
-      case 'new-set': { const sd = newSetDraft({ subject: S.recSubject }); S.setDrafts.push(sd); S.drafts.push(newDraft({ subject: sd.subject, setRef: 'new:' + sd.key })); render(); break; }
-      case 'add-to-set': { const sd = setDraftByKey(b.dataset.s); S.drafts.push(newDraft({ subject: sd.subject, setRef: 'new:' + sd.key })); render(); break; }
+      case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
       case 'drop-set': { const k = b.dataset.s; for (const d of S.drafts) if (d.setRef === 'new:' + k) d.setRef = ''; S.setDrafts = S.setDrafts.filter(x => x.key !== Number(k)); render(); break; }
       case 'drop-simg': { const sd = setDraftByKey(b.dataset.s); sd.images.splice(Number(b.dataset.i), 1); render(); break; }
       case 'edit-set': { const x = setById(b.dataset.id); S.setEdit = Object.assign(newSetDraft(x), { key: 'edit', id: x.id, createdAt: x.createdAt, test: x.test }); render(); break; }
@@ -1314,12 +1343,13 @@ document.addEventListener('click', async ev => {
       case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
       case 'add-opt': { const d = draftByKey(b.dataset.k); if (d.options.length < 6) d.options.push(''); render(); break; }
       case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
-      case 'save-draft': await saveDraft(draftByKey(b.dataset.k)); render(); break;
+      case 'save-draft': if (await saveDraft(draftByKey(b.dataset.k))) { S.recMsg = null; S.saveMsg = null; } render(); break;
       case 'save-all': {
         let n = 0;
         for (const d of draftsInOrder()) { if (await saveDraft(d)) n++; }
         const left = S.drafts.filter(x => !x.editId).length;
-        S.recMsg = { kind: left ? 'err' : 'ok', text: `已保存 ${n} 道。` + (left ? `还有 ${left} 道没填完，见下方提示。` : '') };
+        S.recMsg = null;
+        S.saveMsg = { kind: left ? 'err' : 'ok', text: `已保存 ${n} 道。` + (left ? `还有 ${left} 道没填完，见下方提示。` : '') };
         render(); break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
@@ -1356,7 +1386,7 @@ document.addEventListener('click', async ev => {
     }
   } catch (err) {
     const msg = dbErr(err);
-    if (S.run) { S.run.err = msg; } else { S.recMsg = { kind: 'err', text: msg }; S.paperMsg = S.tab === 'papers' ? { kind: 'err', text: msg } : S.paperMsg; }
+    if (S.run) { S.run.err = msg; } else { S.errMsg = msg; }
     render();
   }
 });
@@ -1381,7 +1411,7 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'rec-files') { S.recFiles = Array.from(t.files || []); return; }
+  if (t.id === 'rec-files') { addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
@@ -1406,7 +1436,7 @@ document.addEventListener('change', async ev => {
       const attempts = e.attempts.map((a, j) => j === i ? Object.assign({}, a, { result: t.value, judgedBy: 'parent' }) : a);
       await writeAttempts(e, attempts);
     }
-  } catch (err) { S.recMsg = { kind: 'err', text: dbErr(err) }; render(); }
+  } catch (err) { S.errMsg = dbErr(err); render(); }
 });
 
 /* ---------- 保存草稿 ---------- */
@@ -1504,23 +1534,22 @@ Reply with only a JSON object: {"sets": [...], "drafts": [...]}. Use "sets": [] 
 ${taxonomyText(subs)}`;
 }
 async function recognise() {
-  const files = S.recFiles.slice();
+  const photos = S.recPhotos.slice();
   const text = S.recText.trim();
-  if (!files.length && !text) { S.recMsg = { kind: 'err', text: '先选照片或贴题目文字。' }; render(); return; }
-  S.recBusy = true; S.recMsg = { kind: '', text: files.length ? '正在上传照片…' : '正在识别…' }; render();
-  const imageIds = [];
-  let sendFiles = files;
-  if (S.imgLimits && files.length > S.imgLimits.maxCount) sendFiles = files.slice(0, S.imgLimits.maxCount);
-  const tooBig = S.imgLimits ? sendFiles.filter(f => f.size > S.imgLimits.maxInputBytes) : [];
-  for (const f of files) {
-    try { const a = await S.assets.upload(f); imageIds.push(a.id); }
-    catch (err) { S.recMsg = { kind: 'err', text: `照片「${f.name}」上传失败（${err && err.code || '未知'}），其余照常。` }; }
+  if (!photos.length && !text) { S.recMsg = { kind: 'err', text: '先加照片或贴题目文字。' }; render(); return; }
+  S.recBusy = true; S.saveMsg = null;
+  // 先传还没有 asset id 的照片；有一张没传上就停下，不识别，重试只传没传上的
+  const todo = photos.filter(p => !p.assetId);
+  if (todo.length) { S.recMsg = { kind: '', text: '正在上传照片…' }; render(); }
+  for (const p of todo) {
+    try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
+    catch (err) { S.recBusy = false; S.recMsg = { kind: 'err', text: `照片「${p.file.name}」没传上（${err && err.code || '未知'}），请再按 AI识别。` }; render(); return; }
   }
   S.recMsg = { kind: '', text: '正在识别，通常要半分钟左右…' }; render();
+  const imageIds = photos.map(p => p.assetId), files = photos.map(p => p.file);
   let drafts = null, sets = [], fail = '';
   try {
-    const okFiles = sendFiles.filter(f => !tooBig.includes(f));
-    const out = await S.sample.json(recognisePrompt(S.recSubject, text, okFiles.length), okFiles.length ? { images: okFiles, modelTier: 'complex' } : { modelTier: 'complex' });
+    const out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), files.length ? { images: files, modelTier: 'complex' } : { modelTier: 'complex' });
     if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
     else if (out && Array.isArray(out.drafts)) { drafts = out.drafts.filter(x => x && typeof x === 'object'); sets = Array.isArray(out.sets) ? out.sets.filter(x => x && typeof x === 'object') : []; }
     else fail = '识别没有成功：回来的内容不是题目清单。';
@@ -1540,13 +1569,14 @@ async function recognise() {
       const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
       S.drafts.push(newDraft(Object.assign({}, x, { images: setKeys.length ? [] : imageIds, setRef: si === null ? '' : 'new:' + setKeys[si] })));
     }
-    S.recMsg = { kind: 'ok', text: (setKeys.length ? `拆出 ${setKeys.length} 个题组、` : '拆出 ') + `${drafts.length} 道草稿。请逐条核对后保存，答案是 Claude 读出或解出的。` + (files.length > sendFiles.length ? ` 只识别了前 ${sendFiles.length} 张照片。` : '') };
-    S.recText = ''; S.recFiles = [];
+    S.recMsg = { kind: 'ok', text: (setKeys.length ? `拆出 ${setKeys.length} 个题组、` : '拆出 ') + `${drafts.length} 道草稿。请逐条核对后保存，答案是 AI 读出或解出的。` };
+    S.recText = ''; clearPhotos();
+    render();
+    const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.drafts.push(newDraft({ subject: S.recSubject, stem: text, images: imageIds }));
-    S.recMsg = { kind: 'err', text: (fail || '没有识别出题目。') + ' 已给出一份空白草稿，照片已挂上，请手填。' };
+    S.recMsg = { kind: 'err', text: (fail || '没有识别出题目。') + ' 照片和文字都还在，可以改一改再按 AI识别。' };
+    render();
   }
-  render();
 }
 
 /* ---------- 导出 ---------- */
