@@ -125,7 +125,6 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .days7 li.zero .n { color: var(--muted); }
 .days7 li.is-today { border-color: var(--pen); background: var(--pen-soft); }
 .days7 li.is-today .d { color: var(--pen); font-weight: 600; }
-.plan-line { margin: 0; font-size: 14.5px; }
 .checklist, .tips, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14.5px; }
 .checklist li, .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tick { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
@@ -219,8 +218,8 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .chart .ch-x { font: 400 11px var(--font-body); fill: var(--muted); }
 .chart .ch-hit:hover { fill: var(--surface-2); fill-opacity: .5; }
 .ladder-bars { display: grid; gap: 6px; }
-.lb-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 13px; }
-.lb-k { color: var(--muted); }
+.lb-row { display: grid; grid-template-columns: 124px minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 13px; }
+.lb-k { color: var(--muted); white-space: nowrap; }
 .lb-bar { height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
 .lb-bar i { display: block; height: 100%; background: var(--pen); border-radius: 3px; }
 .lb-bar i.m { background: var(--green); }
@@ -443,13 +442,17 @@ function papersToDo(papers, view, defaultOwner, uid) {
   // Today 列出的检验卷：归属人等于我的默认归属人、我还没交过；每日卷不在其中
   return papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !handedInAt(p, view, uid));
 }
-function visiblePapers(papers, view, uid, today) {
-  // 卷子列表：全部检验卷，加我的每日卷；更早没交的每日卷作废，不再列出
-  return papers.filter(p => !isDaily(p) || (p.for === uid && (p.createdAt === today || handedInAt(p, view, uid))));
+function visiblePapers(papers, view, uid) {
+  // 卷子列表：全部检验卷，加我交过的每日卷；没交的每日卷不列（再开始重做时会被删掉换新）
+  return papers.filter(p => !isDaily(p) || (p.for === uid && handedInAt(p, view, uid)));
 }
 function dailyBySubject(list) {
   // 今天的清单按科目分开：按 SUBJECTS 顺序，组内保持清单顺序，空科目不出
   return SUBJECTS.map(s => [s[0], list.filter(e => e.subject === s[0])]).filter(x => x[1].length);
+}
+function subjectBatch(todo, today, limit, subject) {
+  // 这一科此刻的一批：只在这一科的错题里按 dailyList 的到期、排序与题组规则装到一批为止（每科各算一批）
+  return dailyList(todo.filter(e => e.subject === subject), today, limit);
 }
 function todayCounts(todo, today, leftIds) {
   // Today 的「已做/一共」：已做是我今天做过的题（每日卷、检验卷都算，一题一次）；一共是已做与还要做（leftIds）的并集；不在 todo 的 id 不计
@@ -484,7 +487,7 @@ function makeDailyPaper(list, uid, owner, today, fmt, subject, madeAt) {
     subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
 }
 function openDailyPaper(papers, view, uid, today, subject) {
-  // 今天给我的、这个科目的、我还没交过的每日卷；subject 为 null 取旧式混合卷（缺 subject 按 null）；更早没交的作废
+  // 今天这一科给我、我还没交的那张每日卷（再开始这一科的重做时删它）；缺 subject 按 null
   return papers.find(p => isDaily(p) && p.for === uid && p.createdAt === today && (p.subject || null) === (subject || null) && !handedInAt(p, view, uid)) || null;
 }
 function paperScore(paper, exs) {
@@ -682,37 +685,13 @@ function readSettings(v, uid) {
   return { dailyLimit: num('dailyLimit', 1, 50), practiceDays: num('practiceDays', 1, 7), papersPerWeek: num('papersPerWeek', 0, 3),
     defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
-function simulatePlan(exs, today, limit) {
-  // 从今天起 7 天按上限做当天的题，假设都做对：第 4 级做对即掌握，否则升一级、按间隔排下次到期
-  const st = exs.filter(e => !e.mastered && e.due).map(e => ({ id: e.id, setId: e.setId || null, setPos: e.setPos, createdAt: e.createdAt, due: e.due, step: e.step || 1, mastered: false }));
-  const days = [];
-  let clearOn = null;
-  for (let i = 0; i < 7; i++) {
-    const day = addDays(today, i);
-    const list = dailyList(st, day, limit);
-    for (const e of list) {
-      if (e.step >= 4) { e.mastered = true; e.due = null; }
-      else { e.step++; e.due = addDays(day, GAPS[e.step]); }
-    }
-    days.push({ date: day, count: list.length });
-    if (clearOn === null && !st.some(e => !e.mastered && e.due && e.due <= day)) clearOn = day;
-  }
-  return { days, clearOn };
-}
-function planForecast(exs, today, limit) {
-  const sim = simulatePlan(exs, today, limit);
-  const waiting = exs.filter(e => !e.mastered && e.due && e.due <= today).length;
-  let needLimit = null;
-  if (sim.clearOn === null) {
-    for (let m = limit + 1; m <= 50; m++) if (simulatePlan(exs, today, m).clearOn !== null) { needLimit = m; break; }
-  }
-  return { days: sim.days, waiting, clearOn: sim.clearOn, needLimit };
-}
-function planLine(plan, limit, fmt) {
-  fmt = fmt || (d => d);
-  if (plan.clearOn === plan.days[0].date) return "Today's set covers everything due.";
-  if (plan.clearOn) return `At ${limit} a day, you'll be caught up by ${fmt(plan.clearOn)}.`;
-  return `At ${limit} a day, you won't catch up in the next 7 days.` + (plan.needLimit ? ` ${plan.needLimit} a day would.` : '');
+function dueByDay(todo, today) {
+  // Next 7 days：从今天起 7 天每天到期的题数；今天含过期，其后各天为 due 等于那天；已掌握不算
+  const open = todo.filter(e => !e.mastered && e.due);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i);
+    return { date, count: open.filter(e => i === 0 ? e.due <= date : e.due === date).length };
+  });
 }
 function weekStart(today) {
   // 含今天的那个周一
@@ -765,7 +744,7 @@ function weekReview(todo, done, papers, today, uid) {
   let fallback = '';
   if (!newlyMastered.length) {
     const s4 = todo.filter(e => !e.mastered && e.step === 4).length;
-    if (s4) fallback = `Almost there: ${s4} question${s4 === 1 ? ' is' : 's are'} at step 4.`;
+    if (s4) fallback = `Almost there: ${s4} question${s4 === 1 ? ' is' : 's are'} waiting for the 4th redo.`;
     else if (moved.size) fallback = `${moved.size} question${moved.size === 1 ? '' : 's'} moved up the ladder in the last 7 days.`;
   }
   const g = goalProgress(exs, papers, from, today, uid);
@@ -783,17 +762,13 @@ function goalChecks(week, settings) {
   rows.push({ key: 'overdue', value: week.overdue, ok: week.overdue === 0 });
   return rows;
 }
-function weekTips(plan, week, checks, settings, topicName) {
+function weekTips(week, checks, settings, topicName) {
   // 建议跟着对比行走，按序取成立的，最多 3 条；三行都达到且没有别的建议时说 Great week
   const name = topicName || (t => t.topic);
   const unmet = k => checks.some(c => c.key === k && !c.ok);
   const are = n => n === 1 ? '1 question is' : `${n} questions are`;
   const tips = [];
-  if (plan.clearOn === null) {
-    tips.push(plan.needLimit
-      ? `${are(plan.waiting)} waiting. Doing ${plan.needLimit} a day clears ${plan.waiting === 1 ? 'it' : 'them'} in the next 7 days — raise Questions per batch in Settings.`
-      : `${are(plan.waiting)} waiting — do your redo every day, oldest first.`);
-  } else if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
+  if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
   if (unmet('days')) tips.push(`Little and often: aim for ${settings.practiceDays} days a week — you practised on ${week.practised} of the last 7.`);
   if (unmet('papers')) tips.push(week.topWrong ? `Make a check paper on ${name(week.topWrong)}.` : 'Make a check paper on mixed topics.');
   if (week.topWrong && week.topWrong.n >= 3) tips.push(`Read the Key idea again for ${name(week.topWrong)} before you redo it.`);
@@ -835,7 +810,7 @@ const blobUrl = id => '/_blob/' + id;
 // 日期或时刻显示为「15 Oct」或「15 Oct 20:06」
 const fmtWhen = t => t ? fmtDate(String(t).slice(0, 10)) + (String(t).length > 10 ? ' ' + String(t).slice(11, 16) : '') : '—';
 const fmtDate = iso => { if (!iso) return '—'; const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
-const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Review ladder step ${e.step}">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
+const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Waiting for the ${['1st', '2nd', '3rd', '4th'][e.step - 1]} redo">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
 const subjChip = s => `<span class="chip s-${esc(s)}">${esc(SUBJ[s] ? SUBJ[s].en : s)}</span>`;
 function mapLink(subject, id, label) {
   if (!id || !MAPS[subject]) return esc(label);
@@ -973,16 +948,15 @@ function renderPractice() {
       <div class="panel"><p class="h2">Your exercise book is empty</p><p class="muted">When a wrong answer gets recorded, it shows up here the next day for a redo. Add the questions from the last worksheet or test in Record.</p></div>`;
   }
   const sc = todayScope(S.exercises, S.me, S.settings.defaultOwner);
-  const due = dailyList(sc.todo, today, S.settings.dailyLimit);
-  const redo = redoButtons(due, sc.done, today);
+  const redo = redoButtons(sc.todo, today);
   const open = papersToDo(S.papers, sc.done, S.settings.defaultOwner, S.me).sort((a, b) => String(b.createdAt).localeCompare(a.createdAt));
   const db = dashboardData(sc.todo, sc.done, today);
-  const plan = planForecast(sc.todo, today, S.settings.dailyLimit);
   const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
-  return helloBlock(dateLine, db, encouragement(db, due.length > 0 || open.length > 0 || redo.some(b => b.paper)))
+  const checks = goalChecks(week, S.settings);
+  return helloBlock(dateLine, db, encouragement(db, redo.length > 0 || open.length > 0))
     + todayBlock(today, redo, open, sc.todo)
-    + planBlock(plan, today, sc.done)
-    + reviewBlock(plan, week)
+    + planBlock(dueByDay(sc.todo, today), today, sc.done, week, checks)
+    + reviewBlock(week, checks)
     + progressBlock(db);
 }
 
@@ -1001,15 +975,11 @@ function helloBlock(dateLine, db, message) {
 }
 
 /* 今天：每日重做与未做的检验卷 */
-function redoButtons(due, view, today) {
-  // 有今天没交的旧式混合每日卷时只出它；否则每科一个：有今天没交的该科每日卷就接着用、题数按卷，否则题数按今天清单里这一科
-  const mixed = openDailyPaper(S.papers, view, S.me, today, null);
-  if (mixed) return [{ subject: null, paper: mixed, n: mixed.exerciseIds.length, ids: mixed.exerciseIds }];
-  const bySubj = Object.fromEntries(dailyBySubject(due));
+function redoButtons(todo, today) {
+  // 每科一个：题是这一科此刻的一批（每科各算一批）；没有到期题的科目不出按钮
   return SUBJECTS.map(([s]) => {
-    const p = openDailyPaper(S.papers, view, S.me, today, s);
-    const ids = p ? p.exerciseIds : (bySubj[s] || []).map(e => e.id);
-    return { subject: s, paper: p, n: ids.length, ids };
+    const ids = subjectBatch(todo, today, S.settings.dailyLimit, s).map(e => e.id);
+    return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
 function todayBlock(today, redo, open, todo) {
@@ -1021,7 +991,7 @@ function todayBlock(today, redo, open, todo) {
   const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
   // 还有要做的题时不出标题（大数字已说明已做/一共），只说还剩的是什么题、主要哪些专题；没有要做的题时标题说做完了或今天没有
-  const head = n ? '' : tc.total.done ? 'All done for today' : 'Nothing due today';
+  const head = n ? '' : tc.total.done ? 'All caught up for today!' : 'Nothing due today';
   const mix = leftMix(todo, redo.flatMap(b => b.ids));
   const kinds = [[mix.missed, 'missed last time'], [mix.review, 'to review'], [mix.first, mix.first === 1 ? 'first redo' : 'first redos']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
   const tops = mix.topics.slice(0, 2).map(t => `${esc(topicLabel(t.subject, t.topic))} (${t.n})`);
@@ -1031,8 +1001,8 @@ function todayBlock(today, redo, open, todo) {
     <div class="big num" aria-hidden="true">${tc.total.all ? `${tc.total.done}<span class="of">/${tc.total.all}</span>` : 0}</div>
     <div class="txt">
       ${head ? `<p class="h2">${head}</p>` : ''}
-      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : (next ? `Next redo comes up on ${fmtDate(next)}.` : 'Everything here is mastered.')}</p>
-      ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject || ''}">${!b.subject ? `Continue today's redo · ${frac(tc.total)}` : `${b.paper ? 'Continue ' : ''}${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}`}</button>`).join('')}${redo.some(b => !b.subject) ? '' : tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
+      <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
+      ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (open.length) {
     h += `<div class="today-papers"><p class="h3">Check papers to do</p><div class="list">${open.map(p => `
@@ -1045,25 +1015,22 @@ function todayBlock(today, redo, open, todo) {
   return h + `</section>`;
 }
 
-/* 计划：未来 7 天的预计题数与本周目标 */
-function planBlock(plan, today, done) {
+/* 计划：未来 7 天每天到期的题数、本周目标与建议 */
+function planBlock(days, today, done, week, checks) {
   const st = S.settings, ws = weekStart(today);
   const g = goalProgress(done, S.papers, ws, addDays(ws, 6), S.me);
   const goals = [`<li>${tick(g.days >= st.practiceDays)}<span>Practise on ${st.practiceDays} days: <b class="num">${g.days}/${st.practiceDays}</b></span></li>`];
   if (st.papersPerWeek > 0) goals.push(`<li>${tick(g.papers >= st.papersPerWeek)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b></span></li>`);
   return `<section class="panel plan" aria-label="Next 7 days">
-    <div class="row"><p class="h3 grow">Next 7 days</p><span class="small muted">If every answer is right</span></div>
-    <ol class="days7">${plan.days.map((x, i) => `<li class="${i === 0 ? 'is-today' : ''}${x.count ? '' : ' zero'}" title="${fmtDate(x.date)}: ${plural(x.count, 'question')}"><span class="d">${i === 0 ? 'Today' : wd(x.date)}</span><span class="n num">${x.count}</span></li>`).join('')}</ol>
-    <p class="plan-line">${esc(planLine(plan, st.dailyLimit, fmtDate))}</p>
+    <p class="h3">Next 7 days</p>
+    <ol class="days7">${days.map((x, i) => `<li class="${i === 0 ? 'is-today' : ''}${x.count ? '' : ' zero'}" title="${fmtDate(x.date)}: ${plural(x.count, 'question')}"><span class="d">${i === 0 ? 'Today' : wd(x.date)}</span><span class="n num">${x.count}</span></li>`).join('')}</ol>
     <div class="sub"><p class="h3">This week</p><ul class="checklist">${goals.join('')}</ul></div>
+    <div class="sub"><p class="h3">Tips</p><ul class="tips">${weekTips(week, checks, st, t => topicLabel(t.subject, t.topic, 'en')).map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
   </section>`;
 }
 
 /* 回顾：最近 7 天 */
-function reviewBlock(plan, week) {
-  const st = S.settings;
-  const checks = goalChecks(week, st);
-  const tips = weekTips(plan, week, checks, st, t => topicLabel(t.subject, t.topic, 'en'));
+function reviewBlock(week, checks) {
   const label = g => {
     if (g.kind === 'concept') { const c = nameOf(g.subject, 'concept', g.id); return mapLink(g.subject, g.id, c ? c.en : g.id); }
     return esc(topicLabel(g.subject, g.id, 'en'));
@@ -1082,7 +1049,6 @@ function reviewBlock(plan, week) {
     ${activityChart(week.days)}
     ${mastered ? `<div class="sub"><p class="h3">Newly mastered</p>${mastered}</div>` : ''}
     <div class="sub"><p class="h3">Compared with your goals</p><ul class="checklist">${checks.map(c => `<li>${tick(c.ok)}<span>${row(c)}</span></li>`).join('')}</ul></div>
-    <div class="sub"><p class="h3">Tips</p><ul class="tips">${tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
   </section>`;
 }
 
@@ -1115,18 +1081,17 @@ function activityChart(days) {
 /* 总进度：掌握进度与阶梯分布 */
 function progressBlock(db) {
   const pct = db.total ? Math.round(db.mastered / db.total * 100) : 0;
-  const steps = [['Step 1', db.ladder[1]], ['Step 2', db.ladder[2]], ['Step 3', db.ladder[3]], ['Step 4', db.ladder[4]], ['Mastered', db.ladder.mastered]];
+  const steps = [['1st redo (day 1)', db.ladder[1]], ['2nd redo (day 3)', db.ladder[2]], ['3rd redo (day 7)', db.ladder[3]], ['4th redo (day 14)', db.ladder[4]], ['Mastered', db.ladder.mastered]];
   const maxStep = Math.max(1, ...steps.map(s => s[1]));
   return `<section class="panel dash" aria-label="Progress">
     <div class="dash-block">
       <div class="row"><p class="h3 grow">Mastered</p><span class="num"><b>${db.mastered}</b> / ${db.total}</span></div>
       <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${db.total}" aria-valuenow="${db.mastered}" aria-label="Mastered"><i style="width:${pct}%"></i></div>
-      <p class="small muted">A question is mastered when you get it right at step 4.</p>
+      <p class="small muted">A question is mastered when you get it right on the 4th redo.</p>
     </div>
     <div class="dash-block">
-      <p class="h3">On the ladder</p>
+      <p class="h3">Waiting for</p>
       <div class="ladder-bars">${steps.map(([k, v]) => `<div class="lb-row"><span class="lb-k">${k}</span><span class="lb-bar"><i style="width:${(v / maxStep * 100).toFixed(1)}%" class="${k === 'Mastered' ? 'm' : ''}"></i></span><span class="lb-v num">${v}</span></div>`).join('')}</div>
-      <p class="small muted">Ladder: day 1 → 3 → 7 → 14</p>
     </div>
   </section>`;
 }
@@ -1518,7 +1483,7 @@ function renderPapers() {
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  const papers = visiblePapers(S.papers, mine(), S.me, localToday()).filter(p => !S.paperOwner || sameOwner(p.owner, S.paperOwner)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
+  const papers = visiblePapers(S.papers, mine(), S.me).filter(p => !S.paperOwner || sameOwner(p.owner, S.paperOwner)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
   h += `<section class="panel"><div class="row"><p class="h3 grow">Papers</p><label class="f"><span>Owner</span><select id="paper-owner" data-act-change="paper-owner">${ownerFilterOptions(S.paperOwner, S.papers)}</select></label></div>`;
   if (!papers.length) h += `<p class="small muted">${S.paperOwner ? 'No papers for this owner.' : "No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here."}</p>`;
   else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
@@ -1582,7 +1547,7 @@ function renderSettings() {
     ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
   </section>
   <section class="panel"><p class="h2">How the review ladder works</p>
-    <p class="small muted">After an exercise is recorded, it comes back for a redo on day 1, 3, 7 and 14. Right moves it up a step, wrong sends it back to step 1, partly right keeps it on the same step. Right on step 4 means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to step 1.</p>
+    <p class="small muted">After an exercise is recorded, it comes back for a 1st, 2nd, 3rd and 4th redo on day 1, 3, 7 and 14. Right moves it on to the next redo, wrong sends it back to the 1st redo, partly right keeps it waiting for the same redo. Right on the 4th redo means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to the 1st redo.</p>
   </section>
   <section class="panel"><p class="h2">Export</p>
     <p class="small muted">Exports every exercise (with all answers), question set, paper and these settings as YAML text, without photos (only how many there are). The file is named like arena-export-date.yaml.txt; drop the .txt if needed.</p>
@@ -1619,19 +1584,18 @@ document.addEventListener('click', async ev => {
       case 'export': await exportAll(); break;
 
       case 'start-daily': {
-        // 这一科有今天没交的每日卷就接着用；否则按今天的每日清单里这一科的题生成一张（空 subject 是旧式混合卷）
-        const today = localToday(), subj = b.dataset.subject || null;
-        let p = openDailyPaper(S.papers, mine(), S.me, today, subj);
-        if (!p) {
-          if (!subj) break;
-          const list = dailyList(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit).filter(e => e.subject === subj);
-          if (!list.length) break;
-          const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
-          const ref = S.db.collection('papers').doc();
-          await ref.set(doc);
-          p = Object.assign({ id: ref.id }, doc);
-          if (!S.papers.some(x => x.id === p.id)) S.papers = S.papers.concat([p]);
-        }
+        // 不接着做：先删掉这一科今天没交的每日卷（卷上还没有作答），再按这一科此刻的一批新组一张；没有到期题就不组卷
+        const today = localToday(), subj = b.dataset.subject;
+        if (!SUBJ[subj]) break;
+        const list = subjectBatch(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit, subj);
+        const old = openDailyPaper(S.papers, mine(), S.me, today, subj);
+        if (old) { await S.db.doc('papers/' + old.id).delete(); S.papers = S.papers.filter(x => x.id !== old.id); }
+        if (!list.length) { render(); break; }
+        const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
+        const ref = S.db.collection('papers').doc();
+        await ref.set(doc);
+        const p = Object.assign({ id: ref.id }, doc);
+        if (!S.papers.some(x => x.id === p.id)) S.papers = S.papers.concat([p]);
         S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: {}, results: {}, saved: {} };
         render(); window.scrollTo(0, 0); break;
       }
