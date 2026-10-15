@@ -166,6 +166,9 @@ assert.deepStrictEqual({ ...dd.days[13] }, { date: '2026-10-20', right: 0, parti
 assert.deepStrictEqual({ ...dd.ladder }, { 1: 2, 2: 1, 3: 0, 4: 0, mastered: 2 });
 assert.deepStrictEqual([dd.peak, Array.from(dd.badges), dd.next, dd.toGo], [2, [], 10, 8]);
 // 鼓励语各分支
+// 鼓励语的今天对了几题、做过没有：只数每日重做，检验卷不算
+const dEnc = L.dashboardData([], [{ id: 'z', createdAt: '2026-10-01', attempts: [{ date: T0, result: 'right', mode: 'daily' }, { date: T0, result: 'wrong', mode: 'daily' }, { date: T0, result: 'right', mode: 'paper' }] }], T0);
+assert.deepStrictEqual([dEnc.todayRight, dEnc.todayAny], [1, 2]);
 const base = { streak: 0, newMasteredToday: 0, todayRight: 0, todayAny: 0 };
 assert.strictEqual(L.encouragement(Object.assign({}, base, { newMasteredToday: 2, todayRight: 5, todayAny: 5, streak: 3 }), true), 'Mastered 2 today!');
 assert.strictEqual(L.encouragement(Object.assign({}, base, { todayRight: 4, todayAny: 6, streak: 1 }), true), '4 right today!');

@@ -673,10 +673,12 @@ function dashboardData(todo, done, today) {
   const peak = masteryPeak(exs);
   const next = MILESTONES.find(m => m > peak) || null;
   const st = streakInfo(exs, today);
-  const t = days[days.length - 1];
+  // 鼓励语的「今天对了几题、今天做过没有」只数每日重做（检验卷不算），与重做区一致；连续天数照旧数检验卷
+  const td = { right: 0, any: 0 };
+  for (const e of exs) for (const a of e.attempts || []) if (a.date === today && a.mode !== 'paper') { td.any++; if (a.result === 'right') td.right++; }
   return { total: todo.length, mastered, newMastered7, newMasteredToday, days, ladder, peak,
     badges: MILESTONES.filter(m => peak >= m), next, toGo: next ? next - peak : 0,
-    streak: st.streak, doneToday: st.doneToday, todayRight: t.right, todayAny: t.right + t.partial + t.wrong };
+    streak: st.streak, doneToday: st.doneToday, todayRight: td.right, todayAny: td.any };
 }
 function encouragement(d, hasWork) {
   // 鼓励语：按顺序取第一条成立的；要短，和连续天数放在一行（连续几天写在后面的小字里）
