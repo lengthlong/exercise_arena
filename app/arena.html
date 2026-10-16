@@ -1114,7 +1114,7 @@ const S = {
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
-  lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
+  boardPeriod: 'week', lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
 };
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
@@ -1894,12 +1894,12 @@ function renderGames() {
   return boardBlock(today, group, shown) + coinsBlock + liftBlock(today, group, shown);
 }
 function boardBlock(today, group, matches) {
-  // 积分榜：本周领奖台
-  const rows = scoreboard(matches, group, today, 'week'), steps = podium(rows);
+  // 积分榜：领奖台，本周或全部时间
+  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows);
   const ptsOf = Object.fromEntries(rows.map(r => [r.id, r.points]));
   const step = i => `<div class="step s${i + 1}"><div class="who">${steps[i].map(id => `<span>${esc(userName(id))}</span><span class="small muted">${fmtP(ptsOf[id])}</span>`).join('') || '<span class="small muted">—</span>'}</div><div class="block">${i + 1}</div></div>`;
-  return `<section class="panel"><p class="h2">Scoreboard</p>
-    ${steps.every(x => !x.length) ? '<p class="small muted">No matches this week yet.</p>' : `<div class="podium">${step(1)}${step(0)}${step(2)}</div>`}</section>`;
+  return `<section class="panel"><div class="coin-top"><p class="h2">Scoreboard</p><div class="seg" role="group" aria-label="Period">${[['week', 'This week'], ['all', 'All time']].map(x => `<button type="button" data-act="board-period" data-v="${x[0]}" aria-pressed="${per === x[0]}">${x[1]}</button>`).join('')}</div></div>
+    ${steps.every(x => !x.length) ? `<p class="small muted">${per === 'week' ? 'No matches this week yet.' : 'No matches yet.'}</p>` : `<div class="podium">${step(1)}${step(0)}${step(2)}</div>`}</section>`;
 }
 function lifterSvg(kg, maxKg, mode) {
   // 小人举杠铃：mode 为 rest（杠铃在胸前）、anim（从胸前举过头顶）、up（举在头顶）；杠铃片随重量变大
@@ -2026,6 +2026,7 @@ document.addEventListener('click', async ev => {
   try {
     switch (act) {
       case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'game-start': await startMatch(); break;
       case 'game-skip': if (S.lift && S.lift.phase === 'anim') { S.lift.phase = 'shown'; render(); } break;
       case 'game-done': clearTimeout(liftTimer); if (!matchLive()) S.lift = null; render(); break;
