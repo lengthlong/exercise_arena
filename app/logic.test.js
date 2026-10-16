@@ -510,12 +510,13 @@ const board = (period, uids) => Array.from(L.scoreboard(sbm, uids || ['uS', 'uA'
 assert.strictEqual(board('week'), 'uA:2:1 uS:1:2 uB:0:3 uC:0:3');
 assert.strictEqual(board('all'), 'uS:3:1 uA:3:1 uB:0:3 uC:0:3');
 assert.strictEqual(board('week', ['uS', 'uB']), 'uS:1:1 uB:0:2');   // 只列名单（本组）里的人
-// 领奖台：名次等于台阶号且得分大于 0；两人并列第 1 时第 2 级空；全 0 分时三级都空
-const pod = rows => JSON.stringify(L.podium(rows));
-assert.strictEqual(pod(L.scoreboard(sbm, ['uS', 'uA', 'uB', 'uC'], CD, 'week')), JSON.stringify([['uA'], ['uS'], []]));
-assert.strictEqual(pod(L.scoreboard(sbm, ['uS', 'uA', 'uB', 'uC'], CD, 'all')), JSON.stringify([['uS', 'uA'], [], []]));
-assert.strictEqual(pod([{ id: 'a', points: 3, rank: 1 }, { id: 'b', points: 2, rank: 2 }, { id: 'c', points: 1, rank: 3 }, { id: 'd', points: 1, rank: 3 }]), JSON.stringify([['a'], ['b'], ['c', 'd']]));
-assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week')), JSON.stringify([[], [], []]));
+// 领奖台：所有人按得分、再按本周挣的金币排；两者都相同的站同一级；只摆前三级
+const pod = (rows, coins) => JSON.stringify(L.podium(rows, coins));
+const U4 = ['uS', 'uA', 'uB', 'uC'];
+assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'week')), JSON.stringify([['uA'], ['uS'], ['uB', 'uC']]));   // 0 分的也上台
+assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all')), JSON.stringify([['uS', 'uA'], ['uB', 'uC'], []]));   // 同分同金币站同一级，下一位站下一级
+assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all'), { uS: 5, uA: 9, uB: 1 }), JSON.stringify([['uA'], ['uS'], ['uB']]));   // 同分比金币；第四位不上台
+assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week'), { uS: 39, uA: 156 }), JSON.stringify([['uA'], ['uS'], []]));   // 没比赛时按金币
 assert.strictEqual(Array.from(L.scoreboard([], ['uS'], CD, 'week'), r => r.points).join(), '0');
 // 本周历史：开赛日期在本周、参赛者与本组有交集；按开赛时刻新的在前
 const wm = [{ id: 'm1', at: '2026-10-12T08:00', players: ['uS', 'uA'] }, { id: 'm2', at: '2026-10-11T23:55', players: ['uS', 'uA'] },

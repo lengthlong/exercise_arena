@@ -329,11 +329,15 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .coin-nums .big { font: 700 34px/1 var(--font-body); color: var(--amber); }
 .coin-nums .mid { font: 600 20px/1.1 var(--font-body); }
 .lift-svg { width: 100%; max-width: 120px; height: auto; }
-.lift-svg .fig { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; fill: none; }
-.lift-svg circle.fig { fill: var(--surface); }
 .lift-svg .bar { stroke: var(--muted); stroke-width: 4; stroke-linecap: round; }
-.lift-svg .plate { fill: var(--pen); }
-.lift-svg .floor { stroke: var(--line); stroke-width: 2; }
+.lift-svg .shadow { fill: var(--line); opacity: .6; }
+.lift-svg .head { fill: #f6d7b8; stroke: var(--ink); stroke-width: 2; }
+.lift-svg .eye { fill: #1b2231; }
+.lift-svg .smile { fill: none; stroke: #1b2231; stroke-width: 1.8; stroke-linecap: round; }
+.lift-svg .shirt { fill: var(--pen); stroke: var(--ink); stroke-width: 2; }
+.lift-svg .arm { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linecap: round; }
+.lift-svg .leg { fill: none; stroke: var(--ink); stroke-width: 6; stroke-linecap: round; }
+.lift-svg .plate { fill: var(--amber); stroke: var(--ink); stroke-width: 1.5; }
 .lane-name { font-weight: 500; overflow-wrap: anywhere; }
 .kg { font: 700 20px/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 6px; padding-top: 4px; }
@@ -349,9 +353,8 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .pod-fig .leg { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linecap: round; }
 .pod-fig .ribbon { fill: none; stroke: var(--red); stroke-width: 2.5; stroke-linejoin: round; }
 .pod-fig .medal { fill: var(--hl); stroke: var(--ink); stroke-width: 1.5; }
-.step .block { border-radius: 8px 8px 0 0; color: var(--paper); background: var(--pc); display: grid; align-content: start; justify-items: center; gap: 2px; padding: 8px 4px 0; min-width: 0; }
-.step .block .pn { font: 700 20px/1 var(--font-body); }
-.step .block .bn { font: 600 13px/1.25 var(--font-body); max-width: 100%; overflow-wrap: anywhere; }
+.step .block { border-radius: 8px 8px 0 0; color: var(--paper); background: var(--pc); display: grid; align-content: start; justify-items: center; padding: 10px 4px 0; min-width: 0; }
+.step .block .bn { font: 600 14px/1.25 var(--font-body); max-width: 100%; overflow-wrap: anywhere; }
 .step.s1 .block { height: 84px; }
 .step.s2 .block { height: 64px; }
 .step.s3 .block { height: 52px; }
@@ -377,7 +380,9 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .hist li { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); }
 .hist li.open { border-color: var(--line); }
-.h-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; width: 100%; padding: 6px 10px; border: 0; background: none; text-align: left; cursor: pointer; align-items: baseline; }
+.h-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; width: 100%; padding: 6px 10px; border: 0; background: none; text-align: left; cursor: pointer; align-items: baseline; }
+.h-chev { color: var(--pen); font-size: 13px; align-self: center; }
+.h-head:hover .h-chev { color: var(--ink); }
 .h-when { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .h-line { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13.5px; }
 .h-body { display: grid; gap: 8px; padding: 0 10px 10px; }
@@ -1070,9 +1075,19 @@ function weekMatches(matches, group, today) {
   return (matches || []).filter(mt => weekStart(String(mt.at || '').slice(0, 10)) === wk && (mt.players || []).some(id => (group || []).includes(id)))
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
-function podium(rows) {
-  // 领奖台：第 1、2、3 级各站名次等于台阶号且得分大于 0 的人
-  return [1, 2, 3].map(step => rows.filter(r => r.rank === step && r.points > 0).map(r => r.id));
+function podium(rows, coins) {
+  // 领奖台：所有人按得分、再按本周挣的金币从高到低排；得分与金币都相同的站同一级；只摆前三级
+  coins = coins || {};
+  const key = r => [r.points, coins[r.id] || 0];
+  const order = rows.slice().sort((a, b) => b.points - a.points || (coins[b.id] || 0) - (coins[a.id] || 0));
+  const steps = [[], [], []];
+  let step = -1, prev = null;
+  for (const r of order) {
+    const k = key(r).join();
+    if (k !== prev) { step++; prev = k; }
+    if (step < 3) steps[step].push(r.id);
+  }
+  return steps;
 }
 /* LOGIC:END */
 </script>
@@ -1920,9 +1935,8 @@ function renderGames() {
 }
 function boardBlock(today, group, matches) {
   // 积分榜：领奖台，本周或全部时间
-  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows);
-  const ptsOf = Object.fromEntries(rows.map(r => [r.id, r.points]));
-  // 领奖台总在；有人得分时，台阶上站着小人（冠军举双臂），下面写名字与分数
+  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows, Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])));
+  // 领奖台：本组所有人都站上去（按得分，同分比本周挣的金币），台阶里写名字
   // 小人：圆脸、笑脸、上衣按台阶的颜色；冠军举双臂并挂奖牌，亚军挥一只手，季军双手叉腰
   const arms = ['M21 40 L11 24 M39 40 L49 24', 'M21 40 L14 54 M39 40 L48 26', 'M21 40 L13 48 L19 56 M39 40 L47 48 L41 56'];
   const fig = i => `<svg viewBox="0 0 60 92" class="pod-fig" aria-hidden="true">
@@ -1934,23 +1948,30 @@ function boardBlock(today, group, matches) {
     <circle class="eye" cx="26" cy="21" r="1.4"/><circle class="eye" cx="34" cy="21" r="1.4"/>
     <path class="smile" d="M25.5 25.5 Q30 29.5 34.5 25.5"/></svg>`;
   const step = i => `<div class="step s${i + 1}"><div class="who">${steps[i].map(() => fig(i)).join('')}</div>
-    <div class="block"><span class="pn">${i + 1}</span>${steps[i].length ? `<span class="bn">${steps[i].map(id => esc(userName(id))).join(', ')}</span>` : ''}</div></div>`;
+    <div class="block">${steps[i].length ? `<span class="bn">${steps[i].map(id => esc(userName(id))).join(', ')}</span>` : ''}</div></div>`;
   return `<section class="panel"><div class="coin-top"><p class="h2">Scoreboard</p><div class="seg" role="group" aria-label="Period">${[['week', 'This week'], ['all', 'All time']].map(x => `<button type="button" data-act="board-period" data-v="${x[0]}" aria-pressed="${per === x[0]}">${x[1]}</button>`).join('')}</div></div>
     <div class="podium">${step(1)}${step(0)}${step(2)}</div>
-    ${steps.every(x => !x.length) ? `<p class="small muted">${per === 'week' ? 'No matches this week yet.' : 'No matches yet.'}</p>` : ''}</section>`;
+    ${rows.every(r => !r.points) ? `<p class="small muted">${per === 'week' ? 'No matches this week yet.' : 'No matches yet.'}</p>` : ''}</section>`;
 }
 function lifterSvg(kg, maxKg, mode) {
-  // 小人举杠铃：mode 为 rest（杠铃在胸前）、anim（从胸前举过头顶）、up（举在头顶）；杠铃片随重量变大
-  const r = 5 + Math.round(9 * (maxKg ? kg / maxKg : 0)), anim = mode === 'anim', top = mode === 'up';
-  const a = (attr, from, to) => anim ? `<animate attributeName="${attr}" from="${from}" to="${to}" begin="0.2s" dur="1.4s" fill="freeze" calcMode="spline" keySplines=".4 0 .2 1"/>` : '';
-  const armY = top ? 24 : 58;
-  return `<svg viewBox="0 0 120 130" class="lift-svg" aria-hidden="true">
-    <circle cx="60" cy="38" r="9" class="fig"/><line x1="60" y1="47" x2="60" y2="88" class="fig"/>
-    <line x1="60" y1="88" x2="48" y2="120" class="fig"/><line x1="60" y1="88" x2="72" y2="120" class="fig"/>
-    <line x1="60" y1="56" x2="34" y2="${armY}" class="fig">${a('y2', 58, 24)}</line><line x1="60" y1="56" x2="86" y2="${armY}" class="fig">${a('y2', 58, 24)}</line>
-    <g${top ? ' transform="translate(0 -34)"' : ''}>${anim ? '<animateTransform attributeName="transform" type="translate" from="0 0" to="0 -34" begin="0.2s" dur="1.4s" fill="freeze" calcMode="spline" keySplines=".4 0 .2 1"/>' : ''}
-      <line x1="14" y1="58" x2="106" y2="58" class="bar"/><circle cx="${22 - r / 3}" cy="58" r="${r}" class="plate"/><circle cx="${98 + r / 3}" cy="58" r="${r}" class="plate"/></g>
-    <line x1="10" y1="121" x2="110" y2="121" class="floor"/></svg>`;
+  // 举重小人（与领奖台同一画风：圆脸笑脸、蓝上衣）：mode 为 rest（杠铃在胸前）、anim（从胸前起，由 liftPose 逐帧举过头顶）、up（举在头顶）；杠铃片随重量变大
+  const r = 6 + Math.round(9 * (maxKg ? kg / maxKg : 0)), e = mode === 'up' ? 1 : 0;
+  return `<svg viewBox="0 0 120 132" class="lift-svg" aria-hidden="true"${mode === 'anim' ? ' data-anim="1"' : ''}>
+    <ellipse cx="60" cy="125" rx="40" ry="4" class="shadow"/>
+    <path class="leg" d="M53 92 L46 122 M67 92 L74 122"/>
+    <path class="arm" d="${liftArms(e)}"/>
+    <rect class="shirt" x="47" y="52" width="26" height="42" rx="10"/>
+    <circle class="head" cx="60" cy="40" r="12"/><circle class="eye" cx="55.5" cy="39" r="1.5"/><circle class="eye" cx="64.5" cy="39" r="1.5"/>
+    <path class="smile" d="M55 44 Q60 48.5 65 44"/>
+    <g class="barbell" transform="translate(0 ${-40 * e})"><line x1="12" y1="62" x2="108" y2="62" class="bar"/>
+      <rect x="${20 - r}" y="${62 - r * 1.6}" width="${r}" height="${r * 3.2}" rx="2.5" class="plate"/><rect x="100" y="${62 - r * 1.6}" width="${r}" height="${r * 3.2}" rx="2.5" class="plate"/></g></svg>`;
+}
+function liftArms(e) { const y = 62 - 40 * e; return `M50 58 L36 ${y} M70 58 L84 ${y}`; }
+function liftPose(svg, e) {
+  // e 从 0（杠铃在胸前）到 1（举过头顶）
+  const arm = svg.querySelector('.arm'), bar = svg.querySelector('.barbell');
+  if (arm) arm.setAttribute('d', liftArms(e));
+  if (bar) bar.setAttribute('transform', `translate(0 ${-40 * e})`);
 }
 function resultCards(players, kgs, pts, phase) {
   // 一局的选手卡：动画中重量从 0 涨起；播完显示 kg、名次与得分，第一名高亮；kgs 为 null（没存 lifts 的旧比赛）时不显示 kg
@@ -1998,27 +2019,30 @@ function liftBlock(today, group, matches) {
       : `${championLine(pts)}<div class="row"><button type="button" class="btn" data-act="hist-done">Done</button></div>`);
     else if (open) body = `<div class="lcards">${ps.map(id => `<div class="lcard">${lifterSvg(0, 1, 'rest')}<div class="lane-name">${esc(userName(id))}</div>
       <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
-    return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
+    return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span><span class="h-chev" aria-hidden="true">${open ? '▴' : '▾'}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
   return `<div class="gsec"><p class="small muted">Each lifter lifts their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins.</p></div>
-    <div class="gsec"><div class="sec-head"><p class="h3">Arena</p>${arenaInfo ? `<span class="small muted">${esc(arenaInfo)}</span>` : ''}<span class="sec-r">${arenaBtn}</span></div>${arena}</div>
+    <div class="gsec arena-cards"><div class="sec-head"><p class="h3">Arena</p>${arenaInfo ? `<span class="small muted">${esc(arenaInfo)}</span>` : ''}<span class="sec-r">${arenaBtn}</span></div>${arena}</div>
     <div class="gsec"><p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</div>`;
 }
 let liftTimer = null, histTimer = null;
-function countUp(sel) {
-  // 动画时重量数字从 0 涨到各自的 kg
-  const t0 = performance.now(), els = Array.from(document.querySelectorAll(sel));
-  const tick = now => {
-    if (!els.length || !els[0].isConnected) return;
-    const f = Math.min(1, Math.max(0, (now - t0 - 200) / 1400)), e = 1 - Math.pow(1 - f, 3);
+function countUp(scope) {
+  // 动画：scope 里的小人把杠铃举过头顶，重量数字从 0 涨到各自的 kg
+  const t0 = performance.now(), root = document.querySelector(scope);
+  if (!root) return;
+  const els = Array.from(root.querySelectorAll('.kg[data-kg]')), svgs = Array.from(root.querySelectorAll('svg[data-anim]'));
+  // 用定时器而不是 requestAnimationFrame：后者在不绘制的窗格里不触发
+  const timer = setInterval(() => {
+    if (!root.isConnected) { clearInterval(timer); return; }
+    const f = Math.min(1, Math.max(0, (performance.now() - t0 - 200) / 1400)), e = f < .5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2;
+    svgs.forEach(svg => liftPose(svg, e));
     els.forEach(el => { el.textContent = Math.round(Number(el.dataset.kg) * e) + ' kg'; });
-    if (f < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+    if (f >= 1) clearInterval(timer);
+  }, 30);
 }
 function histPlay() {
   const H = S.hist; if (!H) return;
-  countUp('.hist li.open .kg[data-kg]');
+  countUp('.hist li.open .h-body');
   histTimer = setTimeout(() => { if (S.hist === H && H.phase === 'anim') { H.phase = 'shown'; render(); } }, 2000);
 }
 async function startMatch() {
@@ -2037,7 +2061,7 @@ async function startMatch() {
   } catch (err) { if (S.lift === L) { L.phase = 'error'; L.err = dbErr(err); render(); } return; }
   if (S.lift !== L) return;
   L.kg = res.kg; L.pts = pts; L.phase = 'anim'; render();
-  countUp('.lcards .kg[data-kg]');
+  countUp('.arena-cards');
   clearTimeout(liftTimer);
   liftTimer = setTimeout(() => { if (S.lift === L && L.phase === 'anim') { L.phase = 'shown'; render(); } }, 2000);
 }
