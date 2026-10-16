@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -421,4 +421,24 @@ assert.deepStrictEqual(sp('done', 'desc'), ['D1', 'C1', 'C2', 'C3']);   // 没�
 assert.deepStrictEqual(sp('score', 'desc'), ['C1', 'D1', 'C2', 'C3']);  // C1 2/2，D1 1/2；没交的没有分数
 assert.deepStrictEqual(sp('score', 'asc'), ['D1', 'C1', 'C2', 'C3']);
 assert.deepStrictEqual(sp('questions', 'desc'), ['C3', 'D1', 'C1', 'C2']);   // 题数只算卷上仍在的题：C3 3、D1 2、C1 2、C2 1；并列按 created 新的在前
+// 卡片翻页条：交卷前空白算没答；交卷后主观题未自评为 tomark、客观题按结果；没答的题号从 1 起
+const rmx = [{ id: 'r1', format: 'mcq' }, { id: 'r2', format: 'short' }, { id: 'r3', format: 'open' }, { id: 'r4', format: 'open' }];
+assert.deepStrictEqual(Array.from(L.runMarks(rmx, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' }, {}, {})), ['answered', 'todo', 'todo', 'answered']);
+assert.deepStrictEqual(Array.from(L.unansweredNos(L.runMarks(rmx, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' }, {}, {}))), [2, 3]);
+assert.deepStrictEqual(Array.from(L.runMarks(rmx, 'review', {}, { r1: 'right', r2: 'wrong', r4: 'partial' }, { r4: true })), ['right', 'wrong', 'tomark', 'partial']);
+assert.deepStrictEqual(Array.from(L.sheetMarks([{ ex: null }, { ex: {}, attempt: null }, { ex: {}, attempt: { result: 'partial' } }])), ['gone', 'none', 'partial']);
+// 卷子短名字：检验卷为组卷人加前两个专题（多的 +N），没有 madeBy 为 Someone；每日卷同一人同一天跨科目按 madeAt 编 Batch，没交的不占号，正在做的排最后，别人的卷不计
+const pnm = id => ({ uA: 'Aaron', uS: 'Sophia' })[id] || 'Someone', tn = (s, t) => t.toUpperCase();
+const pn = (p, ps) => L.paperName(p, ps || [], [], 'uS', pnm, tn);
+assert.strictEqual(pn({ id: 'c1', madeBy: 'uA', subject: 'english', topics: [] }), 'Aaron');
+assert.strictEqual(pn({ id: 'c2', subject: 'english', topics: ['a', 'b'] }), 'Someone · A, B');
+assert.strictEqual(pn({ id: 'c3', madeBy: 'uA', subject: 'english', topics: ['a', 'b', 'c', 'd'] }), 'Aaron · A, B +2');
+const dps = [
+  { id: 'd3', kind: 'daily', for: 'uS', subject: 'science', createdAt: T16, madeAt: T16 + 'T10:00', handedIn: { uS: T16 + 'T10:20' } },
+  { id: 'd1', kind: 'daily', for: 'uS', subject: 'english', createdAt: T16, madeAt: T16 + 'T08:00', handedIn: { uS: T16 + 'T08:30' } },
+  { id: 'd2', kind: 'daily', for: 'uS', subject: 'english', createdAt: T16, madeAt: T16 + 'T09:00', handedIn: {} },
+  { id: 'd4', kind: 'daily', for: 'uS', subject: 'english', createdAt: T16, madeAt: T16 + 'T11:00', handedIn: {} },
+  { id: 'd0', kind: 'daily', for: 'uS', subject: 'english', createdAt: '2026-10-15', madeAt: '2026-10-15T20:00', handedIn: { uS: '2026-10-15T20:30' } },
+  { id: 'dx', kind: 'daily', for: 'uA', subject: 'english', createdAt: T16, madeAt: T16 + 'T07:00', handedIn: { uA: T16 + 'T07:30' } }];
+assert.deepStrictEqual(['d1', 'd3', 'd4', 'd0', 'dx'].map(id => pn(dps.find(x => x.id === id), dps)), ['Batch 1', 'Batch 2', 'Batch 3', 'Batch 1', 'Batch 1']);
 console.log('all logic tests passed');

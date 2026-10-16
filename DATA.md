@@ -74,9 +74,10 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `title` | 字符串 | 例如「Science · Water, Reproduction · 14 Oct」；没选专题时写 All topics；每日卷如「English redo · 15 Oct」 |
+| `title` | 字符串 | 例如「Science · Water, Reproduction · 14 Oct」；没选专题时写 All topics；每日卷如「English redo · 15 Oct」。页面显示用短名字（检验卷为组卷人与所选专题，每日卷为当天的批次），不读这个字段 |
 | `createdAt` | 日期 | |
 | `madeAt` | 时刻，可省 | 组卷或生成时刻；新卷都写，旧卷没有 |
+| `madeBy` | 字符串，可省 | 检验卷：组卷人的用户 id；组卷时写本人；每日卷不写 |
 | `subject` | 同错题，或 `null` | 每日卷为它所含的科目，旧的每日卷为 `null` |
 | `topics` | 字符串数组 | 专题 id；空数组表示该科目全部专题 |
 | `count` | 数 | 要的题数 |
