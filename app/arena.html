@@ -1334,7 +1334,8 @@ function renderPaperRun() {
     // 得分立即显示：客观题交卷即判，主观题自评存好后算进
     const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><p class="h3">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p>
+    // 摘要卡右上角是返回（与 View details 的返回同一位置）
+    h += `<section class="panel"><div class="sum-head"><p class="h3 grow">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p><button type="button" class="btn ghost small" data-act="exit-run" aria-label="Back to today">← Back<span class="wide-only"> to today</span></button></div>
       <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
       <p class="muted small">${toMark ? 'Check your written answers against the model answers and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
   }
@@ -1355,7 +1356,7 @@ function renderPaperRun() {
     h += cardNav(i, exs.length, 'card-go') + '</article>';
     if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
   }
-  if (R.phase === 'review') h += `<div class="row">${R.handed ? '' : `<button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button>`}<button type="button" class="btn${R.handed ? ' primary' : ''}" data-act="exit-run">Back to today</button></div>`;
+  if (R.phase === 'review' && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
   return h;
 }
