@@ -141,8 +141,12 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 /* question sheet */
 .sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sum-txt { display: grid; gap: 2px; }
+.sum-head { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; min-width: 0; }
+.sum-head .h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sum-head .btn, .sum-head .chip { flex: none; white-space: nowrap; }
+@media (max-width: 480px) { .wide-only { display: none; } }
 .qhead-r { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
-.qno { font: 400 22px/1 var(--font-hand); color: var(--red); margin-right: 4px; }
 .stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
 .imgs img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
@@ -281,7 +285,6 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 /* 卡片翻页条 */
 .cardpager { display: grid; gap: 4px; }
-.cardpager > p { margin: 0; }
 .cp-row { display: flex; flex-wrap: nowrap; gap: 3px; align-items: center; }
 .pg-gap { color: var(--muted); padding: 0 1px; font-size: 12px; }
 .pg-n { flex: 1 1 24px; min-width: 24px; height: 24px; padding: 0 4px; line-height: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -292,7 +295,6 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .pg-n.m-tomark { border-style: dashed; border-color: var(--amber); color: var(--amber); }
 .pg-n.m-gone { color: var(--muted); opacity: .6; }
 .pg-n[aria-pressed="true"] { outline: 2px solid var(--pen); outline-offset: 1px; font-weight: 700; }
-.cp-row .btn { flex: none; padding: 3px 8px; font-size: 12.5px; }
 .linkbtn { border: 0; background: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .item .t .chip { vertical-align: 1px; }
 /* 卷子列表：类型标签与左侧色条 */
@@ -1253,10 +1255,10 @@ function mustUseNote(e, response) {
   return out.join(' ');
 }
 function questionBody(e, opts) {
-  // opts: {no, key, response, locked, showCorrect, result（对错，给作答框着色）, right（卡片右上角的内容）}
+  // 卡片左上角是专题，不写题号（题号看翻页条）；opts: {key, response, locked, showCorrect, result（对错，给作答框着色）, right（卡片右上角的内容）}
   const o = opts || {};
   const rc = o.showCorrect && o.result ? ` res-${o.result}` : '';
-  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${e.test ? '<span class="chip test">TEST</span>' : ''}${o.right ? `<span class="qhead-r">${o.right}</span>` : ''}</div>`;
+  let h = `<div class="qhead"><span class="chip">${esc(topicLabel(e.subject, e.topic))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}${o.right ? `<span class="qhead-r">${o.right}</span>` : ''}</div>`;
   if (e.stem) h += `<div class="stem">${ul(e.stem)}</div>`;
   h += photosBlock(e.images, 'Question photo');
   const r = o.response || '';
@@ -1306,14 +1308,12 @@ function solutionBlock(e) {
 
 const MARK_TITLE = { todo: 'not answered yet', answered: 'answered', right: 'right', partial: 'partly right', wrong: 'wrong', tomark: 'to self-mark', none: 'no answer', gone: 'deleted' };
 function cardPager(marks, idx, act) {
-  // 卡片上方的翻页条（一行，占满宽度）：第几题、Previous、题号（按状态着色，当前题 aria-pressed；放不下时按 pagerSlots 用省略号）、Next；作答页与 View details 共用
-  // 一行放得下的位置数按页面宽度估：每个题号约 27px，Previous 与 Next 约占 140px
+  // 卡片上方的翻页条（一行，占满宽度）：只有题号（按状态着色，当前题 aria-pressed；放不下时按 pagerSlots 用省略号）；作答页与 View details 共用
+  // 一行放得下的位置数按页面宽度估：每个题号约 27px
   const n = marks.length, vw = window.innerWidth || 880, avail = Math.min(vw, 880) - (vw >= 720 ? 56 : 32);
-  const max = Math.floor((avail - 140) / 27);
-  return `<nav class="cardpager" aria-label="Questions"><p class="small muted">Question ${idx + 1} of ${n}</p><div class="cp-row">
-    <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>Previous</button>
-    ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}
-    <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next</button></div></nav>`;
+  const max = Math.floor(avail / 27);
+  return `<nav class="cardpager" aria-label="Questions"><div class="cp-row">
+    ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}</div></nav>`;
 }
 function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
 function renderPaperRun() {
@@ -1342,7 +1342,7 @@ function renderPaperRun() {
     h += cardPager(marks, i, 'card-go');
     // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
     const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
-    h += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
+    h += `<article class="sheet">${questionBody(e, { key, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
     if (R.phase === 'review') {
       h += solutionBlock(e);
       if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
@@ -1706,24 +1706,23 @@ const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
 function renderPaperSheet(paperId) {
   // 卷子详情（可改判）：一次一张卡，翻页条在卡片上方；题组材料同作答页
   const p = S.papers.find(x => x.id === paperId);
-  const back = `<button type="button" class="btn ghost" data-act="paper-view-close">← Back to papers</button>`;
+  const back = `<button type="button" class="btn ghost small" data-act="paper-view-close" aria-label="Back to papers">← Back<span class="wide-only"> to papers</span></button>`;
   if (!p) return `<div class="row">${back}</div><p class="note">This paper has been deleted.</p>`;
   const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
   const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
-  let h = `<div class="row">${back}</div>
-  <section class="panel"><div class="row">${paperTag(p)}<p class="h2">${esc(pname(p))}</p></div>
-    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><span class="muted">Right ${sc.right} · Partly ${sc.partial} · Wrong ${sc.wrong}</span></div>
-    <div class="stats"><span>Handed in <b>${esc(when)}</b></span></div>
+  // 摘要卡：右上角返回；得分右侧上一行对错计数、下一行交卷时刻
+  let h = `<section class="panel"><div class="sum-head">${paperTag(p)}<p class="h2 grow">${esc(pname(p))}</p>${back}</div>
+    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><div class="sum-txt"><span class="muted">Right ${sc.right} · Partly ${sc.partial} · Wrong ${sc.wrong}</span><span class="small muted">Handed in <b>${esc(when)}</b></span></div></div>
   </section>`;
   if (!rows.length) return h;
   const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
-  if (!r.ex) return h + `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">This exercise has been deleted.</p></article>`;
+  if (!r.ex) return h + `<article class="sheet"><p class="muted">This exercise has been deleted.</p></article>`;
   const e = r.ex, a = r.attempt;
   // 卡片右上角：改判下拉（不加标签，选中项即当前结果）与 Detail 按钮；对错另看作答的底色；题组材料在卡片下方
   const ov = a ? `<select id="pv-ov-${i}" class="compact ov-sel res-${esc(a.result)}" data-act-change="override" data-id="${esc(e.id)}" data-i="${e.allAttempts.indexOf(a)}" aria-label="Override the result">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select>` : '';
   const top = ov + `<button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Detail</button>`;
-  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true, result: a ? a.result : '', right: top })}`;
+  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, response: a ? a.response : '', locked: true, showCorrect: true, result: a ? a.result : '', right: top })}`;
   if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
   h += solutionBlock(e);
   h += '</article>';
