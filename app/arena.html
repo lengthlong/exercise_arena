@@ -32,6 +32,7 @@
   --c-right: #1f7a4a;
   --c-partial: #d69e1a;
   --c-wrong: #b3261e;
+  --lad1: #9db2ee; --lad2: #5f80dc; --lad3: #2f52c0; --lad4: #1b307a; --lad-m: #1f7a4a;
   --font-body: "Lexend", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-hand: "Patrick Hand", "Lexend", cursive;
   --r: 10px;
@@ -42,6 +43,7 @@
     --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
     --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
     --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
+    --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
     color-scheme: dark;
   }
 }
@@ -50,36 +52,37 @@
   --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
   --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
   --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
+  --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { background: var(--paper); color: var(--ink); font: 400 15.5px/1.6 var(--font-body); }
+body { background: var(--paper); color: var(--ink); font: 400 14.5px/1.55 var(--font-body); }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
 a { color: var(--pen); text-underline-offset: 2px; }
 mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-radius: 3px; }
 
-.wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 64px; display: grid; gap: 18px; }
+.wrap { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 48px; display: grid; gap: 12px; }
 @media (min-width: 720px) { .wrap { padding-inline: 28px; } }
 
 /* tab bar: first line of the page, sticks to the top */
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 3px; gap: 2px; }
-.seg button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 14px; color: var(--muted); }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 14px; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.tabs { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); background: var(--paper); margin-top: -18px; padding-top: 6px; }
-.tabs button { border: 0; background: none; padding: 8px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
-@media (max-width: 480px) { .tabs button { padding: 8px 6px; font-size: 14px; } }
+.tabs { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line); background: var(--paper); margin-top: -12px; padding-top: 4px; }
+.tabs button { border: 0; background: none; padding: 6px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+@media (max-width: 480px) { .tabs button { padding: 6px 6px; font-size: 14px; } }
 .tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--pen); font-weight: 500; }
 
 /* generic */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
-.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 .grow { flex: 1 1 auto; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
-.h2 { font: 600 17px/1.3 var(--font-body); margin: 0; text-wrap: balance; }
+.h2 { font: 600 15.5px/1.3 var(--font-body); margin: 0; text-wrap: balance; }
 .h3 { font: 500 12px/1.4 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0; }
-.btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px 14px; cursor: pointer; line-height: 1.3; }
+.btn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 5px 12px; cursor: pointer; line-height: 1.3; font-size: 14px; }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--pen); border-color: var(--pen); color: var(--pen-ink); font-weight: 500; }
 .btn.danger { color: var(--red); border-color: var(--red); background: none; }
@@ -90,15 +93,16 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .chip.s-math { color: var(--amber); }
 .chip.s-science { color: var(--green); }
 .chip.test { color: var(--red); border-color: var(--red); }
-.note { font-size: 13.5px; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); }
+.note { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
 .note.err { background: var(--red-soft); color: var(--red); }
 .note.ok { background: var(--green-soft); color: var(--green); }
-label.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
-input[type=text], input[type=number], input[type=date], select, textarea {
-  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 15px;
+label.f { display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+input[type=text], input[type=number], input[type=date], input[type=search], select, textarea {
+  width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 14px;
 }
-textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
-.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 12px; }
+input[type=number] { width: 7em; }
+textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 10px; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* home */
@@ -107,35 +111,35 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .hello-top h1 { margin: 0; min-width: 0; font: 600 clamp(22px, 4vw, 28px)/1.15 var(--font-body); letter-spacing: -.015em; }
 .hello .day { flex: none; font: 400 13px var(--font-body); color: var(--muted); }
 .hello-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-.today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.today { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; }
 .today .big { font: 400 64px/1 var(--font-hand); color: var(--red); min-width: 1.4ch; text-align: center; }
 .today .txt { display: grid; gap: 6px; min-width: 0; }
 .today .txt > p { margin: 0; }
 .today .row { gap: 6px 8px; }
 .today .big .of { font-size: .45em; color: var(--muted); }
-.today .done-tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--green); line-height: 1.3; }
+.today .done-tag { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--green); line-height: 1.3; }
 .today-h { grid-column: 1 / -1; }
-.today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; }
-.plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 8px; }
 .days7 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.days7 li { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.days7 li { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); min-width: 0; }
 .days7 .d { font-size: 12px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 @media (max-width: 480px) { .days7 { gap: 4px; } .days7 .d { font-size: 11px; letter-spacing: -.02em; } }
 .days7 .n { font: 400 24px/1 var(--font-hand); color: var(--pen); }
 .days7 li.zero .n { color: var(--muted); }
 .days7 li.is-today { border-color: var(--pen); background: var(--pen-soft); }
 .days7 li.is-today .d { color: var(--pen); font-weight: 600; }
-.checklist, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14.5px; }
+.checklist, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
 .checklist li, .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.tick { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
+.tick { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
 .tick.ok { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 700; }
 .rv-head { display: flex; align-items: baseline; gap: 10px; }
-.rv-n { font: 400 48px/1 var(--font-hand); color: var(--red); }
+.rv-n { font: 400 40px/1 var(--font-hand); color: var(--red); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
 .stats b { color: var(--ink); font-weight: 600; }
 
 /* question sheet */
-.sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 16px 18px 30px; display: grid; gap: 12px; min-width: 0;
+.sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 16px 18px 30px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6;
   background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule) 31px 32px); background-position: 0 14px; }
 .sheet::before { content: ""; position: absolute; left: 18px; top: 0; bottom: 0; width: 1.5px; background: var(--red); opacity: .55; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -152,6 +156,9 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .opt.is-right { border-color: var(--green); background: var(--green-soft); }
 .opt.is-wrong { border-color: var(--red); background: var(--red-soft); }
 .answer-in { font-family: var(--font-hand); font-size: 20px; color: var(--pen); }
+/* 答题区不随全站收紧：作答框保持原尺寸（短答框 15px，主观题框 20px） */
+.sheet input.answer-in { font-size: 15px; padding: 8px 10px; }
+.sheet textarea.answer-in { font-size: 20px; padding: 8px 10px; }
 .mark { display: inline-flex; align-items: center; gap: 8px; font: 400 26px/1 var(--font-hand); }
 .mark.right { color: var(--green); }
 .mark.partial { color: var(--amber); }
@@ -178,13 +185,13 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 
 /* parent lists */
 .list { display: grid; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
-.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 14px; border: 0; border-top: 1px solid var(--rule); background: none; text-align: left; cursor: pointer; width: 100%; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 7px 12px; border: 0; border-top: 1px solid var(--rule); background: none; text-align: left; cursor: pointer; width: 100%; }
 .item:first-child { border-top: 0; }
 .item:hover { background: var(--surface-2); }
 .item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
 .item .side { display: grid; justify-items: end; gap: 2px; font-size: 12.5px; color: var(--muted); }
-.empty { padding: 22px 16px; text-align: left; color: var(--muted); display: grid; gap: 6px; }
+.empty { padding: 14px 12px; text-align: left; color: var(--muted); display: grid; gap: 6px; }
 .tbl { overflow-x: auto; }
 .tbl table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 .tbl th, .tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
@@ -205,40 +212,49 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .why ol, .why ul { margin: 2px 0; padding-left: 20px; }
 .pager { justify-content: center; }
 .hello-stats { margin: 0; font: 400 15px/1.25 var(--font-hand); color: var(--pen); text-wrap: balance; }
-.dash { gap: 18px; }
 .dash-block { display: grid; gap: 6px; min-width: 0; }
-.meter { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.meter i { display: block; height: 100%; background: var(--green); border-radius: 999px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.chart { width: 100%; max-width: 440px; height: auto; display: block; }
-.chart .ch-val { font: 500 11px var(--font-body); fill: var(--muted); }
-.chart .ch-x { font: 400 11px var(--font-body); fill: var(--muted); }
-.chart .ch-hit:hover { fill: var(--surface-2); fill-opacity: .5; }
-.ladder-bars { display: grid; gap: 6px; }
-.lb-row { display: grid; grid-template-columns: 124px minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 13px; }
-.lb-k { color: var(--muted); white-space: nowrap; }
-.lb-bar { height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
-.lb-bar i { display: block; height: 100%; background: var(--pen); border-radius: 3px; }
-.lb-bar i.m { background: var(--green); }
-.lb-v { text-align: right; }
+/* Last 7 days：7 列平分块宽的叠柱 */
+.bars7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; height: 120px; border-bottom: 1px solid var(--line); }
+.bars7 .col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; border-radius: 4px 4px 0 0; }
+.bars7 .col:hover { background: var(--surface-2); }
+.bars7 .v { font: 500 11px var(--font-body); color: var(--muted); margin-bottom: 2px; }
+.bars7 .stack { width: 60%; max-width: 56px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.bars7 .stack i { display: block; min-height: 1px; }
+.bars7 .stack i:last-child { border-radius: 3px 3px 0 0; }
+.bars7 .stack.none { height: 2px; background: var(--line); border-radius: 1px; }
+.bars7-x { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
+/* Ladders：环形图与图例 */
+.lad { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 18px; align-items: center; }
+@media (max-width: 420px) { .lad { grid-template-columns: minmax(0, 1fr); justify-items: center; } .lad .lad-legend { width: 100%; } }
+.lad svg { width: 140px; height: 140px; display: block; }
+.lad .lad-n { font: 400 30px var(--font-hand); fill: var(--ink); }
+.lad .lad-t { font: 400 11px var(--font-body); fill: var(--muted); }
+.lad-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; max-width: 360px; }
+.lad-legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.lad-legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+.lad-legend .k { color: var(--muted); }
+/* 阶梯分段横条（Exercises 每科小卡） */
+.ladbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.ladbar i { display: block; height: 100%; }
 .pager button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .tabs button:disabled { opacity: .4; cursor: not-allowed; }
 .opt.word { grid-template-columns: auto; padding: 6px 12px; }
 .stem u { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
 .setcard { border-left: 3px solid var(--amber); }
-.material { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 14px; display: grid; gap: 8px; min-width: 0; }
+.material { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 8px 12px; display: grid; gap: 6px; min-width: 0; }
 .material > summary { cursor: pointer; font-weight: 500; }
 .material .stem { font-size: 15.5px; }
 .member { margin-left: 14px; }
 /* 录入：照片大按钮、缩略图、科目与 AI识别 一行 */
 .picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.pick { position: relative; display: grid; justify-items: center; gap: 2px; padding: 18px 10px; border: 2px dashed var(--pen); border-radius: var(--r); background: var(--pen-soft); color: var(--pen); cursor: pointer; text-align: center; }
+.pick { position: relative; display: grid; justify-items: center; gap: 2px; padding: 10px 10px; border: 2px dashed var(--pen); border-radius: var(--r); background: var(--pen-soft); color: var(--pen); cursor: pointer; text-align: center; }
 .pick:hover { border-style: solid; }
 .pick:focus-within { outline: 2px solid var(--pen); outline-offset: 2px; }
 .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.pick-ico { font-size: 24px; line-height: 1; }
-.pick-main { font: 600 16px/1.3 var(--font-body); white-space: nowrap; }
+.pick-ico { font-size: 20px; line-height: 1; }
+.pick-main { font: 600 14.5px/1.3 var(--font-body); white-space: nowrap; }
 .pick-sub { margin: -4px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
 .pick.off { border-color: var(--line); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
 .tray { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -247,23 +263,43 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
 .tray-x:hover { border-color: var(--red); color: var(--red); }
 .rec-go { display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 10px 12px; align-items: end; }
-.rec-go .btn { padding: 11px 14px; font-size: 16px; }
 @media (max-width: 480px) { .rec-go { grid-template-columns: minmax(0, 1fr); } }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
-.set-group { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--rule); }
-.set-group:first-of-type { border-top: 0; padding-top: 0; }
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .filters > * { min-width: 0; }
 .filters select { width: 100%; text-overflow: ellipsis; }
-select.compact { padding: 6px 8px; font-size: 14px; }
 .list-bar select.compact { width: auto; }
 select.compact.on { border-color: var(--pen); color: var(--pen); background: var(--pen-soft); }
-.list-bar { border-top: 1px solid var(--rule); padding-top: 10px; }
+.list-bar { border-top: 1px solid var(--rule); padding-top: 8px; }
 .sortbox { display: flex; gap: 8px; margin-left: auto; }
 .list-bar b, .list-bar .btn { white-space: nowrap; }
 .list-tools { grid-template-columns: minmax(0, 1fr); }
-.list-tools .stats { font-size: 12.5px; gap: 2px 14px; }
+.filters input[type=search] { grid-column: 1 / -1; }
+.filters input.on { border-color: var(--pen); background: var(--pen-soft); }
 .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+/* 卷子列表：类型标签与左侧色条 */
+.item.k-daily { border-left: 3px solid var(--muted); }
+.item.k-check { border-left: 3px solid var(--ink); }
+.chip.k-daily { color: var(--muted); border-color: var(--muted); background: none; }
+.chip.k-check { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 500; }
+/* Exercises：每科小卡 */
+.subj-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+.subj-card { display: grid; gap: 4px; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; font-size: 12.5px; color: var(--muted); min-width: 0; }
+.subj-card:hover { border-color: var(--muted); }
+.subj-card[aria-pressed="true"] { border-color: var(--pen); background: var(--pen-soft); }
+.subj-card .sc-h { font-size: 14px; color: var(--ink); font-weight: 600; }
+.subj-card b { color: var(--ink); font-weight: 500; }
+/* Settings：左标签、右控件 */
+.form-rows { display: grid; gap: 6px; }
+p.form-row { margin: 0; }
+.form-row > select, .form-row > input { justify-self: start; }
+.row .fill { flex: 1 1 240px; min-width: 0; }
+.form-row { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 4px 12px; align-items: center; font-size: 13.5px; }
+.form-row > span { color: var(--muted); }
+.form-row select { width: auto; max-width: 100%; }
+.form-row .hint { grid-column: 2; margin-top: -4px; }
+@media (max-width: 480px) { .form-row { grid-template-columns: minmax(0, 1fr); } .form-row .hint { grid-column: 1; } }
+details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -778,6 +814,61 @@ function paperTry(week, topicName) {
   const name = topicName || (t => t.topic);
   return week.topWrong ? ` — try one on ${name(week.topWrong)}` : ' — try one on mixed topics';
 }
+function ladderShares(ladder) {
+  // Ladders 的环形图：1st、2nd、3rd、4th 与 mastered 五段的题数与百分比；百分比取整、按最大余数补足到 100；总数为 0 时全为 0
+  const keys = [1, 2, 3, 4, 'mastered'], ns = keys.map(k => (ladder && ladder[k]) || 0), tot = ns.reduce((a, b) => a + b, 0);
+  const pct = ns.map(n => tot ? Math.floor(n * 100 / tot) : 0);
+  if (tot) {
+    let left = 100 - pct.reduce((a, b) => a + b, 0);
+    ns.map((n, i) => [n * 100 / tot - pct[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (left > 0) { pct[i]++; left--; } });
+  }
+  return keys.map((key, i) => ({ key, n: ns[i], pct: pct[i] }));
+}
+function subjectSummary(exs, today) {
+  // Exercises 的每科小结：按 SUBJECTS 顺序，有错题的科目才出；专题取前三、错因只含出现过的，都按多到少，并列按 id 字母序
+  return SUBJECTS.map(([s]) => {
+    const xs = exs.filter(e => e.subject === s);
+    if (!xs.length) return null;
+    const count = k => { const m = {}; for (const e of xs) if (e[k]) m[e[k]] = (m[e[k]] || 0) + 1; return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])); };
+    return { subject: s, n: xs.length, due: xs.filter(e => !e.mastered && e.due && e.due <= today).length, mastered: xs.filter(e => e.mastered).length,
+      steps: [1, 2, 3, 4].map(k => xs.filter(e => !e.mastered && e.step === k).length),
+      wrongAvg: xs.reduce((t, e) => t + (e.wrongCount || 0), 0) / xs.length,
+      topics: count('topic').slice(0, 3).map(([topic, n]) => ({ topic, n })), causes: count('cause') };
+  }).filter(Boolean);
+}
+function matchesQuery(e, set, q) {
+  // Exercises 的搜索：题干与所属题组材料正文（去掉 [[ ]] 标记）忽略大小写包含搜索词；搜索词为空时都算
+  const k = String(q || '').trim().toLowerCase();
+  if (!k) return true;
+  const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
+  return (strip(e.stem) + '\n' + strip(set && set.text)).toLowerCase().includes(k);
+}
+function filterPapers(papers, f, view, uid) {
+  // 卷子列表的筛选：归属人、类型（daily / check）、科目、我交没交（todo / done，按 handedInAt）；空值不筛
+  f = f || {};
+  return papers.filter(p => (!f.owner || sameOwner(p.owner, f.owner))
+    && (!f.kind || (f.kind === 'daily') === isDaily(p))
+    && (!f.subject || p.subject === f.subject)
+    && (!f.status || (f.status === 'done') === !!handedInAt(p, view, uid)));
+}
+function sortPapers(papers, key, dir, view, uid) {
+  // 卷子列表的排序：created（madeAt，否则 createdAt）、done（我交卷的时刻）、score（我交过的卷的对题占比）、questions（卷上仍在的题数）；
+  // 空值总在最后（没交的卷没有 done 与 score）；并列按 created 新的在前，再按 id
+  const created = p => String(p.madeAt || p.createdAt || '');
+  const val = p => {
+    if (key === 'done') return handedInAt(p, view, uid) || null;
+    if (key === 'score') { if (!handedInAt(p, view, uid)) return null; const s = paperScore(p, view); return s.total ? s.right / s.total : null; }
+    if (key === 'questions') return paperScore(p, view).total;
+    return created(p) || null;
+  };
+  const sign = dir === 'asc' ? 1 : -1;
+  return papers.map(p => ({ p, v: val(p) })).sort((a, b) => {
+    const ea = a.v === null, eb = b.v === null;
+    if (ea !== eb) return ea ? 1 : -1;
+    if (!ea) { const c = typeof a.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v)); if (c) return c * sign; }
+    return created(b.p).localeCompare(created(a.p)) || String(a.p.id).localeCompare(String(b.p.id));
+  }).map(x => x.p);
+}
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 /* LOGIC:END */
 </script>
@@ -834,7 +925,8 @@ const S = {
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
   drafts: [], recOwner: undefined, recSubject: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
-  filters: { owner: '', subject: '', topic: '', cause: '', state: '' }, paperOwner: '',
+  filters: { owner: '', subject: '', topic: '', cause: '', state: '', q: '' },
+  paperFilters: { owner: '', kind: '', subject: '', status: '' }, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null   // errMsg：写数据出错，显示在当前标签页最上方
@@ -1049,46 +1141,36 @@ function reviewBlock(week) {
 }
 
 function activityChart(days) {
-  // 每天一根按对、部分对、错叠起来的柱子（最后一天是今天）；每天一个提示
-  const n = days.length, slot = 40, bw = 24, W = n * slot, H = 120, top = 16, base = H - 20;
+  // 每天一列、7 列平分块宽；每列一根按对、部分对、错自下而上叠的柱子（最后一天是今天），段间 2px 间隔；每列一个提示
+  const n = days.length, H = 96;
   const max = Math.max(1, ...days.map(d => d.right + d.partial + d.wrong));
-  const sc = v => v / max * (base - top);
   const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
-  let bars = '', labels = '';
-  days.forEach((d, i) => {
-    const x = i * slot + (slot - bw) / 2, tot = d.right + d.partial + d.wrong;
-    let y = base;
-    const segs = order.filter(([k]) => d[k] > 0);
-    segs.forEach(([k, c], si) => {
-      // 自下而上叠；除最上一段外，每段顶部留 2px 底色间隔
-      const full = sc(d[k]), isTop = si === segs.length - 1;
-      y -= full;
-      const gap = isTop ? 0 : Math.min(2, full / 2);
-      bars += `<rect x="${x}" y="${(y + gap).toFixed(1)}" width="${bw}" height="${Math.max(1, full - gap).toFixed(1)}" rx="${isTop ? 3 : 0}" fill="${c}"></rect>`;
-    });
-    if (!tot) bars += `<rect x="${x}" y="${base - 2}" width="${bw}" height="2" rx="1" fill="var(--line)"></rect>`;
-    else labels += `<text x="${x + bw / 2}" y="${(base - sc(tot) - 4).toFixed(1)}" text-anchor="middle" class="ch-val">${tot}</text>`;
-    labels += `<text x="${x + bw / 2}" y="${H - 4}" text-anchor="middle" class="ch-x">${i === n - 1 ? 'Today' : wd(d.date)}</text>`;
-    bars += `<rect x="${i * slot}" y="0" width="${slot}" height="${H}" fill="transparent" class="ch-hit"><title>${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong</title></rect>`;
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Answers in the last ${n} days">${bars}${labels}<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line)" stroke-width="1"></line></svg>`;
+  const cols = days.map(d => {
+    const tot = d.right + d.partial + d.wrong;
+    const segs = order.filter(([k]) => d[k] > 0).map(([k, c]) => `<i style="height:${(d[k] / max * H).toFixed(1)}px;background:${c}"></i>`).join('');
+    return `<div class="col" title="${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong">${tot ? `<span class="v num">${tot}</span><span class="stack">${segs}</span>` : '<span class="stack none"></span>'}</div>`;
+  }).join('');
+  return `<div role="img" aria-label="Answers in the last ${n} days"><div class="bars7">${cols}</div><div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span>${i === n - 1 ? 'Today' : wd(d.date)}</span>`).join('')}</div></div>`;
 }
 
-/* 总进度：掌握进度与阶梯分布 */
+/* 阶梯：五段的环形图与图例 */
+const LADDER_SEGS = [[1, '1st redo (day 1)', 'var(--lad1)'], [2, '2nd redo (day 3)', 'var(--lad2)'], [3, '3rd redo (day 7)', 'var(--lad3)'], [4, '4th redo (day 14)', 'var(--lad4)'], ['mastered', 'Mastered', 'var(--lad-m)']];
 function progressBlock(db) {
-  const pct = db.total ? Math.round(db.mastered / db.total * 100) : 0;
-  const steps = [['1st redo (day 1)', db.ladder[1]], ['2nd redo (day 3)', db.ladder[2]], ['3rd redo (day 7)', db.ladder[3]], ['4th redo (day 14)', db.ladder[4]], ['Mastered', db.ladder.mastered]];
-  const maxStep = Math.max(1, ...steps.map(s => s[1]));
+  const sh = ladderShares(db.ladder), R = 54, C = 2 * Math.PI * R, live = sh.filter(x => x.n);
+  // 环从 12 点起顺时针；多于一段时每段末尾留 2px 底色间隔
+  let off = 0;
+  const arcs = live.map(x => {
+    const len = x.n / db.total * C, gap = live.length > 1 ? Math.min(2, len / 2) : 0, seg = LADDER_SEGS.find(g => g[0] === x.key);
+    const el = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${seg[2]}" stroke-width="18" stroke-dasharray="${(len - gap).toFixed(2)} ${(C - len + gap).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${seg[1]}: ${x.n} (${x.pct}%)</title></circle>`;
+    off += len;
+    return el;
+  }).join('');
+  const label = 'Ladders: ' + sh.map(x => x.key === 'mastered' ? `${x.n} mastered` : `${x.n} at ${['1st', '2nd', '3rd', '4th'][x.key - 1]} redo`).join(', ');
   return `<section class="panel dash" aria-label="Ladders">
     <p class="h3">Ladders</p>
-    <div class="dash-block sub">
-      <div class="row"><p class="h3 grow">Mastered</p><span class="num"><b>${db.mastered}</b> / ${db.total}</span></div>
-      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${db.total}" aria-valuenow="${db.mastered}" aria-label="Mastered"><i style="width:${pct}%"></i></div>
-      <p class="small muted">A question is mastered when you get it right on the 4th redo.</p>
-    </div>
-    <div class="dash-block sub">
-      <p class="h3">Waiting for</p>
-      <div class="ladder-bars">${steps.map(([k, v]) => `<div class="lb-row"><span class="lb-k">${k}</span><span class="lb-bar"><i style="width:${(v / maxStep * 100).toFixed(1)}%" class="${k === 'Mastered' ? 'm' : ''}"></i></span><span class="lb-v num">${v}</span></div>`).join('')}</div>
+    <div class="lad">
+      <svg viewBox="0 0 140 140" role="img" aria-label="${label}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--surface-2)" stroke-width="18"></circle>${arcs}<text x="70" y="72" text-anchor="middle" class="lad-n num">${db.total}</text><text x="70" y="90" text-anchor="middle" class="lad-t">question${db.total === 1 ? '' : 's'}</text></svg>
+      <ul class="lad-legend">${sh.map((x, i) => `<li><span class="sw" style="background:${LADDER_SEGS[i][2]}"></span><span class="k">${LADDER_SEGS[i][1]}</span><span class="num"><b>${x.n}</b> · ${x.pct}%</span></li>`).join('')}</ul>
     </div>
   </section>`;
 }
@@ -1196,7 +1278,7 @@ function renderManage() {
   else if (S.tab === 'exercises') h = renderExercises();
   else if (S.tab === 'papers') h = S.paperView ? renderPaperSheet(S.paperView) : renderPapers();
   else h = renderSettings();
-  return `<div style="display:grid;gap:16px">${h}</div>`;
+  return `<div style="display:grid;gap:12px">${h}</div>`;
 }
 
 function subjectOptions(sel, withAuto) {
@@ -1379,20 +1461,22 @@ function renderExercises() {
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
-  const list = mine().filter(e => (!F.owner || sameOwner(e.owner, F.owner)) && (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
-    && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered)));
+  const owned = mine().filter(e => !F.owner || sameOwner(e.owner, F.owner));
+  const list = owned.filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
+    && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered))
+    && matchesQuery(e, e.setId && setById(e.setId), F.q));
   const sorted = sortExercises(list, S.listSort.key, S.listSort.dir);
   const pg = pageSlice(sorted, S.listPage, 20);
   S.listPage = pg.page;
   const topicOpts = F.subject ? TAX[F.subject].topics.map(t => `<option value="${t[0]}" ${F.topic === t[0] ? 'selected' : ''}>${esc(t[3])}</option>`).join('') : '';
-  const byCause = CAUSES.map(c => [c[1], S.exercises.filter(e => e.cause === c[0] && (!F.owner || sameOwner(e.owner, F.owner)) && (!F.subject || e.subject === F.subject)).length]);
-  // 筛选一行：下拉框不另加标签，第一项写明「全部」；选了的高亮；排序与题数一行
+  // 筛选一行：搜索框与下拉框不另加标签，第一项写明「全部」；选了的高亮；排序与题数一行
   const on = k => F[k] ? ' on' : '';
   const sel = (k, label, opts, dis) => `<select id="flt-${k}" class="compact${on(k)}" data-filter="${k}" aria-label="${label}" ${dis ? 'disabled' : ''}>${opts}</select>`;
   const opt = (k, v, t) => `<option value="${v}" ${F[k] === v ? 'selected' : ''}>${t}</option>`;
-  const anyF = ['owner', 'subject', 'topic', 'cause', 'state'].some(k => F[k]);
+  const anyF = ['owner', 'subject', 'topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
   let h = `<section class="panel list-tools">
     <div class="filters">
+      <input type="search" id="flt-q" class="${F.q ? 'on' : ''}" data-search="1" value="${esc(F.q)}" placeholder="Search question text" aria-label="Search question text" autocomplete="off">
       ${sel('owner', 'Owner', ownerFilterOptions(F.owner, S.exercises, 'All owners'))}
       ${sel('subject', 'Subject', opt('subject', '', 'All subjects') + SUBJECTS.map(s => opt('subject', s[0], s[1])).join(''))}
       ${sel('topic', 'Topic', opt('topic', '', 'All topics') + topicOpts, !F.subject)}
@@ -1404,8 +1488,8 @@ function renderExercises() {
       <select id="list-sort" class="compact" data-act-change="list-sort" aria-label="Sort by">${[['recorded', 'Recorded'], ['due', 'Due date'], ['wrong', 'Times wrong'], ['last', 'Last answered']].map(k => `<option value="${k[0]}" ${S.listSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
       <button type="button" class="btn ghost small" data-act="list-dir" aria-label="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.listSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>
-    <div class="stats">${byCause.map(c => `<span>${c[0]} <b class="num">${c[1]}</b></span>`).join('')}</div>
   </section>`;
+  h += subjectCards(owned, today, F.subject);
   if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>No exercises yet</b><span>Go to Record and take a photo of a question that was wrong, or send the question to Claude in a Claude Code chat.</span></div></div>`;
   h += `<div class="list">${pg.items.length ? pg.items.map(e => `
     <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
@@ -1415,6 +1499,22 @@ function renderExercises() {
     </button>`).join('') : '<div class="empty">No exercises match these filters.</div>'}</div>`;
   if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="list-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h;
+}
+
+function subjectCards(exs, today, active) {
+  // 每科一张小卡：只按 Owner 筛选后的错题算，不随其他筛选与搜索变；点卡按这一科筛选，再点取消
+  const cards = subjectSummary(exs, today);
+  if (!cards.length) return '';
+  return `<div class="subj-cards">${cards.map(c => {
+    const segs = c.steps.map((n, i) => [n, LADDER_SEGS[i][2]]).concat([[c.mastered, LADDER_SEGS[4][2]]]).filter(x => x[0]);
+    return `<button type="button" class="subj-card" data-act="subj-card" data-v="${c.subject}" aria-pressed="${active === c.subject}" title="${active === c.subject ? 'Show all subjects' : 'Show only ' + esc(SUBJ[c.subject].en)}">
+      <span class="sc-h">${esc(SUBJ[c.subject].en)} · <span class="num">${c.n}</span></span>
+      <span class="ladbar" role="img" aria-label="${c.steps.map((n, i) => `${n} at ${['1st', '2nd', '3rd', '4th'][i]} redo`).join(', ')}, ${c.mastered} mastered">${segs.map(([n, col]) => `<i style="flex:${n};background:${col}"></i>`).join('')}</span>
+      <span class="num"><b>${c.due}</b> due · <b>${c.mastered}</b> mastered · wrong ${c.wrongAvg.toFixed(1)}× on average</span>
+      <span>Top topics: ${c.topics.map(t => `${esc(topicLabel(c.subject, t.topic))} <b class="num">${t.n}</b>`).join(' · ')}</span>
+      <span>${c.causes.map(([k, n]) => `${esc(CAUSE[k] ? CAUSE[k].en : k)} <b class="num">${n}</b>`).join(' · ')}</span>
+    </button>`;
+  }).join('')}</div>`;
 }
 
 function renderDetail() {
@@ -1480,16 +1580,41 @@ function renderPapers() {
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  const papers = visiblePapers(S.papers, mine(), S.me).filter(p => !S.paperOwner || sameOwner(p.owner, S.paperOwner)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || b.id.localeCompare(a.id));
-  h += `<section class="panel"><div class="row"><p class="h3 grow">Papers</p><label class="f"><span>Owner</span><select id="paper-owner" data-act-change="paper-owner">${ownerFilterOptions(S.paperOwner, S.papers)}</select></label></div>`;
-  if (!papers.length) h += `<p class="small muted">${S.paperOwner ? 'No papers for this owner.' : "No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here."}</p>`;
-  else h += `<div class="list">${papers.map(p => `<div class="item" style="cursor:default">
+  // 卷子列表：筛选一行与排序同 Exercises；每行最前是类型标签与左侧色条；20 张一页
+  const PF = S.paperFilters, view = mine();
+  const shown = visiblePapers(S.papers, view, S.me);
+  const sorted = sortPapers(filterPapers(shown, PF, view, S.me), S.paperSort.key, S.paperSort.dir, view, S.me);
+  const pg = pageSlice(sorted, S.paperPage, 20);
+  S.paperPage = pg.page;
+  const on = k => PF[k] ? ' on' : '';
+  const psel = (k, label, opts) => `<select id="pfl-${k}" class="compact${on(k)}" data-pfilter="${k}" aria-label="${label}">${opts}</select>`;
+  const popt = (k, v, t) => `<option value="${v}" ${PF[k] === v ? 'selected' : ''}>${t}</option>`;
+  const anyPF = ['owner', 'kind', 'subject', 'status'].some(k => PF[k]);
+  h += `<section class="panel list-tools"><p class="h3">Papers</p>
+    <div class="filters">
+      ${psel('owner', 'Owner', ownerFilterOptions(PF.owner, S.papers, 'All owners'))}
+      ${psel('kind', 'Kind', popt('kind', '', 'All kinds') + popt('kind', 'daily', 'Daily paper') + popt('kind', 'check', 'Check paper'))}
+      ${psel('subject', 'Subject', popt('subject', '', 'All subjects') + SUBJECTS.map(x => popt('subject', x[0], x[1])).join(''))}
+      ${psel('status', 'Status', popt('status', '', 'Any status') + popt('status', 'todo', 'Not done by me') + popt('status', 'done', 'Done by me'))}
+    </div>
+    <div class="row list-bar">
+      <b>${plural(sorted.length, 'paper')}</b>${anyPF ? '<button type="button" class="btn ghost small" data-act="paper-clear">Clear filters</button>' : ''}<span class="sortbox">
+      <select id="paper-sort" class="compact" data-act-change="paper-sort" aria-label="Sort by">${[['created', 'Created'], ['done', 'Done'], ['score', 'Score'], ['questions', 'Questions']].map(k => `<option value="${k[0]}" ${S.paperSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
+      <button type="button" class="btn ghost small" data-act="paper-dir" aria-label="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.paperSort.dir === 'desc' ? '↓' : '↑'}</button></span>
+    </div>`;
+  if (!shown.length) h += `<p class="small muted">No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
+  else if (!sorted.length) h += `<p class="small muted">No papers match these filters.</p>`;
+  else h += `<div class="list">${pg.items.map(p => {
+    const daily = isDaily(p), done = handedInAt(p, view, S.me);
+    return `<div class="item ${daily ? 'k-daily' : 'k-check'}" style="cursor:default">
       <span class="t">${esc(p.title)}</span>
-      <span class="side">${handedInAt(p, mine(), S.me) ? (() => { const sc = paperScore(p, mine()); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
-      <span class="meta">${isDaily(p) ? `<span class="chip">Daily</span>${p.subject ? subjChip(p.subject) : ''}` : `${subjChip(p.subject)}<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${handedInAt(p, mine(), S.me) ? `<span class="num">Done ${esc(fmtWhen(handedInAt(p, mine(), S.me)))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
-        ${handedInAt(p, mine(), S.me) ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">View details</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">Start</button>`}
+      <span class="side">${done ? (() => { const sc = paperScore(p, view); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
+      <span class="meta">${daily ? '<span class="chip k-daily">Daily paper</span>' : '<span class="chip k-check">Check paper</span>'}${p.subject ? subjChip(p.subject) : ''}${daily ? '' : `<span>Owner ${esc(userName(p.owner))}</span>`}<span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${done ? `<span class="num">Done ${esc(fmtWhen(done))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
+        ${done ? `<button type="button" class="btn ghost small" data-act="paper-view" data-id="${esc(p.id)}">View details</button>` : `<button type="button" class="btn small" data-act="start-paper" data-id="${esc(p.id)}">Start</button>`}
         ${S.confirmDel === p.id ? `<span class="confirm">Delete this paper? Answers already given stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
-      </span></div>`).join('')}</div>`;
+      </span></div>`;
+  }).join('')}</div>`;
+  if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="paper-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h + `</section>`;
 }
 
@@ -1524,31 +1649,23 @@ function renderPaperSheet(paperId) {
 }
 
 function renderSettings() {
-  // 三组：取谁的错题、每日重做、每周目标；保存在最后，四个字段一起写
+  // 一块四行（左标签、右控件），保存与结果同一行；阶梯说明默认收起；导出一行
   return `<section class="panel"><p class="h2">Settings</p>
-    <div class="set-group"><p class="h3">Whose exercises</p>
-      <label class="f"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
-      <p class="small muted">Today's redo and new check papers use this person's exercises, and new exercises are recorded under them.</p>
+    <div class="form-rows">
+      <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
+      <p class="form-row"><span class="hint small muted">Today, new check papers and new exercises use this person.</span></p>
+      <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
+      <label class="form-row"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
+      <label class="form-row"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
+      <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today.</span></p>
     </div>
-    <div class="set-group"><p class="h3">Daily redo</p>
-      <label class="f"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
-    </div>
-    <div class="set-group"><p class="h3">Weekly goal</p>
-      <div class="grid2">
-        <label class="f"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
-        <label class="f"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
-      </div>
-      <p class="small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today.</p>
-    </div>
-    <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button></div>
-    ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
+    <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button>${S.settingsMsg ? `<span class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</span>` : ''}</div>
   </section>
-  <section class="panel"><p class="h2">How the review ladder works</p>
+  <details class="panel"><summary>How the review ladder works</summary>
     <p class="small muted">After an exercise is recorded, it comes back for a 1st, 2nd, 3rd and 4th redo on day 1, 3, 7 and 14. Right moves it on to the next redo, wrong sends it back to the 1st redo, partly right keeps it waiting for the same redo. Right on the 4th redo means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to the 1st redo.</p>
-  </section>
-  <section class="panel"><p class="h2">Export</p>
-    <p class="small muted">Exports every exercise (with all answers), question set, paper and these settings as YAML text, without photos (only how many there are). The file is named like arena-export-date.yaml.txt; drop the .txt if needed.</p>
-    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button>${S.downloads ? '' : '<span class="small muted">This page can\'t save files, so export is unavailable.</span>'}</div>
+  </details>
+  <section class="panel">
+    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): every exercise with all answers, question set, paper and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
     ${S.exportMsg ? `<p class="note ${S.exportMsg.kind}">${esc(S.exportMsg.text)}</p>` : ''}
   </section>`;
 }
@@ -1575,7 +1692,11 @@ document.addEventListener('click', async ev => {
   try {
     switch (act) {
       case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; render(); break;
-      case 'clear-filters': S.filters = { owner: '', subject: '', topic: '', cause: '', state: '' }; S.listPage = 1; render(); break;
+      case 'clear-filters': S.filters = { owner: '', subject: '', topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
+      case 'subj-card': S.filters.subject = S.filters.subject === b.dataset.v ? '' : b.dataset.v; S.filters.topic = ''; S.listPage = 1; render(); break;
+      case 'paper-clear': S.paperFilters = { owner: '', kind: '', subject: '', status: '' }; S.paperPage = 1; render(); break;
+      case 'paper-dir': S.paperSort.dir = S.paperSort.dir === 'desc' ? 'asc' : 'desc'; S.paperPage = 1; render(); break;
+      case 'paper-page': S.paperPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'list-dir': S.listSort.dir = S.listSort.dir === 'desc' ? 'asc' : 'desc'; S.listPage = 1; render(); break;
       case 'list-page': S.listPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'export': await exportAll(); break;
@@ -1727,6 +1848,11 @@ document.addEventListener('input', ev => {
     const sd = setDraftByKey(t.dataset.s); if (sd && !t.dataset.rerender) sd[t.dataset.f] = t.value;
   } else if (t.dataset.bind) {
     S[t.dataset.bind] = t.value;
+  } else if (t.dataset.search) {
+    // 搜索：整页重画（题数、Clear filters、翻页随之更新），再把焦点与光标放回搜索框
+    const pos = t.selectionStart;
+    S.filters.q = t.value; S.listPage = 1; render();
+    const el = $('#flt-q'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
   }
 });
 
@@ -1746,10 +1872,11 @@ document.addEventListener('change', async ev => {
   if (t.dataset.d) { const d = draftByKey(t.dataset.d); if (d && t.dataset.f !== 'opt') d[t.dataset.f] = t.value; return; }
   if (t.dataset.s) { const sd = setDraftByKey(t.dataset.s); if (sd) { sd[t.dataset.f] = t.value; if (t.dataset.rerender) render(); } return; }
   if (t.dataset.filter) { S.filters[t.dataset.filter] = t.value; if (t.dataset.filter === 'subject') S.filters.topic = ''; S.listPage = 1; render(); return; }
+  if (t.dataset.pfilter) { S.paperFilters[t.dataset.pfilter] = t.value; S.paperPage = 1; render(); return; }
   const act = t.dataset.actChange;
   try {
     if (act === 'list-sort') { S.listSort.key = t.value; S.listPage = 1; render(); }
-    else if (act === 'paper-owner') { S.paperOwner = t.value; render(); }
+    else if (act === 'paper-sort') { S.paperSort.key = t.value; S.paperPage = 1; render(); }
     else if (act === 'paper-subject') { S.paperForm.subject = t.value; S.paperForm.topics = []; S.paperPreview = null; render(); }
     else if (act === 'paper-count') { S.paperForm.count = t.value; S.paperPreview = null; }
     else if (act === 'paper-topic') { const P = S.paperForm; P.topics = t.checked ? P.topics.concat([t.value]) : P.topics.filter(x => x !== t.value); S.paperPreview = null; render(); }

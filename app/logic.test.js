@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -370,4 +370,55 @@ assert.strictEqual(L.masteredOn(lad(four4)), '2026-10-26');
 const wp = L.viewFor([{ id: 'w', subject: 'english', topic: 'en-tense', createdAt: '2026-10-10', attempts: [PA('2026-10-18', 'right')] }], 'uA');
 const wpr = L.weekReview(wp, [], T1);
 assert.deepStrictEqual([wpr.answers, wpr.right, wpr.questions, wpr.moved], [1, 1, 1, 0]);
+// Ladders 的环形图：五段题数与百分比，百分比按最大余数补足到 100；总数为 0 时全为 0
+const shr = L.ladderShares({ 1: 108, 2: 13, 3: 0, 4: 0, mastered: 0 });
+assert.deepStrictEqual(Array.from(shr, x => [x.key, x.n, x.pct]), [[1, 108, 89], [2, 13, 11], [3, 0, 0], [4, 0, 0], ['mastered', 0, 0]]);
+assert.strictEqual(L.ladderShares({ 1: 1, 2: 1, 3: 1, 4: 0, mastered: 0 }).reduce((t, x) => t + x.pct, 0), 100);
+assert.deepStrictEqual(Array.from(L.ladderShares({ 1: 0, 2: 0, 3: 0, 4: 0, mastered: 0 }), x => x.pct), [0, 0, 0, 0, 0]);
+// Exercises 的每科小结：按 SUBJECTS 顺序、没有错题的科目不出；到期、掌握、阶梯、平均错次；专题前三与错因按多到少、并列按 id 字母序，错因只含出现过的
+const smx = L.viewFor([
+  { id: 'm1', subject: 'science', topic: 'C-water', cause: 'concept', createdAt: '2026-10-14', attempts: [] },
+  { id: 'm2', subject: 'english', topic: 'en-vocab', cause: 'concept', createdAt: '2026-10-14', attempts: [] },
+  { id: 'm3', subject: 'english', topic: 'en-vocab', cause: 'careless', createdAt: '2026-10-14', attempts: [by('uA', '2026-10-15', 'right')] },
+  { id: 'm4', subject: 'english', topic: 'en-prep', cause: 'careless', createdAt: '2026-10-14', attempts: [by('uA', '2026-10-15', 'wrong')] },
+  { id: 'm5', subject: 'english', topic: 'en-adj', cause: 'misread', createdAt: '2026-10-14', attempts: [] },
+  { id: 'm6', subject: 'english', topic: 'en-tense', cause: 'concept', createdAt: '2026-10-14', attempts: four4 }], 'uA');   // 已掌握
+const sm = JSON.parse(JSON.stringify(L.subjectSummary(smx, T16)));
+assert.deepStrictEqual(sm.map(x => x.subject), ['english', 'science']);
+assert.deepStrictEqual([sm[0].n, sm[0].due, sm[0].mastered, sm[0].steps], [5, 3, 1, [3, 1, 0, 0]]);   // m3 在第 2 级、10-17 到期；m4 做错、10-16 到期
+assert.strictEqual(sm[0].wrongAvg, 6 / 5);   // m4 错 2 次，其余 1 次
+assert.deepStrictEqual(sm[0].topics, [{ topic: 'en-vocab', n: 2 }, { topic: 'en-adj', n: 1 }, { topic: 'en-prep', n: 1 }]);
+assert.deepStrictEqual(sm[0].causes, [['careless', 2], ['concept', 2], ['misread', 1]]);
+assert.deepStrictEqual(sm[1].causes, [['concept', 1]]);
+assert.deepStrictEqual(Array.from(L.subjectSummary([], T16)), []);
+// Exercises 的搜索：空词都算；忽略大小写；题组材料正文也算；[[ ]] 标记去掉后再比
+assert.strictEqual(L.matchesQuery({ stem: 'Which is a fern?' }, null, '  '), true);
+assert.strictEqual(L.matchesQuery({ stem: 'Which is a FERN?' }, null, 'fern'), true);
+assert.strictEqual(L.matchesQuery({ stem: '(3) blank' }, { text: 'The school carnival flyer' }, 'Carnival'), true);
+assert.strictEqual(L.matchesQuery({ stem: 'I [[recieve]] it' }, null, 'recieve it'), true);
+assert.strictEqual(L.matchesQuery({ stem: 'Which is a fern?' }, null, 'moss'), false);
+// 卷子列表：筛选（归属人、类型、科目、我交没交，空值不筛）与排序（四种键、升降、空值在后、并列按 created 新的在前再按 id）
+const pv = L.viewFor([
+  { id: 'e1', subject: 'english', createdAt: '2026-10-10', attempts: [by('uA', '2026-10-15', 'right', { paperId: 'D1' }), by('uA', '2026-10-14', 'right', { mode: 'paper', paperId: 'C1' })] },
+  { id: 'e2', subject: 'english', createdAt: '2026-10-10', attempts: [by('uA', '2026-10-15', 'wrong', { paperId: 'D1' }), by('uA', '2026-10-14', 'right', { mode: 'paper', paperId: 'C1' })] },
+  { id: 'e3', subject: 'science', createdAt: '2026-10-10', attempts: [] }], 'uA');
+const pps = [
+  { id: 'D1', kind: 'daily', for: 'uA', owner: 'uS', subject: 'english', createdAt: '2026-10-15', madeAt: '2026-10-15T20:00', exerciseIds: ['e1', 'e2'], handedIn: { uA: '2026-10-15T20:10' } },
+  { id: 'C1', owner: 'uS', subject: 'english', createdAt: '2026-10-14', madeAt: '2026-10-14T09:00', exerciseIds: ['e1', 'e2', 'gone'], handedIn: { uA: '2026-10-14T09:30' } },
+  { id: 'C2', owner: 'uS', subject: 'science', createdAt: '2026-10-16', madeAt: '2026-10-16T08:00', exerciseIds: ['e3'], handedIn: {} },
+  { id: 'C3', owner: 'uB', subject: 'science', createdAt: '2026-10-13', exerciseIds: ['e3', 'e1', 'e2'] }];
+const fp = f => ids(L.filterPapers(pps, f, pv, 'uA'));
+assert.deepStrictEqual(fp({}), ['D1', 'C1', 'C2', 'C3']);
+assert.deepStrictEqual(fp({ kind: 'daily' }), ['D1']);
+assert.deepStrictEqual(fp({ kind: 'check', subject: 'science' }), ['C2', 'C3']);
+assert.deepStrictEqual(fp({ owner: 'uB' }), ['C3']);
+assert.deepStrictEqual(fp({ status: 'done' }), ['D1', 'C1']);
+assert.deepStrictEqual(fp({ status: 'todo', owner: 'uS' }), ['C2']);
+const sp = (k, d) => ids(L.sortPapers(pps, k, d, pv, 'uA'));
+assert.deepStrictEqual(sp('created', 'desc'), ['C2', 'D1', 'C1', 'C3']);
+assert.deepStrictEqual(sp('created', 'asc'), ['C3', 'C1', 'D1', 'C2']);
+assert.deepStrictEqual(sp('done', 'desc'), ['D1', 'C1', 'C2', 'C3']);   // 没交的在后，按 created 新的在前
+assert.deepStrictEqual(sp('score', 'desc'), ['C1', 'D1', 'C2', 'C3']);  // C1 2/2，D1 1/2；没交的没有分数
+assert.deepStrictEqual(sp('score', 'asc'), ['D1', 'C1', 'C2', 'C3']);
+assert.deepStrictEqual(sp('questions', 'desc'), ['C3', 'D1', 'C1', 'C2']);   // 题数只算卷上仍在的题：C3 3、D1 2、C1 2、C2 1；并列按 created 新的在前
 console.log('all logic tests passed');
