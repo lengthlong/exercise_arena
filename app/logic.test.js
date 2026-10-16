@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,roundPoints,scoreboard,entrants,liftRound,podium,matchTotals};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,roundPoints,scoreboard,entrants,liftRound,podium,matchTotals,weekMatches};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -517,4 +517,9 @@ assert.strictEqual(pod(L.scoreboard(sbm, ['uS', 'uA', 'uB', 'uC'], CD, 'all')), 
 assert.strictEqual(pod([{ id: 'a', points: 3, rank: 1 }, { id: 'b', points: 2, rank: 2 }, { id: 'c', points: 1, rank: 3 }, { id: 'd', points: 1, rank: 3 }]), JSON.stringify([['a'], ['b'], ['c', 'd']]));
 assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week')), JSON.stringify([[], [], []]));
 assert.strictEqual(Array.from(L.scoreboard([], ['uS'], CD, 'week'), r => r.points).join(), '0');
+// 本周历史：开赛日期在本周、参赛者与本组有交集；按开赛时刻新的在前
+const wm = [{ id: 'm1', at: '2026-10-12T08:00', players: ['uS', 'uA'] }, { id: 'm2', at: '2026-10-11T23:55', players: ['uS', 'uA'] },
+  { id: 'm3', at: CD + 'T09:00', players: ['uA', 'uS'] }, { id: 'm4', at: CD + 'T10:00', players: ['uC', 'uD'] }];
+assert.strictEqual(Array.from(L.weekMatches(wm, ['uS', 'uA', 'uB'], CD), m => m.id).join(), 'm3,m1');
+assert.strictEqual(L.weekMatches([], ['uS'], CD).length, 0);
 console.log('all logic tests passed');

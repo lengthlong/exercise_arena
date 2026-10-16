@@ -328,14 +328,6 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .coin-nums div { display: grid; }
 .coin-nums .big { font: 700 34px/1 var(--font-body); color: var(--amber); }
 .coin-nums .mid { font: 600 20px/1.1 var(--font-body); }
-.lifters-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.lifters-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto 7.5em; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
-.lifters-list li span:last-child { text-align: right; }
-.lifters-list li.out { color: var(--muted); }
-.ok-t { color: var(--green); font-weight: 500; }
-.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
-.lane { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface-2); text-align: center; }
-.lane.win { border-color: var(--amber); background: var(--amber-soft); }
 .lift-svg { width: 100%; max-width: 120px; height: auto; }
 .lift-svg .fig { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; fill: none; }
 .lift-svg circle.fig { fill: var(--surface); }
@@ -355,10 +347,23 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .board li { display: grid; grid-template-columns: 2em minmax(0, 1fr) auto; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
 .board .rk { color: var(--muted); font-variant-numeric: tabular-nums; }
 .board .pt { font-weight: 600; font-variant-numeric: tabular-nums; }
-.champ { justify-items: stretch; }
-.champ .trophy { font-size: 44px; margin: 0; text-align: center; line-height: 1.1; }
-.champ .champ-name { font: 700 22px/1.2 var(--font-body); margin: 0; text-align: center; color: var(--amber); }
-.champ > .small { text-align: center; margin: 0; }
+.lcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.lcard { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface-2); text-align: center; min-width: 0; }
+.lcard.win { border-color: var(--amber); background: var(--amber-soft); }
+.lcard.out { opacity: .6; }
+.lcard .lift-svg { max-width: 84px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 1px; }
+.lcard .chip { white-space: normal; text-align: center; }
+.chip.coin-chip { color: var(--amber); }
+.chip.in-chip { color: var(--green); border-color: var(--green); }
+.champ-line { margin: 0; font: 600 16px/1.3 var(--font-body); color: var(--amber); }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hist li { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); }
+.hist li.open { border-color: var(--line); }
+.h-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; width: 100%; padding: 6px 10px; border: 0; background: none; text-align: left; cursor: pointer; align-items: baseline; }
+.h-when { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.h-line { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13.5px; }
+.h-body { display: grid; gap: 8px; padding: 0 10px 10px; }
 </style>
 
 <div class="wrap" id="app"></div>
@@ -976,7 +981,7 @@ function paperName(p, papers, view, uid, userName, topicName) {
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 function coinsFor(exs, matches, uid, today) {
   // 金币：本周（周一到今天）内，每日重做的做对 1 枚、阶梯每升一级 2 枚、每掌握一道 10 枚；阶梯按 deriveState 的同一套规则走本人的阶梯输入
-  // 余额：金币减去本周开赛、本人参赛的各场 rounds × 10（开赛即扣，中途离开也扣整场）
+  // 余额：金币减去本周开赛、本人参赛的各场 rounds × 10（开赛即扣）
   const from = weekStart(today), inWin = d => d >= from && d <= today;
   let right = 0, up = 0, mastered = 0;
   for (const e of exs) {
@@ -1041,6 +1046,12 @@ function scoreboard(matches, userIds, today, period) {
   }
   const rows = (userIds || []).map((id, i) => ({ id, points: tot[id], i })).sort((a, b) => b.points - a.points || a.i - b.i);
   return rows.map(r => ({ id: r.id, points: r.points, rank: 1 + rows.filter(x => x.points > r.points).length }));
+}
+function weekMatches(matches, group, today) {
+  // 本周历史：开赛日期在本周、参赛者与 group 有交集的比赛，按开赛时刻新的在前
+  const wk = weekStart(today);
+  return (matches || []).filter(mt => weekStart(String(mt.at || '').slice(0, 10)) === wk && (mt.players || []).some(id => (group || []).includes(id)))
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 function podium(rows) {
   // 领奖台：第 1、2、3 级各站名次等于台阶号且得分大于 0 的人
@@ -1107,7 +1118,7 @@ const S = {
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
-  gameRounds: 1, boardPeriod: 'week', match: null   // match：正在进行或刚比完的一场
+  boardPeriod: 'week', lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
 };
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
@@ -1190,9 +1201,9 @@ function draftsInOrder() {
 }
 
 /* ---------- 渲染 ---------- */
-function matchLive() { return !!(S.match && S.match.phase !== 'done'); }
+function matchLive() { return !!(S.lift && (S.lift.phase === 'saving' || S.lift.phase === 'anim')); }
 function locked() {
-  if (S.run || matchLive()) return true;
+  if (S.run || matchLive() || (S.hist && S.hist.phase === 'anim')) return true;
   if (S.tab === 'record' && (S.drafts.length || S.setDrafts.length)) return true;
   if (S.tab === 'exercises' && (S.drafts.some(d => d.editId) || S.setEdit)) return true;
   return false;
@@ -1479,7 +1490,7 @@ function renderManage() {
   if (S.tab === 'record') h = renderRecord();
   else if (S.tab === 'exercises') h = renderExercises();
   else if (S.tab === 'papers') h = S.paperView ? renderPaperSheet(S.paperView) : renderPapers();
-  else if (S.tab === 'games') h = S.match ? renderMatch() : renderGames();
+  else if (S.tab === 'games') h = renderGames();
   else h = renderSettings();
   return `<div style="display:grid;gap:12px">${h}</div>`;
 }
@@ -1876,106 +1887,122 @@ function renderSettings() {
 function groupOf(id) { return S.owners[id] || id; }
 function myGroup() { const g = groupOf(S.me); return S.userIds.filter(id => groupOf(id) === g); }
 function coinInfo(id, today) { return coinsFor(S.exercises, S.matches, id, today || localToday()); }
+const fmtP = v => String(Math.round(v * 10) / 10);
 function renderGames() {
-  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today);
-  const group = myGroup(), bal = Object.fromEntries(group.map(id => [id, coinInfo(id, today).balance]));
-  const n = S.gameRounds, need = n * ROUND_COST, ins = entrants(S.userIds, S.owners, bal, S.me, n);
-  const why = bal[S.me] < need ? `You need ${need} coins for ${plural(n, 'round')}; you have ${bal[S.me]}.`
-    : !ins.length ? (group.length < 2 ? 'Nobody else shares your default owner yet.' : `Nobody else has ${need} coins this week.`) : '';
+  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
   const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
     <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
-    <p class="small muted">Earned: ${c.right} right × 1 + ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10. Each round of a game uses ${ROUND_COST} coins from everyone in it. Coins start again from 0 every Monday.</p></section>`;
-  const people = group.map(id => {
-    const inn = ins.includes(id);
-    return `<li class="${inn ? '' : 'out'}"><span>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</span><span class="small">${bal[id]} coins</span><span class="small ${inn ? 'ok-t' : 'muted'}">${inn ? 'in' : bal[id] < need ? 'not enough coins' : 'ready'}</span></li>`;
-  }).join('');
-  const startBlock = `<section class="panel"><p class="h2">Weightlifting</p>
-    <p class="small muted">Everyone lifts once a round. The weight is their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins the round. Nobody chooses anything — just watch.</p>
-    <div class="row"><span class="small">Rounds</span><div class="seg" role="group" aria-label="Rounds">${[1, 3, 5].map(r => `<button type="button" data-act="game-rounds" data-v="${r}" aria-pressed="${n === r}">${r}</button>`).join('')}</div><span class="small muted">${need} coins each</span></div>
-    <ul class="lifters-list">${people}</ul>
-    <div class="row"><button type="button" class="btn primary" data-act="game-start" ${ins.length ? '' : 'disabled'}>Start</button>${why ? `<span class="small muted">${esc(why)}</span>` : `<span class="small muted">${plural(ins.length, 'lifter')} · ${plural(n, 'round')}</span>`}</div></section>`;
-  return coinsBlock + startBlock + boardBlock(today, group);
+    <p class="small muted">Earned: ${c.right} right × 1 + ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10.</p></section>`;
+  // 这一局播完前，积分榜与历史先不算它，免得提前看到结果
+  const shown = matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches;
+  return boardBlock(today, group, shown) + coinsBlock + liftBlock(today, group, shown);
 }
-function boardBlock(today, group) {
-  const per = S.boardPeriod, rows = scoreboard(S.matches, group, today, per), steps = podium(rows);
+function boardBlock(today, group, matches) {
+  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows);
   const empty = steps.every(x => !x.length);
   const ptsOf = Object.fromEntries(rows.map(r => [r.id, r.points]));
-  const fmtP = v => String(Math.round(v * 10) / 10);
   const step = i => `<div class="step s${i + 1}"><div class="who">${steps[i].map(id => `<span>${esc(userName(id))}</span><span class="small muted">${fmtP(ptsOf[id])}</span>`).join('') || '<span class="small muted">—</span>'}</div><div class="block">${i + 1}</div></div>`;
   return `<section class="panel"><div class="coin-top"><p class="h2">Scoreboard</p><div class="seg" role="group" aria-label="Period">${[['week', 'This week'], ['all', 'All time']].map(x => `<button type="button" data-act="board-period" data-v="${x[0]}" aria-pressed="${per === x[0]}">${x[1]}</button>`).join('')}</div></div>
     ${empty ? `<p class="small muted">${per === 'week' ? 'No matches this week yet.' : 'No matches yet.'}</p>` : `<div class="podium">${step(1)}${step(0)}${step(2)}</div>`}
     <ol class="board">${rows.map(r => `<li><span class="rk">${r.rank}</span><span class="nm">${esc(userName(r.id))}${r.id === S.me ? ' (me)' : ''}</span><span class="pt">${fmtP(r.points)}</span></li>`).join('')}</ol></section>`;
 }
-function lifterSvg(kg, maxKg, anim) {
-  // 小人举杠铃：anim 时杠铃从胸前举过头顶；杠铃片随重量变大
-  const r = 5 + Math.round(9 * (maxKg ? kg / maxKg : 0)), up = anim ? '' : ' transform="translate(0 -34)"';
+function lifterSvg(kg, maxKg, mode) {
+  // 小人举杠铃：mode 为 rest（杠铃在胸前）、anim（从胸前举过头顶）、up（举在头顶）；杠铃片随重量变大
+  const r = 5 + Math.round(9 * (maxKg ? kg / maxKg : 0)), anim = mode === 'anim', top = mode === 'up';
   const a = (attr, from, to) => anim ? `<animate attributeName="${attr}" from="${from}" to="${to}" begin="0.2s" dur="1.4s" fill="freeze" calcMode="spline" keySplines=".4 0 .2 1"/>` : '';
-  const armY = anim ? 58 : 24;
+  const armY = top ? 24 : 58;
   return `<svg viewBox="0 0 120 130" class="lift-svg" aria-hidden="true">
     <circle cx="60" cy="38" r="9" class="fig"/><line x1="60" y1="47" x2="60" y2="88" class="fig"/>
     <line x1="60" y1="88" x2="48" y2="120" class="fig"/><line x1="60" y1="88" x2="72" y2="120" class="fig"/>
     <line x1="60" y1="56" x2="34" y2="${armY}" class="fig">${a('y2', 58, 24)}</line><line x1="60" y1="56" x2="86" y2="${armY}" class="fig">${a('y2', 58, 24)}</line>
-    <g${up}>${anim ? '<animateTransform attributeName="transform" type="translate" from="0 0" to="0 -34" begin="0.2s" dur="1.4s" fill="freeze" calcMode="spline" keySplines=".4 0 .2 1"/>' : ''}
+    <g${top ? ' transform="translate(0 -34)"' : ''}>${anim ? '<animateTransform attributeName="transform" type="translate" from="0 0" to="0 -34" begin="0.2s" dur="1.4s" fill="freeze" calcMode="spline" keySplines=".4 0 .2 1"/>' : ''}
       <line x1="14" y1="58" x2="106" y2="58" class="bar"/><circle cx="${22 - r / 3}" cy="58" r="${r}" class="plate"/><circle cx="${98 + r / 3}" cy="58" r="${r}" class="plate"/></g>
     <line x1="10" y1="121" x2="110" y2="121" class="floor"/></svg>`;
 }
-function renderMatch() {
-  const M = S.match, k = M.points.length, n = M.rounds;
-  const head = `<div class="coin-top"><p class="h2">Weightlifting · ${M.phase === 'done' ? 'Results' : `Round ${Math.max(1, k)} of ${n}`}</p>${M.phase !== 'done' ? '<button type="button" class="btn ghost" data-act="game-leave">Leave</button>' : ''}</div>`;
-  if (M.phase === 'error') return `<section class="panel">${head}<p class="note err">${esc(M.err)}</p><div class="row"><button type="button" class="btn primary" data-act="game-close">Back to Games</button></div></section>`;
-  if (M.phase === 'saving') return `<section class="panel">${head}<p class="muted">Getting ready…</p></section>`;
-  if (M.phase === 'done') {
-    const t = matchTotals(M.points), order = M.players.slice().sort((a, b) => t.totals[b] - t.totals[a]);
-    const champ = t.champions.map(id => esc(userName(id))).join(' & ');
-    return `<section class="panel champ">${head}<p class="trophy" aria-hidden="true">🏆</p><p class="champ-name">${champ}</p><p class="small muted">${t.champions.length > 1 ? 'Joint champions' : 'Champion'} of ${plural(n, 'round')}</p>
-      <ol class="board">${order.map(id => `<li><span class="rk">${1 + order.filter(x => t.totals[x] > t.totals[id]).length}</span><span class="nm">${esc(userName(id))}</span><span class="pt">${Math.round(t.totals[id] * 10) / 10}</span></li>`).join('')}</ol>
-      <div class="row"><button type="button" class="btn primary" data-act="game-close">Back to Games</button></div></section>`;
-  }
-  const res = M.res, anim = M.phase === 'anim', maxKg = Math.max(...Object.values(res.kg), 1), pts = M.points[k - 1];
-  const lanes = M.players.map(id => `<div class="lane ${!anim && res.places[id] === 1 ? 'win' : ''}">${lifterSvg(res.kg[id], maxKg, anim)}
-    <div class="lane-name">${esc(userName(id))}</div><div class="kg" data-kg="${res.kg[id]}">${anim ? 0 : res.kg[id]} kg</div>
-    <div class="small muted">${anim ? `${M.balances[id] - (k - 1) * ROUND_COST} coins` : `#${res.places[id]} · +${Math.round(pts[id] * 10) / 10}`}</div></div>`).join('');
-  const btn = anim ? '<button type="button" class="btn" data-act="game-skip">Skip</button>'
-    : `<button type="button" class="btn primary" data-act="game-next">${k < n ? 'Next round' : 'See results'}</button>`;
-  return `<section class="panel">${head}<div class="lanes">${lanes}</div><div class="row">${btn}</div></section>`;
+function resultCards(players, kgs, pts, phase) {
+  // 一局的选手卡：动画中重量从 0 涨起；播完显示 kg、名次与得分，第一名高亮
+  const anim = phase === 'anim', maxKg = Math.max(...players.map(id => kgs[id] || 0), 1);
+  const place = id => 1 + players.filter(x => pts[x] > pts[id]).length;
+  return `<div class="lcards">${players.map(id => `<div class="lcard ${!anim && place(id) === 1 ? 'win' : ''}">${lifterSvg(kgs[id] || 0, maxKg, anim ? 'anim' : 'up')}
+    <div class="lane-name">${esc(userName(id))}</div><div class="kg" data-kg="${kgs[id] || 0}">${anim ? 0 : kgs[id] || 0} kg</div>
+    <div class="tags">${anim ? '' : `<span class="chip">#${place(id)}</span><span class="chip">+${fmtP(pts[id])}</span>`}</div></div>`).join('')}</div>`;
 }
-let liftTimer = null;
-function countUp() {
-  // 动画时重量数字从 0 涨到各自的 kg；播完转为 shown
-  const t0 = performance.now(), els = Array.from(document.querySelectorAll('.kg[data-kg]'));
+function championLine(pts) {
+  const t = matchTotals([pts]);
+  return `<p class="champ-line">🏆 ${t.champions.map(id => esc(userName(id))).join(' & ')}</p>`;
+}
+function liftBlock(today, group, matches) {
+  const L = S.lift, bal = Object.fromEntries(group.map(id => [id, coinInfo(id, today).balance]));
+  let arena;
+  if (L && L.phase === 'saving') arena = `<p class="muted small">Getting ready…</p>`;
+  else if (L && L.phase === 'error') arena = `<p class="note err">${esc(L.err)}</p><div class="row"><button type="button" class="btn" data-act="game-done">Done</button></div>`;
+  else if (L) arena = resultCards(L.players, L.kg, L.pts, L.phase) + (L.phase === 'anim'
+      ? '<div class="row"><button type="button" class="btn" data-act="game-skip">Skip</button></div>'
+      : `${championLine(L.pts)}<div class="row"><button type="button" class="btn primary" data-act="game-done">Done</button></div>`);
+  else {
+    const ins = entrants(S.userIds, S.owners, bal, S.me, 1);
+    const why = bal[S.me] < ROUND_COST ? `You need ${ROUND_COST} coins to play; you have ${bal[S.me]}.`
+      : !ins.length ? (group.length < 2 ? 'Nobody else shares your default owner yet.' : `Nobody else has ${ROUND_COST} coins this week.`) : '';
+    arena = `<div class="lcards">${group.map(id => {
+      const inn = ins.includes(id), st = inn ? 'in' : bal[id] < ROUND_COST ? 'not enough coins' : 'ready';
+      return `<div class="lcard ${inn ? '' : 'out'}">${lifterSvg(0, 1, 'rest')}<div class="lane-name">${esc(userName(id))}${id === S.me ? ' (me)' : ''}</div>
+        <div class="tags"><span class="chip coin-chip">${bal[id]} coins</span><span class="chip ${inn ? 'in-chip' : ''}">${st}</span></div></div>`;
+    }).join('')}</div>
+    <div class="row"><button type="button" class="btn primary" data-act="game-start" ${ins.length ? '' : 'disabled'}>Start</button>${why ? `<span class="small muted">${esc(why)}</span>` : `<span class="small muted">${plural(ins.length, 'lifter')} · ${ROUND_COST} coins each</span>`}</div>`;
+  }
+  const hist = weekMatches(matches, group, today).filter(mt => mt.game === 'lift' && (mt.points || []).length);
+  const H = S.hist;
+  const items = hist.map(mt => {
+    const pts = mt.points[0], kgs = (mt.lifts || [])[0] || null, ps = mt.players.filter(id => id in pts);
+    const order = ps.slice().sort((x, y) => pts[y] - pts[x]);
+    const line = order.map(id => `<span class="h-p">${esc(userName(id))} <b>#${1 + ps.filter(x => pts[x] > pts[id]).length}</b>${kgs ? ` ${kgs[id]} kg` : ''} <span class="muted">+${fmtP(pts[id])}</span></span>`).join('');
+    const open = H && H.id === mt.id;
+    const body = !open ? '' : `<div class="h-body">${kgs ? resultCards(ps, kgs, pts, H.phase) : ''}${H.phase === 'anim' && kgs
+      ? '<div class="row"><button type="button" class="btn" data-act="hist-skip">Skip</button></div>'
+      : `${championLine(pts)}<div class="row"><button type="button" class="btn" data-act="hist-done">Done</button></div>`}</div>`;
+    return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span></button>${body}</li>`;
+  }).join('');
+  return `<section class="panel"><p class="h2">Weightlifting</p>
+    <p class="small muted">Each lifter lifts their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins.</p>
+    <p class="h3">Arena</p>${arena}
+    <p class="h3">This week</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</section>`;
+}
+let liftTimer = null, histTimer = null;
+function countUp(sel) {
+  // 动画时重量数字从 0 涨到各自的 kg
+  const t0 = performance.now(), els = Array.from(document.querySelectorAll(sel));
   const tick = now => {
-    if (!S.match || S.match.phase !== 'anim') return;
+    if (!els.length || !els[0].isConnected) return;
     const f = Math.min(1, Math.max(0, (now - t0 - 200) / 1400)), e = 1 - Math.pow(1 - f, 3);
     els.forEach(el => { el.textContent = Math.round(Number(el.dataset.kg) * e) + ' kg'; });
     if (f < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-  clearTimeout(liftTimer);
-  liftTimer = setTimeout(() => { if (S.match && S.match.phase === 'anim') { S.match.phase = 'shown'; render(); } }, 2000);
 }
-async function playRound() {
-  // 每局：算出结果，先写进 matches（读出 points、追加一项再写回），写成后再播动画
-  const M = S.match; if (!M) return;
-  const k = M.points.length + 1;
-  const res = liftRound(M.balances, k, Math.random), pts = roundPoints(res.places);
-  M.phase = 'saving'; render();
-  try { await S.db.doc('matches/' + M.id).update({ points: M.points.concat([pts]) }); }
-  catch (err) { if (S.match === M) { M.phase = 'error'; M.err = dbErr(err); render(); } return; }
-  if (S.match !== M) return;
-  M.points = M.points.concat([pts]); M.res = res; M.phase = 'anim'; render(); countUp();
+function histPlay() {
+  const H = S.hist; if (!H) return;
+  countUp('.hist li.open .kg[data-kg]');
+  histTimer = setTimeout(() => { if (S.hist === H && H.phase === 'anim') { H.phase = 'shown'; render(); } }, 2000);
 }
 async function startMatch() {
-  // 开赛即写：按局数预扣（余额由 matches 现算）
-  const today = localToday(), n = S.gameRounds;
+  // 开赛即写（按局数预扣），算出这一局后把 points 与 lifts 一起追加写回，写成后再播动画
+  const today = localToday();
   const bal = Object.fromEntries(myGroup().map(id => [id, coinInfo(id, today).balance]));
-  const players = entrants(S.userIds, S.owners, bal, S.me, n);
+  const players = entrants(S.userIds, S.owners, bal, S.me, 1);
   if (!players.length) return;
   const balances = Object.fromEntries(players.map(id => [id, bal[id]]));
   const ref = S.db.collection('matches').doc();
-  const doc = { game: 'lift', by: S.me, players, rounds: n, balances, at: nowLocal(), points: [] };
-  S.match = { id: ref.id, players, balances, rounds: n, points: [], res: null, phase: 'saving', err: null }; render();
-  try { await ref.set(doc); } catch (err) { if (S.match) { S.match.phase = 'error'; S.match.err = dbErr(err); render(); } return; }
-  if (S.match) await playRound();
+  const L = S.lift = { id: ref.id, players, phase: 'saving', kg: null, pts: null, err: null }; S.hist = null; render();
+  const res = liftRound(balances, 1, Math.random), pts = roundPoints(res.places);
+  try {
+    await ref.set({ game: 'lift', by: S.me, players, rounds: 1, balances, at: nowLocal(), points: [], lifts: [] });
+    await S.db.doc('matches/' + ref.id).update({ points: [pts], lifts: [res.kg] });
+  } catch (err) { if (S.lift === L) { L.phase = 'error'; L.err = dbErr(err); render(); } return; }
+  if (S.lift !== L) return;
+  L.kg = res.kg; L.pts = pts; L.phase = 'anim'; render();
+  countUp('.lcards .kg[data-kg]');
+  clearTimeout(liftTimer);
+  liftTimer = setTimeout(() => { if (S.lift === L && L.phase === 'anim') { L.phase = 'shown'; render(); } }, 2000);
 }
 
 /* ---------- 写数据 ---------- */
@@ -1999,13 +2026,14 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; S.match = null; render(); break;
-      case 'game-rounds': S.gameRounds = Number(b.dataset.v) || 1; render(); break;
+      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'game-start': await startMatch(); break;
-      case 'game-skip': if (S.match && S.match.phase === 'anim') { S.match.phase = 'shown'; render(); } break;
-      case 'game-next': if (S.match) { if (S.match.points.length < S.match.rounds) await playRound(); else { S.match.phase = 'done'; render(); } } break;
-      case 'game-leave': case 'game-close': clearTimeout(liftTimer); S.match = null; render(); break;
+      case 'game-skip': if (S.lift && S.lift.phase === 'anim') { S.lift.phase = 'shown'; render(); } break;
+      case 'game-done': clearTimeout(liftTimer); if (!matchLive()) S.lift = null; render(); break;
+      case 'hist-toggle': { const id = b.dataset.v; clearTimeout(histTimer); S.hist = S.hist && S.hist.id === id ? null : { id, phase: 'anim' }; render(); if (S.hist) histPlay(); break; }
+      case 'hist-skip': if (S.hist && S.hist.phase === 'anim') { S.hist.phase = 'shown'; render(); } break;
+      case 'hist-done': clearTimeout(histTimer); S.hist = null; render(); break;
       case 'clear-filters': S.filters = { owner: '', subject: '', topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
       case 'subj-card': S.filters.subject = S.filters.subject === b.dataset.v ? '' : b.dataset.v; S.filters.topic = ''; S.listPage = 1; render(); break;
       case 'paper-clear': S.paperFilters = { owner: '', kind: '', subject: '', status: '' }; S.paperPage = 1; render(); break;
