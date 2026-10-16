@@ -139,10 +139,10 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .stats b { color: var(--ink); font-weight: 600; }
 
 /* question sheet */
-.sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 16px 18px 30px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6;
-  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--rule) 31px 32px); background-position: 0 14px; }
-.sheet::before { content: ""; position: absolute; left: 18px; top: 0; bottom: 0; width: 1.5px; background: var(--red); opacity: .55; }
+.sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qhead-r { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+.qhead-r .mark { font-size: 22px; }
 .qno { font: 400 22px/1 var(--font-hand); color: var(--red); margin-right: 4px; }
 .stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -281,8 +281,9 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 /* 卡片翻页条 */
 .cardpager { display: grid; gap: 4px; }
 .cardpager > p { margin: 0; }
-.cp-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.pg-n { min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cp-row { display: flex; flex-wrap: nowrap; gap: 3px; align-items: center; }
+.pg-gap { color: var(--muted); padding: 0 1px; font-size: 12px; }
+.pg-n { flex: none; min-width: 24px; height: 24px; padding: 0 4px; line-height: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
 .pg-n.m-answered { background: var(--pen-soft); border-color: var(--pen-soft); color: var(--pen); }
 .pg-n.m-right { background: var(--green-soft); border-color: var(--green-soft); color: var(--green); }
 .pg-n.m-partial { background: var(--amber-soft); border-color: var(--amber-soft); color: var(--amber); }
@@ -290,6 +291,7 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .pg-n.m-tomark { border-style: dashed; border-color: var(--amber); color: var(--amber); }
 .pg-n.m-gone { color: var(--muted); opacity: .6; }
 .pg-n[aria-pressed="true"] { outline: 2px solid var(--pen); outline-offset: 1px; font-weight: 700; }
+.cp-row .btn { flex: none; padding: 3px 8px; font-size: 12.5px; }
 .linkbtn { border: 0; background: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .item .t .chip { vertical-align: 1px; }
 /* 卷子列表：类型标签与左侧色条 */
@@ -892,6 +894,16 @@ function runMarks(exs, phase, responses, results, saved) {
     return (results || {})[e.id] || 'none';
   });
 }
+function pagerSlots(n, idx) {
+  // 卡片翻页条的题号：不多于 7 个时全列；否则列第一个、最后一个与当前题前后各一个，其间的空缺写省略号（null），只缺一个时直接列出
+  if (n <= 7) return Array.from({ length: n }, (_, i) => i);
+  const keep = new Set([0, n - 1, idx - 1, idx, idx + 1].filter(i => i >= 0 && i < n));
+  if (idx <= 2) [1, 2, 3].forEach(i => keep.add(i));
+  if (idx >= n - 3) [n - 4, n - 3, n - 2].forEach(i => keep.add(i));
+  const out = [];
+  [...keep].sort((a, b) => a - b).forEach((i, k, arr) => { const gap = k ? i - arr[k - 1] : 1; if (gap === 2) out.push(i - 1); else if (gap > 2) out.push(null); out.push(i); });
+  return out;
+}
 function sheetMarks(rows) {
   // View details 翻页条每题的状态：错题已删为 gone，没有作答为 none，否则为作答结果
   return rows.map(r => !r.ex ? 'gone' : !r.attempt ? 'none' : r.attempt.result);
@@ -1236,7 +1248,7 @@ function mustUseNote(e, response) {
 function questionBody(e, opts) {
   // opts: {no, name: input name prefix, response, locked, showCorrect}
   const o = opts || {};
-  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${subjChip(e.subject)}<span class="chip">${esc(topicLabel(e.subject, e.topic, 'en'))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}</div>`;
+  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${subjChip(e.subject)}<span class="chip">${esc(topicLabel(e.subject, e.topic, 'en'))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}${o.right ? `<span class="qhead-r">${o.right}</span>` : ''}</div>`;
   if (e.stem) h += `<div class="stem">${ul(e.stem)}</div>`;
   h += photosBlock(e.images, 'Question photo');
   const r = o.response || '';
@@ -1287,11 +1299,11 @@ const markHtml = r => `<span class="mark ${r}">${RESULT[r].sym} ${RESULT[r].en}<
 
 const MARK_TITLE = { todo: 'not answered yet', answered: 'answered', right: 'right', partial: 'partly right', wrong: 'wrong', tomark: 'to self-mark', none: 'no answer', gone: 'deleted' };
 function cardPager(marks, idx, act) {
-  // 卡片上方的翻页条：第几题、Previous、题号（按状态着色，当前题 aria-pressed）、Next；作答页与 View details 共用
+  // 卡片上方的翻页条（一行）：第几题、Previous、题号（按状态着色，当前题 aria-pressed；题多时按 pagerSlots 用省略号）、Next；作答页与 View details 共用
   const n = marks.length;
   return `<nav class="cardpager" aria-label="Questions"><p class="small muted">Question ${idx + 1} of ${n}</p><div class="cp-row">
     <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>Previous</button>
-    ${marks.map((m, i) => `<button type="button" class="pg-n m-${m}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[m] || m}">${i + 1}</button>`).join('')}
+    ${pagerSlots(n, idx).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}
     <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next</button></div></nav>`;
 }
 function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
@@ -1319,17 +1331,15 @@ function renderPaperRun() {
   if (exs.length) {
     const i = R.idx, e = exs[i], key = 'p' + i;
     h += cardPager(marks, i, 'card-go');
-    // 题组材料每张卡都放、默认收起；点开后同组各卡保持展开（R.openSets）
-    if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
-    h += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review' })}`;
+    // 交卷后对错写在卡片右上角；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
+    const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
+    h += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', right: shown ? markHtml(res) : '' })}`;
     if (R.phase === 'review') {
-      const res = R.results[e.id];
-      if (e.format !== 'open' && res) h += `<div>${markHtml(res)}</div>`;
       h += solutionBlock(e);
-      if (e.format === 'open') h += R.saved[e.id] ? `<div>${markHtml(res)}</div>`
-        : `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
+      if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
     }
     h += '</article>';
+    if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
   }
   if (R.phase === 'review') h += `<div class="row">${R.handed ? '' : `<button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button>`}<button type="button" class="btn${R.handed ? ' primary' : ''}" data-act="exit-run">Back to today</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
@@ -1701,16 +1711,18 @@ function renderPaperSheet(paperId) {
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
   if (!r.ex) return h + `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">This exercise has been deleted.</p></article>`;
   const e = r.ex, a = r.attempt;
-  if (e.setId) h += materialBlock(setById(e.setId), !!S.paperOpenSets[e.setId]);
-  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true })}`;
-  if (a) h += `<div class="row">${markHtml(a.result)}<span class="small muted">Judged: ${JUDGE[a.judgedBy] || ''}</span></div>`;
-  else h += `<p class="small muted">No answer to this question on this paper.</p>`;
+  // 对错与 Detail 按钮在卡片右上角；改判与判定方式在卡片底部；题组材料在卡片下方
+  const top = (a ? markHtml(a.result) : '') + `<button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Detail</button>`;
+  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true, right: top })}`;
+  if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
   h += solutionBlock(e);
   if (a) {
     const ai = e.allAttempts.indexOf(a);   // 原文档里的下标
-    h += `<div class="row"><label class="f"><span>Override</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select></label><button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Exercise details</button></div>`;
+    h += `<div class="row"><label class="f"><span>Override</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select></label><span class="small muted">Judged: ${JUDGE[a.judgedBy] || ''}</span></div>`;
   }
-  return h + '</article>';
+  h += '</article>';
+  if (e.setId) h += materialBlock(setById(e.setId), !!S.paperOpenSets[e.setId]);
+  return h;
 }
 
 function renderSettings() {

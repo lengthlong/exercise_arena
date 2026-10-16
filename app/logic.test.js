@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -441,4 +441,13 @@ const dps = [
   { id: 'd0', kind: 'daily', for: 'uS', subject: 'english', createdAt: '2026-10-15', madeAt: '2026-10-15T20:00', handedIn: { uS: '2026-10-15T20:30' } },
   { id: 'dx', kind: 'daily', for: 'uA', subject: 'english', createdAt: T16, madeAt: T16 + 'T07:00', handedIn: { uA: T16 + 'T07:30' } }];
 assert.deepStrictEqual(['d1', 'd3', 'd4', 'd0', 'dx'].map(id => pn(dps.find(x => x.id === id), dps)), ['Batch 1', 'Batch 2', 'Batch 3', 'Batch 1', 'Batch 1']);
+// 翻页条题号：7 个以内全列；更多时列首、尾与当前题前后各一个，空缺为省略号（只缺一个时直接列出）；靠近首尾时补足前 4 个或后 4 个
+const ps = (n, i) => Array.from(L.pagerSlots(n, i), x => x === null ? '…' : x + 1).join(' ');
+assert.strictEqual(ps(7, 3), '1 2 3 4 5 6 7');
+assert.strictEqual(ps(24, 0), '1 2 3 4 … 24');
+assert.strictEqual(ps(24, 2), '1 2 3 4 … 24');
+assert.strictEqual(ps(24, 3), '1 2 3 4 5 … 24');   // 只缺一个时直接列出
+assert.strictEqual(ps(24, 11), '1 … 11 12 13 … 24');
+assert.strictEqual(ps(24, 23), '1 … 21 22 23 24');
+assert.strictEqual(ps(10, 1), '1 2 3 4 … 10');
 console.log('all logic tests passed');
