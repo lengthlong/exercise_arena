@@ -353,6 +353,13 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .chip.coin-chip { color: var(--amber); }
 .chip.in-chip { color: var(--green); border-color: var(--green); }
 .champ-line { margin: 0; font: 600 16px/1.3 var(--font-body); color: var(--amber); }
+.gtabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin: -4px 0 0; }
+.gtabs button { border: 0; background: none; padding: 6px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font: 600 15px/1.3 var(--font-body); }
+.gtabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--pen); }
+.gtabs button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 480px) { .gtabs button { padding: 6px 6px; font-size: 14px; } }
+.gsec { display: grid; gap: 8px; min-width: 0; }
+.gsec + .gsec { border-top: 1px solid var(--rule); padding-top: 10px; }
 .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .hist li { border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); }
 .hist li.open { border-color: var(--line); }
@@ -1114,7 +1121,7 @@ const S = {
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
-  boardPeriod: 'week', lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
+  boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
 };
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
@@ -1891,7 +1898,11 @@ function renderGames() {
     <p class="small muted">Earned: ${c.right} right × 1 + ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10.</p></section>`;
   // 这一局播完前，积分榜与历史先不算它，免得提前看到结果
   const shown = matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches;
-  return boardBlock(today, group, shown) + coinsBlock + liftBlock(today, group, shown);
+  // 游戏：举重、赛跑、爬梯三个标签；赛跑、爬梯还没做
+  const games = [['lift', 'Weightlifting'], ['sprint', 'Racing'], ['climb', 'Climbing']], g = S.gameTab;
+  const gameBlock = `<section class="panel"><div class="gtabs" role="tablist">${games.map(x => `<button type="button" role="tab" data-act="game-tab" data-v="${x[0]}" aria-selected="${g === x[0]}" ${matchLive() ? 'disabled' : ''}>${x[1]}</button>`).join('')}</div>
+    ${g === 'lift' ? liftBlock(today, group, shown) : '<p class="muted">Coming soon.</p>'}</section>`;
+  return boardBlock(today, group, shown) + coinsBlock + gameBlock;
 }
 function boardBlock(today, group, matches) {
   // 积分榜：领奖台，本周或全部时间
@@ -1961,10 +1972,9 @@ function liftBlock(today, group, matches) {
       <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
     return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
-  return `<section class="panel"><p class="h2">Weightlifting</p>
-    <p class="small muted">Each lifter lifts their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins.</p>
-    <p class="h3">Arena</p>${arena}
-    <p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</section>`;
+  return `<div class="gsec"><p class="small muted">Each lifter lifts their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins.</p></div>
+    <div class="gsec"><p class="h3">Arena</p>${arena}</div>
+    <div class="gsec"><p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</div>`;
 }
 let liftTimer = null, histTimer = null;
 function countUp(sel) {
@@ -2026,6 +2036,7 @@ document.addEventListener('click', async ev => {
   try {
     switch (act) {
       case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'game-start': await startMatch(); break;
       case 'game-skip': if (S.lift && S.lift.phase === 'anim') { S.lift.phase = 'shown'; render(); } break;
