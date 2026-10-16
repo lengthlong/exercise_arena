@@ -937,6 +937,48 @@ function paperName(p, papers, view, uid, userName, topicName) {
   return `Batch ${i >= 0 ? i + 1 : done.length + 1}`;
 }
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
+function coinsFor(exs, uid, today) {
+  // 金币：今天与之前 6 天内，每日重做的做对 1 枚、阶梯每升一级 2 枚、每掌握一道 10 枚；阶梯按 deriveState 的同一套规则走本人的阶梯输入
+  const from = addDays(today, -6), inWin = d => d >= from && d <= today;
+  let right = 0, up = 0, mastered = 0;
+  for (const e of exs) {
+    const mine = (e.attempts || []).filter(a => a.by === uid);
+    for (const a of mine) if (a.mode !== 'paper' && a.result === 'right' && inWin(a.date)) right++;
+    let step = 1, m = false;
+    for (const a of ladderInput(mine)) {
+      if (m) { if (a.result === 'wrong') { m = false; step = 1; } continue; }
+      if (a.result === 'right') {
+        if (step === 4) { m = true; if (inWin(a.date)) mastered++; }
+        else { step++; if (inWin(a.date)) up++; }
+      } else if (a.result === 'wrong') step = 1;
+    }
+  }
+  return { right, up, mastered, total: right + up * 2 + mastered * 10 };
+}
+function roundPoints(places) {
+  // 一局的得分：用户 id → 名次（并列同名次）；没有并列时得分 = 打败的人数，并列的几人平分所占几个名次的得分之和
+  const ids = Object.keys(places), n = ids.length, out = {};
+  for (const id of ids) {
+    const p = places[id];
+    const before = ids.filter(x => places[x] < p).length, k = ids.filter(x => places[x] === p).length;
+    let sum = 0;
+    for (let q = before + 1; q <= before + k; q++) sum += n - q;
+    out[id] = sum / k;
+  }
+  return out;
+}
+function scoreboard(matches, userIds, today, period) {
+  // 积分榜：period 为 'week'（含今天的那个周一到周日）或 'all'；整场计入开赛日期所在的周；按总分降序，同分同名次，没得分的人列 0 分
+  const wk = weekStart(today), tot = {}, order = [];
+  const add = id => { if (!(id in tot)) { tot[id] = 0; order.push(id); } };
+  (userIds || []).forEach(add);
+  for (const mt of matches || []) {
+    if (period === 'week' && weekStart(String(mt.at || '').slice(0, 10)) !== wk) continue;
+    for (const r of mt.points || []) for (const id of Object.keys(r)) { add(id); tot[id] += r[id]; }
+  }
+  const rows = order.map((id, i) => ({ id, points: tot[id], i })).sort((a, b) => b.points - a.points || a.i - b.i);
+  return rows.map(r => ({ id: r.id, points: r.points, rank: 1 + rows.filter(x => x.points > r.points).length }));
+}
 /* LOGIC:END */
 </script>
 
