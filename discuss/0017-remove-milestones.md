@@ -1,6 +1,6 @@
 # 0017 去掉里程碑（徽章）；问候下一行改为今天的对题数、新掌握数与连续天数
 
-> 状态：**讨论中（2026-10-15）** —— 第 1 批本地实现已落盘，commit `41215b4`；原网址发布待完成。
+> 状态：**✅ 已完成（2026-10-16）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
@@ -131,3 +131,15 @@
 - 两位用户均检查 375px 宽：页面 `scrollWidth` 与视口宽均为 375，无横向溢出；计算样式为 `15px`、`"Patrick Hand", Lexend, cursive`、蓝色 `rgb(142, 167, 255)`。
 
 本批实现提交：`41215b4`。后续在具备 Claude Artifact 发布能力的会话中，先核对原网址有无更新，再将本批源码发布到原网址，保持能力与契约并验证线上打开；第 7 行完成前不写整轮完成。
+
+## 五、核销（第 2 批，2026-10-16）
+
+授权：用户确认核销表后说「Try again」，本会话接着完成第 1 批留下的第 7 行。
+
+| 核销表行 | 状态 | 实际改动与验证 |
+|---|---|---|
+| 1–5、8 | ✅ | 第 1 批已完成（commit `41215b4`）。本批逐行重看 `41215b4` 的 `app/arena.html` 改动：删 `MILESTONES`、`masteryPeak`、`encouragement` 与 `todayAny`；`dashboardData` 只返回 `todayRight` 等；`helloStats` 的三项、顺序与「新掌握为 0 不出」照表；`.hello-stats` 为手写体、蓝色、15px；旧样式、悬停提示、鼓励语参数与 `open` 变量都已删。与核销表一致，没有表外新语义 |
+| 6 | ✅ | 本批重跑：`./check.sh` 退出码 0，`node app/logic.test.js app/arena.html` 通过；第 1 批的检索与测试壳结果（Aaron「✅ 30 right today · 🔥 1-day streak」、Sophia「✅ 13 right today · 🔥 2-day streak」、375 宽无横向溢出）沿用 |
+| 7 | ✅ | 发布到原网址为第 25 版（version id 1792110661-c761），发布工具没有报告线上有别处的新版本（上一版是本会话发布的第 24 版）；能力与契约 0.2.77 不变；读回线上源码，去掉平台外壳后与 `app/arena.html` 逐行相同，含 `helloStats`、不含 `MILESTONES`、`encouragement`、`masteryPeak`；没有改数据 |
+
+未验证：在真实 claude.ai 里打开新版本看问候行（读回只核对了源码）。
