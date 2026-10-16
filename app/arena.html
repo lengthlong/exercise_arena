@@ -142,7 +142,6 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .qhead-r { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
-.qhead-r .mark { font-size: 22px; }
 .qno { font: 400 22px/1 var(--font-hand); color: var(--red); margin-right: 4px; }
 .stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -159,10 +158,12 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 /* 答题区不随全站收紧：作答框保持原尺寸（短答框 15px，主观题框 20px） */
 .sheet input.answer-in { font-size: 15px; padding: 8px 10px; }
 .sheet textarea.answer-in { font-size: 20px; padding: 8px 10px; }
-.mark { display: inline-flex; align-items: center; gap: 8px; font: 400 26px/1 var(--font-hand); }
-.mark.right { color: var(--green); }
-.mark.partial { color: var(--amber); }
-.mark.wrong { color: var(--red); }
+/* 交卷后作答框按对错着底色，与选项的底色一致 */
+.answer-in.res-right { background: var(--green-soft); border-color: var(--green); }
+.answer-in.res-partial { background: var(--amber-soft); border-color: var(--amber); }
+.answer-in.res-wrong { background: var(--red-soft); border-color: var(--red); }
+.qhead-r select.ov-sel { width: auto; }
+.ov-sel.res-right { color: var(--green); } .ov-sel.res-partial { color: var(--amber); } .ov-sel.res-wrong { color: var(--red); }
 .solution { border-top: 1px dashed var(--line); padding-top: 10px; display: grid; gap: 6px; }
 .solution .ans { font-weight: 500; }
 .solution .exp { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -283,7 +284,7 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .cardpager > p { margin: 0; }
 .cp-row { display: flex; flex-wrap: nowrap; gap: 3px; align-items: center; }
 .pg-gap { color: var(--muted); padding: 0 1px; font-size: 12px; }
-.pg-n { flex: none; min-width: 24px; height: 24px; padding: 0 4px; line-height: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pg-n { flex: 1 1 24px; min-width: 24px; height: 24px; padding: 0 4px; line-height: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
 .pg-n.m-answered { background: var(--pen-soft); border-color: var(--pen-soft); color: var(--pen); }
 .pg-n.m-right { background: var(--green-soft); border-color: var(--green-soft); color: var(--green); }
 .pg-n.m-partial { background: var(--amber-soft); border-color: var(--amber-soft); color: var(--amber); }
@@ -894,14 +895,20 @@ function runMarks(exs, phase, responses, results, saved) {
     return (results || {})[e.id] || 'none';
   });
 }
-function pagerSlots(n, idx) {
-  // 卡片翻页条的题号：不多于 7 个时全列；否则列第一个、最后一个与当前题前后各一个，其间的空缺写省略号（null），只缺一个时直接列出
-  if (n <= 7) return Array.from({ length: n }, (_, i) => i);
-  const keep = new Set([0, n - 1, idx - 1, idx, idx + 1].filter(i => i >= 0 && i < n));
-  if (idx <= 2) [1, 2, 3].forEach(i => keep.add(i));
-  if (idx >= n - 3) [n - 4, n - 3, n - 2].forEach(i => keep.add(i));
-  const out = [];
-  [...keep].sort((a, b) => a - b).forEach((i, k, arr) => { const gap = k ? i - arr[k - 1] : 1; if (gap === 2) out.push(i - 1); else if (gap > 2) out.push(null); out.push(i); });
+function pagerSlots(n, idx, max) {
+  // 卡片翻页条的位置（题号下标，省略号为 null），最多 max 个（不少于 7）：题数不超过 max 时全列；
+  // 否则列第一个、最后一个与当前题附近的一段，两头的空缺各占一个省略号；靠近首或尾时那一头不留省略号，把位置让给题号
+  max = Math.max(7, max || 7);
+  if (n <= max) return Array.from({ length: n }, (_, i) => i);
+  const w = max - 4;
+  let a = Math.min(Math.max(idx - Math.floor((w - 1) / 2), 1), n - 1 - w), b = a + w - 1;
+  if (a <= 2) { a = 1; b = w + 1; }
+  else if (b >= n - 3) { b = n - 2; a = n - 2 - w; }
+  const out = [0];
+  if (a > 1) out.push(null);
+  for (let i = a; i <= b; i++) out.push(i);
+  if (b < n - 2) out.push(null);
+  out.push(n - 1);
   return out;
 }
 function sheetMarks(rows) {
@@ -1246,9 +1253,10 @@ function mustUseNote(e, response) {
   return out.join(' ');
 }
 function questionBody(e, opts) {
-  // opts: {no, name: input name prefix, response, locked, showCorrect}
+  // opts: {no, key, response, locked, showCorrect, result（对错，给作答框着色）, right（卡片右上角的内容）}
   const o = opts || {};
-  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${subjChip(e.subject)}<span class="chip">${esc(topicLabel(e.subject, e.topic, 'en'))}</span>${e.test ? '<span class="chip test">TEST</span>' : ''}${o.right ? `<span class="qhead-r">${o.right}</span>` : ''}</div>`;
+  const rc = o.showCorrect && o.result ? ` res-${o.result}` : '';
+  let h = `<div class="qhead">${o.no != null ? `<span class="qno">${o.no}.</span>` : ''}${e.test ? '<span class="chip test">TEST</span>' : ''}${o.right ? `<span class="qhead-r">${o.right}</span>` : ''}</div>`;
   if (e.stem) h += `<div class="stem">${ul(e.stem)}</div>`;
   h += photosBlock(e.images, 'Question photo');
   const r = o.response || '';
@@ -1267,9 +1275,9 @@ function questionBody(e, opts) {
       return `<button type="button" class="opt word${cls}" data-act="pick" data-key="${esc(o.key)}" data-v="${esc(w)}" aria-pressed="${r === w}" ${o.locked ? 'disabled' : ''}>${esc(w)}</button>`;
     }).join('')}</div>`;
   } else if (e.format === 'short' || e.format === 'pick') {
-    h += `<label class="f"><span>Your answer</span><input type="text" class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" value="${esc(r)}" ${o.locked ? 'disabled' : ''} autocomplete="off"></label>`;
+    h += `<label class="f"><span>Your answer</span><input type="text" class="answer-in${rc}" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" value="${esc(r)}" ${o.locked ? 'disabled' : ''} autocomplete="off"></label>`;
   } else {
-    h += `<label class="f"><span>Your answer</span><textarea class="answer-in" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" rows="4" ${o.locked ? 'disabled' : ''}>${esc(r)}</textarea></label>`;
+    h += `<label class="f"><span>Your answer</span><textarea class="answer-in${rc}" id="ans-${esc(o.key)}" data-ans="${esc(o.key)}" rows="4" ${o.locked ? 'disabled' : ''}>${esc(r)}</textarea></label>`;
   }
   return h;
 }
@@ -1295,15 +1303,16 @@ function solutionBlock(e) {
     ${links ? `<div class="small muted">${links}</div>` : ''}
   </div>`;
 }
-const markHtml = r => `<span class="mark ${r}">${RESULT[r].sym} ${RESULT[r].en}</span>`;
 
 const MARK_TITLE = { todo: 'not answered yet', answered: 'answered', right: 'right', partial: 'partly right', wrong: 'wrong', tomark: 'to self-mark', none: 'no answer', gone: 'deleted' };
 function cardPager(marks, idx, act) {
-  // 卡片上方的翻页条（一行）：第几题、Previous、题号（按状态着色，当前题 aria-pressed；题多时按 pagerSlots 用省略号）、Next；作答页与 View details 共用
-  const n = marks.length;
+  // 卡片上方的翻页条（一行，占满宽度）：第几题、Previous、题号（按状态着色，当前题 aria-pressed；放不下时按 pagerSlots 用省略号）、Next；作答页与 View details 共用
+  // 一行放得下的位置数按页面宽度估：每个题号约 27px，Previous 与 Next 约占 140px
+  const n = marks.length, vw = window.innerWidth || 880, avail = Math.min(vw, 880) - (vw >= 720 ? 56 : 32);
+  const max = Math.floor((avail - 140) / 27);
   return `<nav class="cardpager" aria-label="Questions"><p class="small muted">Question ${idx + 1} of ${n}</p><div class="cp-row">
     <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>Previous</button>
-    ${pagerSlots(n, idx).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}
+    ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}
     <button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next</button></div></nav>`;
 }
 function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
@@ -1331,9 +1340,9 @@ function renderPaperRun() {
   if (exs.length) {
     const i = R.idx, e = exs[i], key = 'p' + i;
     h += cardPager(marks, i, 'card-go');
-    // 交卷后对错写在卡片右上角；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
+    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
     const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
-    h += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', right: shown ? markHtml(res) : '' })}`;
+    h += `<article class="sheet">${questionBody(e, { key, no: i + 1, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
     if (R.phase === 'review') {
       h += solutionBlock(e);
       if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
@@ -1711,15 +1720,12 @@ function renderPaperSheet(paperId) {
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
   if (!r.ex) return h + `<article class="sheet"><span class="qno">${i + 1}.</span><p class="muted">This exercise has been deleted.</p></article>`;
   const e = r.ex, a = r.attempt;
-  // 对错与 Detail 按钮在卡片右上角；改判与判定方式在卡片底部；题组材料在卡片下方
-  const top = (a ? markHtml(a.result) : '') + `<button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Detail</button>`;
-  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true, right: top })}`;
+  // 卡片右上角：改判下拉（不加标签，选中项即当前结果）与 Detail 按钮；对错另看作答的底色；题组材料在卡片下方
+  const ov = a ? `<select id="pv-ov-${i}" class="compact ov-sel res-${esc(a.result)}" data-act-change="override" data-id="${esc(e.id)}" data-i="${e.allAttempts.indexOf(a)}" aria-label="Override the result">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select>` : '';
+  const top = ov + `<button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Detail</button>`;
+  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, no: i + 1, response: a ? a.response : '', locked: true, showCorrect: true, result: a ? a.result : '', right: top })}`;
   if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
   h += solutionBlock(e);
-  if (a) {
-    const ai = e.allAttempts.indexOf(a);   // 原文档里的下标
-    h += `<div class="row"><label class="f"><span>Override</span><select id="pv-ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${ai}">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select></label><span class="small muted">Judged: ${JUDGE[a.judgedBy] || ''}</span></div>`;
-  }
   h += '</article>';
   if (e.setId) h += materialBlock(setById(e.setId), !!S.paperOpenSets[e.setId]);
   return h;
