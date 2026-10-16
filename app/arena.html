@@ -1178,7 +1178,7 @@ function ownerFilterOptions(sel, docs, allLabel) {
   return `<option value="">${allLabel || 'All'}</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
 async function loadNames() {
-  // 名字只在显示时向平台现取；取不到的显示 Someone
+  // 名字只在显示时向平台现取，只用名（first name）；取不到的显示 Someone
   if (!S.user || !S.user.profiles) return;
   const ids = new Set(S.userIds);
   for (const e of S.exercises) { if (e.owner) ids.add(e.owner); for (const a of e.attempts || []) if (a.by) ids.add(a.by); }
@@ -1186,7 +1186,7 @@ async function loadNames() {
   const missing = Array.from(ids).filter(id => !(id in S.names));
   if (!missing.length) return;
   for (const id of missing) S.names[id] = '';
-  try { const ps = await S.user.profiles(missing); for (const id of missing) S.names[id] = (ps[id] && ps[id].name) || ''; softRender(); } catch (e) {}
+  try { const ps = await S.user.profiles(missing); for (const id of missing) S.names[id] = String((ps[id] && ps[id].name) || '').trim().split(/\s+/)[0]; softRender(); } catch (e) {}
 }
 
 /* ---------- 题组 ---------- */
@@ -2021,7 +2021,7 @@ function liftBlock(today, group, matches) {
       <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
     return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span><span class="h-chev" aria-hidden="true">${open ? '▴' : '▾'}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
-  return `<div class="gsec"><p class="small muted">Each lifter lifts their coins × a lucky number between 0.7 and 1.3; the heaviest lift wins.</p></div>
+  return `<div class="gsec"><p class="small muted">Each lifter lifts their coins × a lucky number; the heaviest lift wins.</p></div>
     <div class="gsec arena-cards"><div class="sec-head"><p class="h3">Arena</p>${arenaInfo ? `<span class="small muted">${esc(arenaInfo)}</span>` : ''}<span class="sec-r">${arenaBtn}</span></div>${arena}</div>
     <div class="gsec"><p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</div>`;
 }
