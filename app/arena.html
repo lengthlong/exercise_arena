@@ -1915,11 +1915,12 @@ function lifterSvg(kg, maxKg, mode) {
     <line x1="10" y1="121" x2="110" y2="121" class="floor"/></svg>`;
 }
 function resultCards(players, kgs, pts, phase) {
-  // 一局的选手卡：动画中重量从 0 涨起；播完显示 kg、名次与得分，第一名高亮
+  // 一局的选手卡：动画中重量从 0 涨起；播完显示 kg、名次与得分，第一名高亮；kgs 为 null（没存 lifts 的旧比赛）时不显示 kg
+  const noKg = !kgs; kgs = kgs || {};
   const anim = phase === 'anim', maxKg = Math.max(...players.map(id => kgs[id] || 0), 1);
   const place = id => 1 + players.filter(x => pts[x] > pts[id]).length;
   return `<div class="lcards">${players.map(id => `<div class="lcard ${!anim && place(id) === 1 ? 'win' : ''}">${lifterSvg(kgs[id] || 0, maxKg, anim ? 'anim' : 'up')}
-    <div class="lane-name">${esc(userName(id))}</div><div class="kg" data-kg="${kgs[id] || 0}">${anim ? 0 : kgs[id] || 0} kg</div>
+    <div class="lane-name">${esc(userName(id))}</div>${noKg ? '' : `<div class="kg" data-kg="${kgs[id] || 0}">${anim ? 0 : kgs[id] || 0} kg</div>`}
     <div class="tags">${anim ? '' : `<span class="chip">#${place(id)}</span><span class="chip">+${fmtP(pts[id])}</span>`}</div></div>`).join('')}</div>`;
 }
 function championLine(pts) {
@@ -1953,11 +1954,11 @@ function liftBlock(today, group, matches) {
     const line = order.map(id => `<span class="h-p">${esc(userName(id))} <b>#${1 + ps.filter(x => pts[x] > pts[id]).length}</b>${kgs ? ` ${kgs[id]} kg` : ''} <span class="muted">+${fmtP(pts[id])}</span></span>`).join('');
     const open = H && H.id === mt.id;
     let body = '';
-    if (open && kgs && H.phase !== 'rest') body = resultCards(ps, kgs, pts, H.phase) + (H.phase === 'anim'
+    if (open && H.phase !== 'rest') body = resultCards(ps, kgs, pts, H.phase) + (H.phase === 'anim'
       ? '<div class="row"><button type="button" class="btn" data-act="hist-skip">Skip</button></div>'
       : `${championLine(pts)}<div class="row"><button type="button" class="btn" data-act="hist-done">Done</button></div>`);
     else if (open) body = `<div class="lcards">${ps.map(id => `<div class="lcard">${lifterSvg(0, 1, 'rest')}<div class="lane-name">${esc(userName(id))}</div>
-      <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div>${kgs ? '<div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>' : ''}`;
+      <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
     return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
   return `<section class="panel"><p class="h2">Weightlifting</p>
