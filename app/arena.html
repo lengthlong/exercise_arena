@@ -112,8 +112,9 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .today .txt { display: grid; gap: 8px; min-width: 0; }
 .today .big .of { font-size: .45em; color: var(--muted); }
 .today .done-tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--green); line-height: 1.3; }
+.today-h { grid-column: 1 / -1; }
 .today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; }
-.plan .sub, .review .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .days7 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .days7 li { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); min-width: 0; }
 .days7 .d { font-size: 12px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
@@ -122,12 +123,10 @@ textarea { min-height: 72px; resize: vertical; line-height: 1.5; }
 .days7 li.zero .n { color: var(--muted); }
 .days7 li.is-today { border-color: var(--pen); background: var(--pen-soft); }
 .days7 li.is-today .d { color: var(--pen); font-weight: 600; }
-.checklist, .tips, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14.5px; }
+.checklist, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14.5px; }
 .checklist li, .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tick { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
 .tick.ok { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 700; }
-.tips li { position: relative; padding-left: 18px; }
-.tips li::before { content: "→"; position: absolute; left: 0; color: var(--pen); }
 .rv-head { display: flex; align-items: baseline; gap: 10px; }
 .rv-n { font: 400 48px/1 var(--font-hand); color: var(--red); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
@@ -465,6 +464,11 @@ function dueNowIds(todo, today) {
   // 此刻全部到期的题：未掌握、due 不晚于今天（不按一批截断）
   return todo.filter(e => !e.mastered && e.due && e.due <= today).map(e => e.id);
 }
+function dueSplit(todo, today) {
+  // Today 说明行：此刻到期的题里过期的与今天到期的各几题（已掌握的不算）
+  const open = todo.filter(e => !e.mastered && e.due);
+  return { overdue: open.filter(e => e.due < today).length, today: open.filter(e => e.due === today).length };
+}
 function todayCounts(todo, today, leftIds) {
   // Today 的「已做/一共」：已做是每日重做上今天做过的题（检验卷不算），一题一次；一共是已做与 leftIds 的并集；不在 todo 的 id 不计
   const byId = Object.fromEntries(todo.map(e => [e.id, e]));
@@ -476,15 +480,13 @@ function todayCounts(todo, today, leftIds) {
     bySubject: SUBJECTS.map(([s]) => [s, { done: count(done, s), all: count(all, s) }]).filter(x => x[1].all) };
 }
 function leftMix(todo, leftIds) {
-  // 还要做的题是什么：第一次重做（我没作答过）、上次错了、复习（上次对或部分对）各几题；专题按题数多到少，并列按首次出现
+  // 还要做的题主要是哪些专题：按题数多到少，并列按首次出现
   const byId = Object.fromEntries(todo.map(e => [e.id, e]));
-  const out = { first: 0, missed: 0, review: 0, topics: [] }, seen = new Set(), tk = {};
+  const out = { topics: [] }, seen = new Set(), tk = {};
   for (const id of leftIds || []) {
     const e = byId[id];
     if (!e || seen.has(id)) continue;
     seen.add(id);
-    const last = (e.attempts || [])[(e.attempts || []).length - 1];
-    if (!last) out.first++; else if (last.result === 'wrong') out.missed++; else out.review++;
     const k = e.subject + '|' + e.topic;
     if (!tk[k]) { tk[k] = { subject: e.subject, topic: e.topic, n: 0 }; out.topics.push(tk[k]); }
     tk[k].n++;
@@ -684,11 +686,22 @@ function readSettings(v, uid) {
     defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
 function dueByDay(todo, today) {
-  // Next 7 days：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；其后各天为 due 等于那天
-  const open = todo.filter(e => !e.mastered && e.due);
+  // Next 7 days：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；
+  // 其后各天按「到期的题都在到期那天做对」推算：从 due（过期的算今天）起，每做对一次升一级、隔 GAPS 天再来，第 4 次重做后不再出现
+  const end = addDays(today, 6), later = {};
+  for (const e of todo) {
+    if (e.mastered || !e.due) continue;
+    let d = e.due < today ? today : e.due, step = e.step || 1;
+    while (d <= end) {
+      if (d > today) later[d] = (later[d] || 0) + 1;
+      if (step >= 4) break;
+      step++;
+      d = addDays(d, GAPS[step]);
+    }
+  }
   return Array.from({ length: 7 }, (_, i) => {
     const date = addDays(today, i);
-    return { date, count: i === 0 ? todayCounts(todo, today, dueNowIds(todo, today)).total.all : open.filter(e => e.due === date).length };
+    return { date, count: i === 0 ? todayCounts(todo, today, dueNowIds(todo, today)).total.all : later[date] || 0 };
   });
 }
 function weekStart(today) {
@@ -704,8 +717,8 @@ function goalProgress(exs, papers, from, to, uid) {
   const done = papers.filter(p => { if (isDaily(p)) return false; const t = handedInAt(p, exs, uid); return t && t.slice(0, 10) >= from && t.slice(0, 10) <= to; }).length;
   return { days: days.size, papers: done };
 }
-function weekReview(todo, done, papers, today, uid) {
-  // 最近 7 天（含今天）；过期与第 4 级的题数按 todo（默认归属人的错题），其余按 done（我的全部错题）
+function weekReview(done, papers, today, uid) {
+  // 最近 7 天（含今天），按 done（我的全部错题）
   const exs = done;
   const from = addDays(today, -6);
   const days = [];
@@ -739,39 +752,29 @@ function weekReview(todo, done, papers, today, uid) {
     (groups[k] = groups[k] || { subject: e.subject, kind, id, n: 0 }).n++;
   }
   const newlyMastered = Object.values(groups).sort((a, b) => b.n - a.n || String(a.id).localeCompare(String(b.id)));
-  let fallback = '';
-  if (!newlyMastered.length) {
-    const s4 = todo.filter(e => !e.mastered && e.step === 4).length;
-    if (s4) fallback = `Almost there: ${s4} question${s4 === 1 ? ' is' : 's are'} waiting for the 4th redo.`;
-    else if (moved.size) fallback = `${moved.size} question${moved.size === 1 ? '' : 's'} moved up the ladder in the last 7 days.`;
-  }
   const g = goalProgress(exs, papers, from, today, uid);
   return {
     from, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
-    practised: g.days, papersDone: g.papers, days, newlyMastered, fallback,
-    overdue: todo.filter(e => !e.mastered && e.due && e.due < today).length,
+    practised: g.days, papersDone: g.papers, days, newlyMastered, moved: moved.size,
     topWrong: top ? { subject: top[0].split('|')[0], topic: top[0].split('|')[1], n: top[1] } : null
   };
 }
-function goalChecks(week, settings) {
-  // 三行对比；每周检验卷目标为 0 时不出检验卷行
-  const rows = [{ key: 'days', value: week.practised, goal: settings.practiceDays, ok: week.practised >= settings.practiceDays }];
-  if (settings.papersPerWeek > 0) rows.push({ key: 'papers', value: week.papersDone, goal: settings.papersPerWeek, ok: week.papersDone >= settings.papersPerWeek });
-  rows.push({ key: 'overdue', value: week.overdue, ok: week.overdue === 0 });
-  return rows;
+function reviewLine(week) {
+  // Last 7 days 的统计行；升级的题数为 0 时不出那一项
+  const parts = [`${week.right} right`, `${week.partial} partly`, `${week.wrong} wrong`];
+  if (week.moved > 0) parts.push(`${week.moved} moved up`);
+  parts.push(`practised on ${week.practised} of 7 days`);
+  return `${week.answers} answer${week.answers === 1 ? '' : 's'}: ${parts.join(' · ')}`;
 }
-function weekTips(week, checks, settings, topicName) {
-  // 建议跟着对比行走，按序取成立的，最多 3 条；三行都达到且没有别的建议时说 Great week
+function keyIdeaTip(week, topicName) {
+  // 最近 7 天某专题错 3 次以上时，Today 提醒重读讲解
   const name = topicName || (t => t.topic);
-  const unmet = k => checks.some(c => c.key === k && !c.ok);
-  const are = n => n === 1 ? '1 question is' : `${n} questions are`;
-  const tips = [];
-  if (week.overdue > 0) tips.push(`${are(week.overdue)} overdue — do ${week.overdue === 1 ? 'it' : 'them'} first.`);
-  if (unmet('days')) tips.push(`Little and often: aim for ${settings.practiceDays} days a week — you practised on ${week.practised} of the last 7.`);
-  if (unmet('papers')) tips.push(week.topWrong ? `Make a check paper on ${name(week.topWrong)}.` : 'Make a check paper on mixed topics.');
-  if (week.topWrong && week.topWrong.n >= 3) tips.push(`Read the Key idea again for ${name(week.topWrong)} before you redo it.`);
-  if (!tips.length && checks.every(c => c.ok)) tips.push('Great week — keep the same rhythm!');
-  return tips.slice(0, 3);
+  return week.topWrong && week.topWrong.n >= 3 ? `Read the Key idea again for ${name(week.topWrong)} before you redo it.` : '';
+}
+function paperTry(week, topicName) {
+  // 本周检验卷没达到时，接在 This week 检验卷行后：错得最多的专题，没有时混合专题
+  const name = topicName || (t => t.topic);
+  return week.topWrong ? ` — try one on ${name(week.topWrong)}` : ' — try one on mixed topics';
 }
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 /* LOGIC:END */
@@ -949,12 +952,11 @@ function renderPractice() {
   const redo = redoButtons(sc.todo, today);
   const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
   const db = dashboardData(sc.todo, sc.done, today);
-  const week = weekReview(sc.todo, sc.done, S.papers, today, S.me);
-  const checks = goalChecks(week, S.settings);
+  const week = weekReview(sc.done, S.papers, today, S.me);
   return helloBlock(dateLine, db)
-    + todayBlock(today, redo, cps, sc.todo, sc.done)
-    + planBlock(dueByDay(sc.todo, today), today, sc.done, week, checks)
-    + reviewBlock(week, checks)
+    + todayBlock(today, redo, cps, sc.todo, sc.done, week)
+    + planBlock(dueByDay(sc.todo, today), today, sc.done, week)
+    + reviewBlock(week)
     + progressBlock(db);
 }
 
@@ -976,26 +978,27 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, cps, todo, view) {
+function todayBlock(today, redo, cps, todo, view, week) {
   // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
   const tc = todayCounts(todo, today, dueNowIds(todo, today));
   const frac = c => `${c.done}/${c.all}`;
   const subjC = Object.fromEntries(tc.bySubject);
-  const allDue = todo.filter(e => !e.mastered && e.due && e.due <= today).length;
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
-  // 还有要做的题时不出标题（大数字已说明已做/一共），只说这一批是什么题、主要哪些专题；没有要做的题时标题说做完了或今天没有
+  // 还有要做的题时不出 h2（大数字已说明已做/一共），只说过期与今天到期各几题、全部到期题主要哪些专题，错得多的专题提醒重读讲解；没有要做的题时 h2 说做完了或今天没有
   const head = n ? '' : tc.total.done ? 'All caught up for today!' : 'Nothing due today';
-  const mix = leftMix(todo, redo.flatMap(b => b.ids));
-  const kinds = [[mix.missed, 'missed last time'], [mix.review, 'to review'], [mix.first, mix.first === 1 ? 'first redo' : 'first redos']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
-  const tops = mix.topics.slice(0, 2).map(t => `${esc(topicLabel(t.subject, t.topic))} (${t.n})`);
-  const more = allDue > n ? ` · ${allDue - n} more due after these` : '';
-  const whatsLeft = `${kinds.join(' · ')}${more}${tops.length ? `<br>Mostly ${tops.join(' and ')}${mix.topics.length > 2 ? `, plus ${plural(mix.topics.length - 2, 'other topic')}` : ''}.` : ''}`;
+  const ds = dueSplit(todo, today);
+  const split = [[ds.overdue, 'overdue'], [ds.today, 'due today']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`).join(' · ');
+  const tops = leftMix(todo, dueNowIds(todo, today)).topics.slice(0, 2).map(t => esc(topicLabel(t.subject, t.topic)));
+  const tip = keyIdeaTip(week, t => topicLabel(t.subject, t.topic, 'en'));
+  const whatsLeft = `${split}${tops.length ? `<br>Mostly ${tops.join(' and ')}.` : ''}`;
   let h = `<section class="today" aria-label="Today">
+    <p class="h3 today-h">Today</p>
     <div class="big num" aria-hidden="true">${tc.total.all ? `${tc.total.done}<span class="of">/${tc.total.all}</span>` : 0}</div>
     <div class="txt">
       ${head ? `<p class="h2">${head}</p>` : ''}
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
+      ${n && tip ? `<p class="small">${esc(tip)}</p>` : ''}
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (cps.length) {
@@ -1010,40 +1013,36 @@ function todayBlock(today, redo, cps, todo, view) {
   return h + `</section>`;
 }
 
-/* 计划：未来 7 天每天到期的题数、本周目标与建议 */
-function planBlock(days, today, done, week, checks) {
+/* 计划：未来 7 天每天的题数（今天之后按全对推算）与本周目标 */
+function planBlock(days, today, done, week) {
   const st = S.settings, ws = weekStart(today);
   const g = goalProgress(done, S.papers, ws, addDays(ws, 6), S.me);
   const goals = [`<li>${tick(g.days >= st.practiceDays)}<span>Practise on ${st.practiceDays} days: <b class="num">${g.days}/${st.practiceDays}</b></span></li>`];
-  if (st.papersPerWeek > 0) goals.push(`<li>${tick(g.papers >= st.papersPerWeek)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b></span></li>`);
+  if (st.papersPerWeek > 0) {
+    const met = g.papers >= st.papersPerWeek;
+    goals.push(`<li>${tick(met)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b>${met ? '' : esc(paperTry(week, t => topicLabel(t.subject, t.topic, 'en')))}</span></li>`);
+  }
   return `<section class="panel plan" aria-label="Next 7 days">
     <p class="h3">Next 7 days</p>
     <ol class="days7">${days.map((x, i) => `<li class="${i === 0 ? 'is-today' : ''}${x.count ? '' : ' zero'}" title="${fmtDate(x.date)}: ${plural(x.count, 'question')}"><span class="d">${i === 0 ? 'Today' : wd(x.date)}</span><span class="n num">${x.count}</span></li>`).join('')}</ol>
     <div class="sub"><p class="h3">This week</p><ul class="checklist">${goals.join('')}</ul></div>
-    <div class="sub"><p class="h3">Tips</p><ul class="tips">${weekTips(week, checks, st, t => topicLabel(t.subject, t.topic, 'en')).map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
   </section>`;
 }
 
 /* 回顾：最近 7 天 */
-function reviewBlock(week, checks) {
+function reviewBlock(week) {
   const label = g => {
     if (g.kind === 'concept') { const c = nameOf(g.subject, 'concept', g.id); return mapLink(g.subject, g.id, c ? c.en : g.id); }
     return esc(topicLabel(g.subject, g.id, 'en'));
   };
-  const row = c => c.key === 'days' ? `Practised on ${c.value} of 7 days · goal ${c.goal}`
-    : c.key === 'papers' ? `Check papers: ${c.value} · goal ${c.goal}`
-    : c.ok ? 'Caught up' : `${c.value} question${c.value === 1 ? ' is' : 's are'} overdue`;
-  let mastered = '';
-  if (week.newlyMastered.length) mastered = `<ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul>`;
-  else if (week.fallback) mastered = `<p class="small">${esc(week.fallback)}</p>`;
+  const mastered = week.newlyMastered.length ? `<ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul>` : '';
   return `<section class="panel review" aria-label="Last 7 days">
     <p class="h3">Last 7 days</p>
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
-    <p class="small muted">${plural(week.answers, 'answer')}: ${week.right} right · ${week.partial} partly · ${week.wrong} wrong · practised on ${week.practised} of 7 days</p>
+    <p class="small muted">${esc(reviewLine(week))}</p>
     <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
     ${activityChart(week.days)}
     ${mastered ? `<div class="sub"><p class="h3">Newly mastered</p>${mastered}</div>` : ''}
-    <div class="sub"><p class="h3">Compared with your goals</p><ul class="checklist">${checks.map(c => `<li>${tick(c.ok)}<span>${row(c)}</span></li>`).join('')}</ul></div>
   </section>`;
 }
 
@@ -1078,13 +1077,14 @@ function progressBlock(db) {
   const pct = db.total ? Math.round(db.mastered / db.total * 100) : 0;
   const steps = [['1st redo (day 1)', db.ladder[1]], ['2nd redo (day 3)', db.ladder[2]], ['3rd redo (day 7)', db.ladder[3]], ['4th redo (day 14)', db.ladder[4]], ['Mastered', db.ladder.mastered]];
   const maxStep = Math.max(1, ...steps.map(s => s[1]));
-  return `<section class="panel dash" aria-label="Progress">
-    <div class="dash-block">
+  return `<section class="panel dash" aria-label="Ladders">
+    <p class="h3">Ladders</p>
+    <div class="dash-block sub">
       <div class="row"><p class="h3 grow">Mastered</p><span class="num"><b>${db.mastered}</b> / ${db.total}</span></div>
       <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="${db.total}" aria-valuenow="${db.mastered}" aria-label="Mastered"><i style="width:${pct}%"></i></div>
       <p class="small muted">A question is mastered when you get it right on the 4th redo.</p>
     </div>
-    <div class="dash-block">
+    <div class="dash-block sub">
       <p class="h3">Waiting for</p>
       <div class="ladder-bars">${steps.map(([k, v]) => `<div class="lb-row"><span class="lb-k">${k}</span><span class="lb-bar"><i style="width:${(v / maxStep * 100).toFixed(1)}%" class="${k === 'Mastered' ? 'm' : ''}"></i></span><span class="lb-v num">${v}</span></div>`).join('')}</div>
     </div>
@@ -1536,7 +1536,7 @@ function renderSettings() {
         <label class="f"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
         <label class="f"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
       </div>
-      <p class="small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today, and Last 7 days compares against it.</p>
+      <p class="small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today.</p>
     </div>
     <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button></div>
     ${S.settingsMsg ? `<p class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</p>` : ''}
