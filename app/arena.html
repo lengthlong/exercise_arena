@@ -32,6 +32,7 @@
   --c-right: #1f7a4a;
   --c-partial: #d69e1a;
   --c-wrong: #b3261e;
+  --c-seg-ink: #fff;
   --lad1: #9db2ee; --lad2: #5f80dc; --lad3: #2f52c0; --lad4: #1b307a; --lad-m: #1f7a4a;
   --font-body: "Lexend", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-hand: "Patrick Hand", "Lexend", cursive;
@@ -42,7 +43,7 @@
     --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
     --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
     --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
-    --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
+    --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
     --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
     color-scheme: dark;
   }
@@ -51,7 +52,7 @@
   --paper: #11141b; --surface: #191e28; --surface-2: #212734; --ink: #e5e9f1; --muted: #9ba4b6;
   --rule: #242b39; --line: #353e50; --pen: #8ea7ff; --pen-ink: #0e1220; --pen-soft: #232c4a;
   --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
-  --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74;
+  --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
   --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
   color-scheme: dark;
 }
@@ -227,7 +228,9 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .bars7 .col:hover { background: var(--surface-2); }
 .bars7 .v { font: 500 11px var(--font-body); color: var(--muted); margin-bottom: 2px; }
 .bars7 .stack { width: 60%; max-width: 56px; display: flex; flex-direction: column-reverse; gap: 2px; }
-.bars7 .stack i { display: block; min-height: 1px; }
+.bars7 .stack i { display: flex; align-items: center; justify-content: center; min-height: 1px; overflow: hidden; }
+.bars7 .stack b { font: 600 10.5px/1 var(--font-body); color: var(--c-seg-ink); }
+.bars7 .stack .seg-partial b { color: #1b2231; }
 .bars7 .stack i:last-child { border-radius: 3px 3px 0 0; }
 .bars7 .stack.none { height: 2px; background: var(--line); border-radius: 1px; }
 .bars7-x { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
@@ -485,8 +488,14 @@ function judgeAuto(ex, response) {
 function cmpSetPos(a, b) {
   return ((a.setPos || 0) - (b.setPos || 0)) || String(a.createdAt).localeCompare(String(b.createdAt)) || String(a.id).localeCompare(String(b.id));
 }
+function lastUsed(e) {
+  // 每日清单的「最久没用」键：阶梯输入里最后一条作答的时刻（只有 date 的按当天 0 点），没有时取录入时刻
+  let t = '';
+  for (const a of ladderInput(e.attempts)) { const k = a.at || (a.date ? a.date + 'T00:00' : ''); if (k > t) t = k; }
+  return t || recordedKey(e);
+}
 function dailyList(exs, today, limit) {
-  // 到期题合成单元：独立题各成一个，同一题组的到期题合成一个；单元按最早 due、再按最早 createdAt 排
+  // 到期题合成单元：独立题各成一个，同一题组的到期题合成一个；单元按组内最久没用（lastUsed 最早）排，相同时按最早录入、再按最小 id
   const due = exs.filter(e => !e.mastered && e.due && e.due <= today);
   const units = [], bySet = {};
   for (const e of due) {
@@ -495,12 +504,9 @@ function dailyList(exs, today, limit) {
       bySet[e.setId].push(e);
     } else units.push([e]);
   }
-  const key = u => ({
-    due: u.reduce((m, e) => e.due < m ? e.due : m, u[0].due),
-    c: u.reduce((m, e) => String(e.createdAt) < m ? String(e.createdAt) : m, String(u[0].createdAt))
-  });
-  const keyed = units.map(u => ({ u: u.slice().sort(cmpSetPos), k: key(u) }));
-  keyed.sort((a, b) => a.k.due.localeCompare(b.k.due) || a.k.c.localeCompare(b.k.c));
+  const min = (u, f) => u.map(f).reduce((m, v) => v < m ? v : m);
+  const keyed = units.map(u => ({ u: u.slice().sort(cmpSetPos), k: { used: min(u, lastUsed), rec: min(u, e => String(recordedKey(e))), id: min(u, e => String(e.id)) } }));
+  keyed.sort((a, b) => a.k.used.localeCompare(b.k.used) || a.k.rec.localeCompare(b.k.rec) || a.k.id.localeCompare(b.k.id));
   const out = [];
   const cap = Math.max(0, limit);
   for (const x of keyed) {
@@ -1367,12 +1373,14 @@ function reviewBlock(week) {
 
 function activityChart(days) {
   // 每天一列、7 列平分块宽；每列一根按对、部分对、错自下而上叠的柱子（最后一天是今天），段间 2px 间隔；每列一个提示
-  const n = days.length, H = 96;
+  // 段里写它的次数：柱高取「16px × min(3, 当天次数)」与按比例的高中大的那个（只随当天次数增，次数少的柱不会更高），每个有数的段先给 16px，余下（扣去段间 2px）按段内次数分
+  const n = days.length, H = 96, MIN = 16;
   const max = Math.max(1, ...days.map(d => d.right + d.partial + d.wrong));
   const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
   const cols = days.map(d => {
-    const tot = d.right + d.partial + d.wrong;
-    const segs = order.filter(([k]) => d[k] > 0).map(([k, c]) => `<i style="height:${(d[k] / max * H).toFixed(1)}px;background:${c}"></i>`).join('');
+    const tot = d.right + d.partial + d.wrong, on = order.filter(([k]) => d[k] > 0);
+    const spare = Math.max(MIN * Math.min(3, tot), tot / max * H) - MIN * on.length - 2 * Math.max(0, on.length - 1);
+    const segs = on.map(([k, c]) => `<i class="seg-${k}" style="height:${(MIN + (tot ? d[k] / tot * spare : 0)).toFixed(1)}px;background:${c}"><b class="num">${d[k]}</b></i>`).join('');
     return `<div class="col" title="${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong">${tot ? `<span class="v num">${tot}</span><span class="stack">${segs}</span>` : '<span class="stack none"></span>'}</div>`;
   }).join('');
   return `<div role="img" aria-label="Answers in the last ${n} days"><div class="bars7">${cols}</div><div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span>${i === n - 1 ? 'Today' : wd(d.date)}</span>`).join('')}</div></div>`;
@@ -1471,13 +1479,16 @@ function cardPager(marks, idx, act) {
   return `<nav class="cardpager" aria-label="Questions"><div class="cp-row">
     ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}</div></nav>`;
 }
-function cardNav(idx, n, act) {
-  // 题卡底部：左边 Previous、右边 Next；首尾那张不可点；作答页与 View details 共用
-  return `<div class="card-nav"><button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>← Previous</button><button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next →</button></div>`;
+function cardNav(idx, n, act, lastLabel) {
+  // 题卡底部：左边 Previous、右边 Next；第一张的 Previous 不可点；最后一张给了 lastLabel 时 Next 换成交卷按钮（作答阶段），否则不可点；作答页与 View details 共用
+  const next = idx >= n - 1 && lastLabel
+    ? `<button type="button" class="btn primary small" data-act="paper-submit">${lastLabel}</button>`
+    : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next →</button>`;
+  return `<div class="card-nav"><button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>← Previous</button>${next}</div>`;
 }
 function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
 function renderPaperRun() {
-  // 检验卷与每日卷同一个作答页：一次一张卡，翻页条在卡片上方，Hand in 在顶上一行；交卷即存客观题，主观题自评即存并锁定
+  // 检验卷与每日卷同一个作答页：一次一张卡，翻页条在卡片上方，Hand in 在顶上一行、作答阶段也在最后一张卡的底部；交卷即存客观题，主观题自评即存并锁定
   const R = S.run;
   const p = S.papers.find(x => x.id === R.paperId);
   if (!p) return `<div class="panel"><p>That paper is gone.</p><div><button class="btn" type="button" data-act="exit-run">Back</button></div></div>`;
@@ -1508,7 +1519,7 @@ function renderPaperRun() {
       h += solutionBlock(e);
       if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
     }
-    h += cardNav(i, exs.length, 'card-go') + '</article>';
+    h += cardNav(i, exs.length, 'card-go', R.phase === 'answer' ? (R.warn ? 'Hand in anyway' : 'Hand in') : '') + '</article>';
     if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
   }
   if (R.phase === 'review' && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;

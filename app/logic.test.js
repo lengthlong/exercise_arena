@@ -34,15 +34,26 @@ assert.strictEqual(L.judgeAuto({ format: 'short', answer: 'has  been', accepted:
 assert.strictEqual(L.judgeAuto({ format: 'short', answer: '45', accepted: ['45'] }, '54'), 'wrong');
 assert.strictEqual(L.judgeAuto({ format: 'short', answer: '45', accepted: ['45'] }, ''), 'wrong');
 assert.strictEqual(L.judgeAuto({ format: 'open', answer: 'x' }, 'x'), null);
-// daily list: not mastered, due <= today, oldest due first, capped
+// daily list: not mastered, due <= today, least recently used first (last ladder-input attempt, else recorded time), capped
+const da = (date, result, mode, at) => Object.assign({ by: 'uA', date, result, mode: mode || 'daily' }, at ? { at } : {});
 const ex = [
-  { id: 'a', due: '2026-10-14', createdAt: '2026-10-01', mastered: false },
-  { id: 'b', due: '2026-10-10', createdAt: '2026-10-02', mastered: false },
+  { id: 'a', due: '2026-10-14', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-12', 'right', 'daily', '2026-10-12T09:00')] },
+  { id: 'b', due: '2026-10-10', createdAt: '2026-10-02', mastered: false, attempts: [da('2026-10-09', 'wrong')] },
   { id: 'c', due: '2026-10-15', createdAt: '2026-10-03', mastered: false },
   { id: 'd', due: null, createdAt: '2026-10-03', mastered: true },
-  { id: 'e', due: '2026-10-10', createdAt: '2026-10-01', mastered: false }];
-assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 10)), ['e', 'b', 'a']);
-assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 2)), ['e', 'b']);
+  { id: 'e', due: '2026-10-10', createdAt: '2026-10-01', mastered: false, attempts: [] },
+  // 检验卷上做对的作答不算用过：键仍是 10-06
+  { id: 'f', due: '2026-10-13', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-06', 'right'), da('2026-10-13', 'right', 'paper')] },
+  // 只有 date 的作答按当天 0 点：h（10-09 08:30）排在 b（10-09 00:00）之后
+  { id: 'h', due: '2026-10-11', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-09', 'partial', 'daily', '2026-10-09T08:30')] },
+  // 没做过的取录入时刻：k 有 recordedAt（10-01 07:00），排在只有 createdAt、按当天 0 点算的 e 之后
+  { id: 'k', due: '2026-10-14', createdAt: '2026-10-01', recordedAt: '2026-10-01T07:00', mastered: false }];
+assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 10)), ['e', 'k', 'f', 'b', 'h', 'a']);
+assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 2)), ['e', 'k']);
+// 检验卷上做错的作答算用过（推阶梯）
+assert.deepStrictEqual(ids(L.dailyList([
+  { id: 'x', due: '2026-10-14', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-13', 'wrong', 'paper')] },
+  { id: 'y', due: '2026-10-14', createdAt: '2026-10-05', mastered: false }], '2026-10-14', 10)), ['y', 'x']);
 // paper draw: wrongCount desc, mastered first on tie, then oldest lastAttempt (never first)
 const px = [
   { id: 'p1', subject: 'science', topic: 'C-water', wrongCount: 1, mastered: false, lastAttemptAt: '2026-10-01' },
@@ -56,17 +67,18 @@ assert.deepStrictEqual({ ...L.tally(['right', 'wrong', 'right', 'partial']) }, {
 // 题组：每日清单按组连排
 const g = [
   { id: 's1', due: '2026-10-12', createdAt: '2026-10-05', mastered: false },
-  { id: 'q4', setId: 'S', setPos: 2, due: '2026-10-13', createdAt: '2026-10-01', mastered: false },
-  { id: 'q2', setId: 'S', setPos: 1, due: '2026-10-14', createdAt: '2026-10-01', mastered: false },
-  { id: 'q5', setId: 'S', setPos: 3, due: '2026-10-16', createdAt: '2026-10-01', mastered: false },
+  { id: 'q4', setId: 'S', setPos: 2, due: '2026-10-13', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-11', 'right')] },
+  { id: 'q2', setId: 'S', setPos: 1, due: '2026-10-14', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-13', 'partial')] },
+  { id: 'q5', setId: 'S', setPos: 3, due: '2026-10-16', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-01', 'right')] },
   { id: 's2', due: '2026-10-14', createdAt: '2026-10-02', mastered: false },
-  { id: 's3', due: '2026-10-14', createdAt: '2026-10-03', mastered: false }];
-// 组内到期的 q2、q4 连排、按 setPos；q5 未到期不拉进来；组按最早到期（10-13）排位
-assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 10)), ['s1', 'q2', 'q4', 's2', 's3']);
-// 上限 2：s1 放入后组放不下，跳过并继续补位 s2
-assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 2)), ['s1', 's2']);
-// 上限 1 且清单为空时，第一组整组放入（这里第一个单元是 s1，单独一题）
-assert.deepStrictEqual(ids(L.dailyList(g.slice(1), '2026-10-14', 1)), ['q2', 'q4']);
+  { id: 's3', due: '2026-10-14', createdAt: '2026-10-03', mastered: false, attempts: [da('2026-10-12', 'right', 'daily', '2026-10-12T08:00')] }];
+// 键：s2 10-02、s1 10-05、组 S 取组内到期题最早的 q4（10-11，早于 s3 的 10-12；按最晚的 q2 10-13 就会排在 s3 后）、s3 10-12
+// 组内到期的 q2、q4 连排、按 setPos；q5 未到期不拉进来（它的 10-01 也不算进组的键）
+assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 10)), ['s2', 's1', 'q2', 'q4', 's3']);
+// 上限 3：s2、s1 放入后组放不下，跳过并继续补位 s3
+assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 3)), ['s2', 's1', 's3']);
+// 上限 1 且清单为空时，第一组整组放入（去掉 s1、s2 后第一个单元是组 S）
+assert.deepStrictEqual(ids(L.dailyList(g.filter(e => e.id !== 's1' && e.id !== 's2'), '2026-10-14', 1)), ['q2', 'q4']);
 // 卷面合并：按抽题顺序，遇到题组第一道题时接上同组抽中的题
 const drawn = [
   { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
