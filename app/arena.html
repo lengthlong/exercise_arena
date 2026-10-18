@@ -1637,7 +1637,7 @@ function draftForm(d) {
       ${d.editId ? f('owner', 'Owner', `<select id="d${k}-owner" data-d="${k}" data-f="owner">${ownerOptions(d.owner)}</select>`) : ''}
     </div>
     ${f('setRef', 'Question set', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">None (stand-alone question)</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>New in this batch: ${esc(sd.title || 'Untitled set')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || 'Untitled set')}</option>`).join('')}</select>`)}
-    ${f('stem', (d.setRef ? 'Question text (only this question; the material is in the set)' : 'Question text') + '; [[ ]] shows as underlined', ta('stem', d.stem, 4))}`;
+    ${f('stem', (d.setRef ? 'Question text (for a question inside the material: the sentence that holds it)' : 'Question text') + '; [[ ]] shows as underlined', ta('stem', d.stem, 4))}`;
   if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="Question photo ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">Remove photo</button></span>`).join('')}</div>`;
   if (d.format === 'mcq') {
     h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `Option (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
@@ -2382,7 +2382,8 @@ function recognisePrompt(subject, text, nImages) {
 ${nImages ? `The ${nImages} attached photo(s) show worksheet or exam questions.` : ''}${text ? `\nText from the parent:\n"""\n${text}\n"""` : ''}
 
 Return one draft per question. Only draft the questions Sophia got wrong when that is visible (her written or marked answer is wrong, or the teacher marked it wrong); if you cannot tell which ones she got wrong, draft every question.
-When several questions share one passage, picture, table or experiment set-up, put that material once in "sets" and point each of those questions at it with "set" (its index in "sets"); the stem of such a question holds only that question.
+When several questions share one passage, picture, table or experiment set-up, put that material once in "sets" and point each of those questions at it with "set" (its index in "sets"); the stem of such a question holds only that question (not the whole material).
+When the question's number, blank or underlined word sits inside the shared text (for example editing or cloze), its stem is the whole sentence from that text that contains it, copied exactly. Keep only this question's number and its blank or [[underlined word]]; in that sentence write every other blank as "…" and every other underlined word as plain text without its number.
 Subject: ${subject || 'decide from the content: "english", "math" or "science"'}.
 
 Draft fields:
@@ -2391,7 +2392,7 @@ Draft fields:
 - concept: a concept id listed under that topic, or null
 - qtype: a question-type id from that subject's list, or null
 - format: "mcq" when numbered options are given; "pick" when the blank is answered by choosing a word from a word list given with the passage (grammar cloze); "short" when the answer is one word, number or short phrase; otherwise "open"
-- stem: the question exactly as printed, keeping line breaks, numbers and units; for mcq leave the options out of the stem
+- stem: the question exactly as printed, keeping line breaks, numbers and units; for mcq leave the options out of the stem; for a question inside the shared text, the whole sentence as described above
 - options: the option texts in order for mcq, else []
 - mustUse: for sentence synthesis / transformation, the given word(s) the rewritten sentence must use (write split pairs as "Neither…nor"), else []
 - answer: mcq → letter of the correct option ("A" = option 1, "B" = option 2, ...); short → the expected answer; open → a model answer a PSLE marker would accept
@@ -2410,7 +2411,7 @@ Draft fields:
 
 Set fields: title (a short name, for example "School carnival flyer"), text (the material transcribed exactly; describe pictures briefly in [brackets]; keep blank numbers like (1) ____), source, wordBank (the list of words given in a box for grammar cloze, else []).
 Grammar cloze: put the boxed words in the set's wordBank and make each blank a "pick" question whose answer is the word.
-Editing for spelling and grammar: write every underlined word as [[word]] in the set text and in the question stem (for example "(3) [[recieve]]"); each underlined word is one "short" question whose answer is the corrected word.
+Editing for spelling and grammar: write every underlined word as [[word]] in the set text; in a question's stem only its own underlined word (for example "Other times, he finds that people refuse to open the door despite his (41) [[purrsistent]] knocking."); each underlined word is one "short" question whose answer is the corrected word.
 Sentence synthesis / transformation: an "open" question; answer is the full rewritten sentence including the given word(s); fill mustUse.
 Use the teacher's correction as the answer when one is visible; otherwise solve the question carefully yourself.
 
