@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,roundPoints,scoreboard,entrants,liftRound,podium,matchTotals,weekMatches};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -193,10 +193,14 @@ assert.deepStrictEqual({ ...dd.ladder }, { 1: 2, 2: 1, 3: 0, 4: 0, mastered: 2 }
 const dEnc = L.dashboardData([], [{ id: 'z', createdAt: '2026-10-01', attempts: [{ date: T0, result: 'right', mode: 'daily' }, { date: T0, result: 'wrong', mode: 'daily' }, { date: T0, result: 'right', mode: 'paper' }] }], T0);
 assert.strictEqual(dEnc.todayRight, 1);
 // 问候统计：顺序、隐藏零新掌握、保留零对题数与连续天数、连续一天
-assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 30, newMasteredToday: 2, streak: 3 })), ['✅ 30 right today', '⭐ 2 mastered today', '🔥 3-day streak']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 30, newMasteredToday: 2, streak: 3 })), ['✅ 30 right today', '🏅 2 mastered today', '🔥 3-day streak']);
 assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 5, newMasteredToday: 0, streak: 2 })), ['✅ 5 right today', '🔥 2-day streak']);
 assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 0, newMasteredToday: 0, streak: 0 })), ['✅ 0 right today', '🔥 0-day streak']);
-assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 1, newMasteredToday: 1, streak: 1 })), ['✅ 1 right today', '⭐ 1 mastered today', '🔥 1-day streak']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 1, newMasteredToday: 1, streak: 1 })), ['✅ 1 right today', '🏅 1 mastered today', '🔥 1-day streak']);
+// 问候行加余额与本周的星：有新掌握时五项、没有时四项；星可以是半颗；单复数
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 4, newMasteredToday: 1, streak: 2 }, { coins: 54, stars: 3 })), ['✅ 4 right today', '🏅 1 mastered today', '🔥 2-day streak', '🪙 54 coins', '⭐ 3 stars']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 0, newMasteredToday: 0, streak: 0 }, { coins: 1, stars: 1.5 })), ['✅ 0 right today', '🔥 0-day streak', '🪙 1 coin', '⭐ 1.5 stars']);
+assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 0, newMasteredToday: 0, streak: 0 }, { coins: 0, stars: 1 })).slice(2), ['🪙 0 coins', '⭐ 1 star']);
 // todo 与 done 分开：掌握进度与阶梯分布只看 todo；作答、连续天数看 done
 const ds = L.dashboardData([dex[4]], dex, T0);
 assert.deepStrictEqual([ds.total, ds.mastered, { ...ds.ladder }, ds.streak, ds.newMastered7], [1, 0, { 1: 1, 2: 0, 3: 0, 4: 0, mastered: 0 }, 2, 2]);
@@ -480,71 +484,108 @@ assert.strictEqual(ps(24, 11), '1 … 11 12 13 … 24');
 assert.strictEqual(ps(24, 23), '1 … 20 21 22 23 24');
 assert.strictEqual(ps(24, 11, 9), '1 … 10 11 12 13 14 … 24');
 assert.strictEqual(ps(10, 1, 3), '1 2 3 4 5 … 10');   // max 不足 7 时按 7
-// 金币：本周（周一到今天）；阶梯每升一级 2 枚，掌握 10 枚；做对本身、检验卷做对、部分对、做错不给；只数本人
-const CD = '2026-10-16', ca = (date, result, mode, by) => ({ date, result, mode: mode || 'daily', by: by || 'uS' });   // 2026-10-16 是周五，本周从 10-12 起
-const coin = (attempts, uid, matches) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts }], matches || [], uid || 'uS', CD); return { up: c.up, mastered: c.mastered, total: c.coins }; };
-assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca(CD, 'right')]), { up: 2, mastered: 0, total: 4 });   // 周一算
-assert.deepStrictEqual(coin([ca('2026-10-11', 'right')]), { up: 0, mastered: 0, total: 0 });   // 上周日不算
-assert.deepStrictEqual(coin([ca('2026-10-11', 'right'), ca('2026-10-12', 'right')]), { up: 1, mastered: 0, total: 2 });   // 本周之前的升级仍推阶梯
-assert.deepStrictEqual(coin([ca(CD, 'right', 'paper'), ca(CD, 'partial'), ca(CD, 'wrong')]), { up: 0, mastered: 0, total: 0 });
+// 金币：本周（周一到今天）每日重做的作答；做对得进入的那一级的数（2、3、4），掌握 5；部分对、做错 1 枚，每道题每周一次；检验卷不给；只数本人
+const CD = '2026-10-16', ca = (date, result, mode, by, paperId) => ({ date, result, mode: mode || 'daily', by: by || 'uS', paperId: paperId || null });   // 2026-10-16 是周五，本周从 10-12 起
+const coin = (attempts, uid, matches) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts }], matches || [], uid || 'uS', CD); return { up: [c.up[2], c.up[3], c.up[4]], mastered: c.mastered, tried: c.tried, total: c.coins }; };
+assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca(CD, 'right')]), { up: [1, 1, 0], mastered: 0, tried: 0, total: 5 });   // 周一算：升到 2 级 2 枚、3 级 3 枚
+assert.deepStrictEqual(coin([ca('2026-10-11', 'right')]), { up: [0, 0, 0], mastered: 0, tried: 0, total: 0 });   // 上周日不算
+assert.deepStrictEqual(coin([ca('2026-10-11', 'right'), ca('2026-10-12', 'right')]), { up: [0, 1, 0], mastered: 0, tried: 0, total: 3 });   // 本周之前的升级仍推阶梯
+assert.deepStrictEqual(coin([ca(CD, 'right', 'paper'), ca(CD, 'partial', 'paper'), ca(CD, 'wrong', 'paper')]), { up: [0, 0, 0], mastered: 0, tried: 0, total: 0 });   // 检验卷不给
+assert.deepStrictEqual(coin([ca('2026-10-13', 'partial')]), { up: [0, 0, 0], mastered: 0, tried: 1, total: 1 });
+// 部分对、做错每道题每周只给一次；检验卷上做错不给、也不占这一次
+assert.deepStrictEqual(coin([ca('2026-10-12', 'wrong'), ca('2026-10-13', 'wrong'), ca('2026-10-14', 'partial')]), { up: [0, 0, 0], mastered: 0, tried: 1, total: 1 });
+assert.deepStrictEqual(coin([ca('2026-10-10', 'wrong'), ca('2026-10-13', 'wrong', 'paper'), ca('2026-10-14', 'wrong')]), { up: [0, 0, 0], mastered: 0, tried: 1, total: 1 });
 // 检验卷上做错让阶梯回到第 1 级，之后的升级从 2 级重新算
-assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), ca('2026-10-14', 'right')]), { up: 2, mastered: 0, total: 4 });
-// 升到 2、3、4 级各 2 枚；第 4 级再做对即掌握：掌握 10 枚、不再算升级
+assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), ca('2026-10-14', 'right')]), { up: [2, 0, 0], mastered: 0, tried: 0, total: 4 });
+// 升到 2、3、4 级各 2、3、4 枚；第 4 级再做对即掌握：5 枚
 const m4 = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15'].map(d => ca(d, 'right'));
-assert.deepStrictEqual(coin(m4), { up: 3, mastered: 1, total: 16 });
-assert.deepStrictEqual(coin(m4.concat([ca(CD, 'right')])), { up: 3, mastered: 1, total: 16 });   // 掌握后做对：不给
-assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')]), { up: 0, mastered: 0, total: 0 });
+assert.deepStrictEqual(coin(m4), { up: [1, 1, 1], mastered: 1, tried: 0, total: 14 });
+assert.deepStrictEqual(coin(m4.concat([ca(CD, 'right'), ca(CD, 'partial')])), { up: [1, 1, 1], mastered: 1, tried: 0, total: 14 });   // 掌握后做对、部分对：0
+assert.deepStrictEqual(coin(m4.concat([ca(CD, 'wrong')])), { up: [1, 1, 1], mastered: 1, tried: 1, total: 15 });   // 掌握后做错：按做错给，回到第 1 级
+assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')]).total, 0);
 assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')], 'uA').total, 2);
-// 余额：金币减去本周开赛、本人参赛的各场 rounds × 10；中途离开（points 不满）也扣整场；上周开赛的不扣；不在 players 里的不扣；可为负
+// 一张卷挣的金币：按本人这道题的全部历史重放，只加带本卷 paperId 的；同一周里已给过「做了」的，卷上做错不再给
+const pc = (exs, pid) => JSON.stringify(L.paperCoins(exs, 'uS', pid));
+const pcEx = [
+  { id: 'e1', attempts: [ca('2026-10-12', 'right'), ca('2026-10-14', 'right', 'daily', 'uS', 'P')] },              // 2 → 3 级：3 枚
+  { id: 'e2', attempts: [ca('2026-10-13', 'wrong'), ca('2026-10-14', 'wrong', 'daily', 'uS', 'P')] },              // 本周已给过「做了」：0
+  { id: 'e3', attempts: [ca('2026-10-14', 'partial', 'daily', 'uS', 'P'), ca('2026-10-14', 'right', 'daily', 'uA', 'P')] },   // 1 枚；别人的不算
+  { id: 'e4', attempts: [ca('2026-10-14', 'right', 'daily', 'uS', 'Q')] }];
+assert.strictEqual(pc(pcEx, 'P'), JSON.stringify({ coins: 4, up: 1, mastered: 0, tried: 1 }));
+assert.strictEqual(pc(pcEx, 'Q'), JSON.stringify({ coins: 2, up: 1, mastered: 0, tried: 0 }));
+assert.strictEqual(pc(pcEx, 'Z'), JSON.stringify({ coins: 0, up: 0, mastered: 0, tried: 0 }));
+// 余额：金币减去本周开赛、本人参赛的各场里本人的投入；有 stakes 时按它，旧比赛按 rounds × 10；上周开赛的不扣；不在 players 里的不扣；可为负
 const bal = (matches, uid) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts: m4 }], matches, uid || 'uS', CD); return [c.coins, c.spent, c.balance].join(); };
-assert.strictEqual(bal([]), '16,0,16');
-assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, at: '2026-10-12T08:00', points: [{ uA: 1, uS: 0 }] }]), '16,10,6');
-assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 3, at: '2026-10-15T20:00', points: [{ uA: 1, uS: 0 }] }]), '16,30,-14');   // 中途离开也扣整场；余额可为负
-assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 5, at: '2026-10-11T23:55', points: [] }]), '16,0,16');   // 上周日开赛的不扣
-assert.strictEqual(bal([{ players: ['uA', 'uB'], rounds: 5, at: CD + 'T09:00', points: [] }]), '16,0,16');
-// 参赛者：默认归属人与开赛人的相同、余额够付 rounds × 10；开赛人在最前；开赛人不够或不到两人时为空
+assert.strictEqual(bal([]), '14,0,14');
+assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, at: '2026-10-12T08:00', points: [{ uA: 1, uS: 0 }] }]), '14,10,4');   // 旧比赛：rounds × 10
+assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 1, stakes: { uS: 17, uA: 10 }, at: '2026-10-15T20:00', points: [] }]), '14,17,-3');   // 按 stakes；中途离开也扣；可为负
+assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, stakes: { uA: 20, uS: 10 }, at: '2026-10-15T20:00', points: [] }]), '14,10,4');   // 别人多投的不算我的
+assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 5, at: '2026-10-11T23:55', points: [] }]), '14,0,14');   // 上周日开赛的不扣
+assert.strictEqual(bal([{ players: ['uA', 'uB'], rounds: 1, at: CD + 'T09:00', points: [] }]), '14,0,14');
+assert.strictEqual(L.stakeOf({ rounds: 1, stakes: { uS: 15 } }, 'uS'), 15);
+assert.strictEqual(L.stakeOf({ rounds: 1, stakes: { uS: 15 } }, 'uA'), 10);
+// 开赛人最多多投：0–10，且余额要够付 10 + 多投
+assert.deepStrictEqual([5, 10, 15, 19.5, 20, 50].map(L.maxExtra), [0, 0, 5, 9, 10, 10]);
+// 参赛者：默认归属人与开赛人的相同、余额够付 10（开赛人够付 10 + 多投）；开赛人在最前；开赛人不够或不到两人时为空
 const own = { uS: 'uS', uA: 'uS', uB: 'uS' };   // uC 没有设置：默认归属人是自己
 const balOf = { uS: 39, uA: 156, uB: 0, uC: 80 }, U = ['uS', 'uA', 'uB', 'uC'];
-assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uA', 3)), ['uA', 'uS']);
-assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uS', 1)), ['uS', 'uA']);
-assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uB: 10 }), 'uS', 1)), ['uS', 'uA', 'uB']);
-assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uS', 5)), []);   // 开赛人 39 不够 50
-assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uA', 5)), []);   // 只剩 uA 一人
-assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uC', 1)), []);   // 一人成组
-// 举重一局：余额 × 0.7–1.3，四舍五入到整 kg；第 k 局按开赛余额 − (k − 1) × 10；同重同名次
-const lr = (b, round, r) => { const x = L.liftRound(b, round, () => r); return JSON.stringify([x.kg, x.places]); };
-assert.strictEqual(lr({ uS: 39, uA: 156 }, 1, 0), JSON.stringify([{ uS: 27, uA: 109 }, { uS: 2, uA: 1 }]));
-assert.strictEqual(lr({ uS: 39, uA: 156 }, 1, 0.9999999), JSON.stringify([{ uS: 51, uA: 203 }, { uS: 2, uA: 1 }]));
-assert.strictEqual(lr({ uS: 39 }, 3, 0.5), JSON.stringify([{ uS: 19 }, { uS: 1 }]));   // 39 枚第 3 局按 19 枚
-const tie = L.liftRound({ a: 10, b: 19 }, 1, (() => { const q = [0.9999999, 0]; return () => q.shift(); })());
-assert.deepStrictEqual([tie.kg.a, tie.kg.b, tie.places.a, tie.places.b], [13, 13, 1, 1]);   // 临界：10 枚取上限、19 枚取下限都是 13 kg
-assert.deepStrictEqual({ ...L.roundPoints(tie.places) }, { a: 0.5, b: 0.5 });
-// 一场的总分与本场冠军
+assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uA', 10)), ['uA', 'uS']);
+assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uS', 0)), ['uS', 'uA']);
+assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uB: 10 }), 'uS', 10)), ['uS', 'uA', 'uB']);   // 开赛人多投不改别人的门槛
+assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uS: 15 }), 'uS', 6)), []);   // 15 不够 10 + 6
+assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uS: 15 }), 'uS', 5)), ['uS', 'uA']);
+assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uS: 9 }), 'uS', 0)), []);   // 开赛人不够 10
+assert.deepStrictEqual(Array.from(L.entrants(U, own, Object.assign({}, balOf, { uS: 0 }), 'uA', 0)), []);   // 只剩 uA 一人
+assert.deepStrictEqual(Array.from(L.entrants(U, own, balOf, 'uC', 0)), []);   // 一人成组
+// 举重一局：幸运数 1.0、1.1 … 10.0 等可能（rand 取 0 为 1.0，取近 1 为 10.0）；重量 = 投入 × 幸运数，保留一位小数；同重同名次
+const lr = (st, r) => { const x = L.liftRound(st, () => r); return JSON.stringify([x.kg, x.luck, x.places]); };
+assert.strictEqual(lr({ uS: 10, uA: 20 }, 0), JSON.stringify([{ uS: 10, uA: 20 }, { uS: 1, uA: 1 }, { uS: 2, uA: 1 }]));
+assert.strictEqual(lr({ uS: 10, uA: 20 }, 0.9999999), JSON.stringify([{ uS: 100, uA: 200 }, { uS: 10, uA: 10 }, { uS: 2, uA: 1 }]));
+assert.strictEqual(lr({ uS: 15 }, 31.5 / 91), JSON.stringify([{ uS: 61.5 }, { uS: 4.1 }, { uS: 1 }]));   // 15 × 4.1 = 61.5，不是 61 或 62
+// 一局没有并列：同重的几人重抽，没同重的不重抽
+const seq = q => () => q.shift();
+const tie = L.liftRound({ a: 10, b: 20 }, seq([10.5 / 91, 0, 40.5 / 91, 0.5 / 91]));   // 先 10 × 2.0 与 20 × 1.0 同重，重抽后 10 × 5.0 = 50、20 × 1.0 = 20
+assert.deepStrictEqual([tie.luck.a, tie.luck.b, tie.kg.a, tie.kg.b, tie.places.a, tie.places.b], [5, 1, 50, 20, 1, 2]);
+const tie3 = L.liftRound({ a: 10, b: 10, c: 20 }, seq([0.5 / 91, 0.5 / 91, 90.5 / 91, 30.5 / 91, 20.5 / 91]));   // a、b 同为 10 kg，c 200 kg 不重抽；a、b 重抽为 40、30
+assert.deepStrictEqual([tie3.kg.a, tie3.kg.b, tie3.kg.c, tie3.places.a, tie3.places.b, tie3.places.c], [40, 30, 200, 2, 3, 1]);
+const stuck = L.liftRound({ a: 10, b: 10 }, () => 0);   // 一直同重：重抽 50 次后按键顺序定先后
+assert.deepStrictEqual([stuck.places.a, stuck.places.b], [1, 2]);
+assert.deepStrictEqual({ ...L.roundPoints(stuck.places) }, { a: 1, b: 0 });
+assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1 }) }, { a: 0.5, b: 0.5 });   // 旧比赛里的并列照旧平分
+// 赢的机会：独赢 + 并列平分；投入多只让机会大，不保证赢
+const pct = st => JSON.stringify(Object.fromEntries(Object.entries(L.liftChances(st)).map(([k, v]) => [k, Math.round(v * 100)])));
+assert.strictEqual(pct({ a: 10, b: 10 }), JSON.stringify({ a: 50, b: 50 }));
+assert.strictEqual(pct({ a: 20, b: 10 }), JSON.stringify({ a: 80, b: 20 }));
+assert.strictEqual(pct({ a: 10, b: 10, c: 10 }), JSON.stringify({ a: 33, b: 33, c: 33 }));
+assert.ok(L.liftChances({ a: 20, b: 10 }).b > 0.15);
+const sumCh = st => Object.values(L.liftChances(st)).reduce((x, y) => x + y, 0);
+assert.ok(Math.abs(sumCh({ a: 20, b: 10 }) - 1) < 1e-9 && Math.abs(sumCh({ a: 13, b: 10, c: 10 }) - 1) < 0.01);
+// 一场各人的星与本场冠军
 assert.deepStrictEqual(JSON.parse(JSON.stringify(L.matchTotals([{ a: 1, b: 0 }, { a: 0, b: 1 }, { a: 1, b: 0 }]))), { totals: { a: 2, b: 1 }, champions: ['a'] });
 assert.deepStrictEqual(Array.from(L.matchTotals([{ a: 1.5, b: 1.5, c: 0 }]).champions), ['a', 'b']);
-// 一局的得分：打败的人数；并列平分所占名次的得分之和
+// 一局的星：打败的人数；并列平分所占名次的星之和
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 2 }) }, { a: 1, b: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 2, b: 1, c: 3 }) }, { a: 1, b: 2, c: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 2, c: 3, d: 4 }) }, { a: 3, b: 2, c: 1, d: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1, c: 3 }) }, { a: 1.5, b: 1.5, c: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 2, c: 2, d: 4 }) }, { a: 3, b: 1.5, c: 1.5, d: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1 }) }, { a: 0.5, b: 0.5 });
-// 积分榜：本周（周一到周日）或全部；整场计入开赛日；同分同名次；没得分的人列 0 分
+// 星榜：本周（周一到周日）或全部；整场计入开赛日；没得星的人列 0；没有并列：同星比本周挣的金币，再比谁先拿到这个星数（最后一次得星的开赛时刻早），再按 id
 const sbm = [
   { at: '2026-10-12T18:00', points: [{ uS: 1, uA: 0 }, { uS: 0, uA: 1 }] },   // 周一
   { at: '2026-10-11T23:55', points: [{ uS: 2, uA: 1, uB: 0 }] },           // 上周日开赛，即使比到周一也算上周
   { at: '2026-10-16T09:00', points: [{ uA: 1, uB: 0 }] }];
-const board = (period, uids) => Array.from(L.scoreboard(sbm, uids || ['uS', 'uA', 'uB', 'uC'], CD, period), r => [r.id, r.points, r.rank].join(':')).join(' ');
-assert.strictEqual(board('week'), 'uA:2:1 uS:1:2 uB:0:3 uC:0:3');
-assert.strictEqual(board('all'), 'uS:3:1 uA:3:1 uB:0:3 uC:0:3');
+const board = (period, uids, coins) => Array.from(L.scoreboard(sbm, uids || ['uS', 'uA', 'uB', 'uC'], CD, period, coins), r => [r.id, r.points, r.rank].join(':')).join(' ');
+assert.strictEqual(board('week'), 'uA:2:1 uS:1:2 uB:0:3 uC:0:4');   // uB、uC 都是 0 星 0 金币：按 id
+assert.strictEqual(board('week', null, { uC: 5 }), 'uA:2:1 uS:1:2 uC:0:3 uB:0:4');   // 同星比金币
+assert.strictEqual(board('all'), 'uS:3:1 uA:3:2 uB:0:3 uC:0:4');   // 同星同金币：uS 10-12 拿到 3 星，uA 10-16 才拿到
+assert.strictEqual(board('all', null, { uA: 9, uS: 5 }), 'uA:3:1 uS:3:2 uB:0:3 uC:0:4');   // 金币先于谁先拿到
 assert.strictEqual(board('week', ['uS', 'uB']), 'uS:1:1 uB:0:2');   // 只列名单（本组）里的人
-// 领奖台：所有人按得分、再按本周挣的金币排；两者都相同的站同一级；只摆前三级
-const pod = (rows, coins) => JSON.stringify(L.podium(rows, coins));
+// 领奖台：星榜的前三名各站一级
+const pod = rows => JSON.stringify(L.podium(rows));
 const U4 = ['uS', 'uA', 'uB', 'uC'];
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'week')), JSON.stringify([['uA'], ['uS'], ['uB', 'uC']]));   // 0 分的也上台
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all')), JSON.stringify([['uS', 'uA'], ['uB', 'uC'], []]));   // 同分同金币站同一级，下一位站下一级
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all'), { uS: 5, uA: 9, uB: 1 }), JSON.stringify([['uA'], ['uS'], ['uB']]));   // 同分比金币；第四位不上台
-assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week'), { uS: 39, uA: 156 }), JSON.stringify([['uA'], ['uS'], []]));   // 没比赛时按金币
+assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'week')), JSON.stringify([['uA'], ['uS'], ['uB']]));
+assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week', { uS: 39, uA: 156 })), JSON.stringify([['uA'], ['uS'], []]));   // 没比赛时按金币
 assert.strictEqual(Array.from(L.scoreboard([], ['uS'], CD, 'week'), r => r.points).join(), '0');
 // 本周历史：开赛日期在本周、参赛者与本组有交集；按开赛时刻新的在前
 const wm = [{ id: 'm1', at: '2026-10-12T08:00', players: ['uS', 'uA'] }, { id: 'm2', at: '2026-10-11T23:55', players: ['uS', 'uA'] },
