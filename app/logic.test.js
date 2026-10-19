@@ -34,7 +34,7 @@ assert.strictEqual(L.judgeAuto({ format: 'short', answer: 'has  been', accepted:
 assert.strictEqual(L.judgeAuto({ format: 'short', answer: '45', accepted: ['45'] }, '54'), 'wrong');
 assert.strictEqual(L.judgeAuto({ format: 'short', answer: '45', accepted: ['45'] }, ''), 'wrong');
 assert.strictEqual(L.judgeAuto({ format: 'open', answer: 'x' }, 'x'), null);
-// daily list: not mastered, due <= today, least recently used first (last ladder-input attempt, else recorded time), capped
+// daily list: not mastered, due <= today, never-done first (no ladder-input attempt, by recorded time), then least recently used (last ladder-input attempt), capped
 const da = (date, result, mode, at) => Object.assign({ by: 'uA', date, result, mode: mode || 'daily' }, at ? { at } : {});
 const ex = [
   { id: 'a', due: '2026-10-14', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-12', 'right', 'daily', '2026-10-12T09:00')] },
@@ -47,10 +47,14 @@ const ex = [
   // 只有 date 的作答按当天 0 点：h（10-09 08:30）排在 b（10-09 00:00）之后
   { id: 'h', due: '2026-10-11', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-09', 'partial', 'daily', '2026-10-09T08:30')] },
   // 没做过的取录入时刻：k 有 recordedAt（10-01 07:00），排在只有 createdAt、按当天 0 点算的 e 之后
-  { id: 'k', due: '2026-10-14', createdAt: '2026-10-01', recordedAt: '2026-10-01T07:00', mastered: false }];
-assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 10)), ['e', 'k', 'f', 'b', 'h', 'a']);
+  { id: 'k', due: '2026-10-14', createdAt: '2026-10-01', recordedAt: '2026-10-01T07:00', mastered: false },
+  // 没做过的先出：n 10-13 才录入，晚于全部做过的题的最后作答，仍排在它们前面
+  { id: 'n', due: '2026-10-14', createdAt: '2026-10-13', recordedAt: '2026-10-13T08:00', mastered: false },
+  // 只在检验卷上做对过的算没做过：p 10-13 录入，也排在做过的题前面
+  { id: 'p', due: '2026-10-14', createdAt: '2026-10-13', recordedAt: '2026-10-13T09:00', mastered: false, attempts: [da('2026-10-13', 'right', 'paper', '2026-10-13T20:00')] }];
+assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 10)), ['e', 'k', 'n', 'p', 'f', 'b', 'h', 'a']);
 assert.deepStrictEqual(ids(L.dailyList(ex, '2026-10-14', 2)), ['e', 'k']);
-// 检验卷上做错的作答算用过（推阶梯）
+// 检验卷上做错的作答算用过（推阶梯）：x 算做过，排在没做过的 y 后面（这一例按最久没用排也是同样结果）
 assert.deepStrictEqual(ids(L.dailyList([
   { id: 'x', due: '2026-10-14', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-13', 'wrong', 'paper')] },
   { id: 'y', due: '2026-10-14', createdAt: '2026-10-05', mastered: false }], '2026-10-14', 10)), ['y', 'x']);
@@ -72,13 +76,13 @@ const g = [
   { id: 'q5', setId: 'S', setPos: 3, due: '2026-10-16', createdAt: '2026-10-01', mastered: false, attempts: [da('2026-10-01', 'right')] },
   { id: 's2', due: '2026-10-14', createdAt: '2026-10-02', mastered: false },
   { id: 's3', due: '2026-10-14', createdAt: '2026-10-03', mastered: false, attempts: [da('2026-10-12', 'right', 'daily', '2026-10-12T08:00')] }];
-// 键：s2 10-02、s1 10-05、组 S 取组内到期题最早的 q4（10-11，早于 s3 的 10-12；按最晚的 q2 10-13 就会排在 s3 后）、s3 10-12
-// 组内到期的 q2、q4 连排、按 setPos；q5 未到期不拉进来（它的 10-01 也不算进组的键）
+// 逐题排：没做过的 s2（10-02）、s1（10-05），再按最后作答 q4（10-11）、s3（10-12）、q2（10-13）；q5 未到期不挑
+// 挑中的同组题连排：q2 接在组内第一道挑中的 q4 的位置，组内按 setPos
 assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 10)), ['s2', 's1', 'q2', 'q4', 's3']);
-// 上限 3：s2、s1 放入后组放不下，跳过并继续补位 s3
-assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 3)), ['s2', 's1', 's3']);
-// 上限 1 且清单为空时，第一组整组放入（去掉 s1、s2 后第一个单元是组 S）
-assert.deepStrictEqual(ids(L.dailyList(g.filter(e => e.id !== 's1' && e.id !== 's2'), '2026-10-14', 1)), ['q2', 'q4']);
+// 上限 3：逐题取前三道 s2、s1、q4，同组的 q2 等以后的批次
+assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 3)), ['s2', 's1', 'q4']);
+// 上限是确数：去掉 s1、s2 后上限 1 只挑 q4，不整组放入
+assert.deepStrictEqual(ids(L.dailyList(g.filter(e => e.id !== 's1' && e.id !== 's2'), '2026-10-14', 1)), ['q4']);
 // 卷面合并：按抽题顺序，遇到题组第一道题时接上同组抽中的题
 const drawn = [
   { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
@@ -320,12 +324,12 @@ const bs = L.dailyBySubject(bsx);
 assert.deepStrictEqual(Array.from(bs, x => [x[0], ids(x[1])]), [['english', ['k2', 'k3', 'k5']], ['science', ['k1', 'k4']]]);
 assert.strictEqual(bs.reduce((n, x) => n + x[1].length, 0), bsx.length);
 assert.deepStrictEqual(Array.from(L.dailyBySubject([])), []);
-// 按题组装出的清单再按科目分，组内的题仍连在一起
+// 逐题挑选、同组连排的清单再按科目分，组内的题仍连在一起：g2 录入晚于 e1，靠 paperLayout 接在 g1 后面
 const bsl = L.dailyBySubject(L.dailyList([
   { id: 'm1', subject: 'math', due: '2026-10-10', createdAt: '2026-10-01', mastered: false },
   { id: 'g1', subject: 'english', setId: 'G', setPos: 1, due: '2026-10-11', createdAt: '2026-10-02', mastered: false },
   { id: 'e1', subject: 'english', due: '2026-10-12', createdAt: '2026-10-03', mastered: false },
-  { id: 'g2', subject: 'english', setId: 'G', setPos: 2, due: '2026-10-13', createdAt: '2026-10-02', mastered: false }], '2026-10-14', 10));
+  { id: 'g2', subject: 'english', setId: 'G', setPos: 2, due: '2026-10-13', createdAt: '2026-10-04', recordedAt: '2026-10-04T08:00', mastered: false }], '2026-10-14', 10));
 assert.deepStrictEqual(Array.from(bsl, x => [x[0], ids(x[1])]), [['english', ['g1', 'g2', 'e1']], ['math', ['m1']]]);
 assert.ok(L.isDaily(dpx) && !L.isDaily(PX));
 // 接着用的每日卷：今天、给我、我没交过；昨天的、别人的、交过的都不取

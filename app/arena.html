@@ -495,25 +495,12 @@ function lastUsed(e) {
   return t || recordedKey(e);
 }
 function dailyList(exs, today, limit) {
-  // 到期题合成单元：独立题各成一个，同一题组的到期题合成一个；单元按组内最久没用（lastUsed 最早）排，相同时按最早录入、再按最小 id
+  // 到期题逐题排：没做过的（阶梯输入为空）在前，再按最久没用（lastUsed 最早；没做过的即录入时刻），相同时按最早录入、再按最小 id；取前 limit 道，挑中的同组题按 paperLayout 连排
   const due = exs.filter(e => !e.mastered && e.due && e.due <= today);
-  const units = [], bySet = {};
-  for (const e of due) {
-    if (e.setId) {
-      if (!bySet[e.setId]) { bySet[e.setId] = []; units.push(bySet[e.setId]); }
-      bySet[e.setId].push(e);
-    } else units.push([e]);
-  }
-  const min = (u, f) => u.map(f).reduce((m, v) => v < m ? v : m);
-  const keyed = units.map(u => ({ u: u.slice().sort(cmpSetPos), k: { used: min(u, lastUsed), rec: min(u, e => String(recordedKey(e))), id: min(u, e => String(e.id)) } }));
-  keyed.sort((a, b) => a.k.used.localeCompare(b.k.used) || a.k.rec.localeCompare(b.k.rec) || a.k.id.localeCompare(b.k.id));
-  const out = [];
-  const cap = Math.max(0, limit);
-  for (const x of keyed) {
-    if (!out.length) { if (cap) out.push(...x.u); continue; }
-    if (out.length + x.u.length <= cap) out.push(...x.u);
-  }
-  return out;
+  const seen = e => ladderInput(e.attempts).length ? 1 : 0;
+  const keyed = due.map(e => ({ e, k: { seen: seen(e), used: lastUsed(e), rec: String(recordedKey(e)), id: String(e.id) } }));
+  keyed.sort((a, b) => (a.k.seen - b.k.seen) || a.k.used.localeCompare(b.k.used) || a.k.rec.localeCompare(b.k.rec) || a.k.id.localeCompare(b.k.id));
+  return paperLayout(keyed.slice(0, Math.max(0, limit)).map(x => x.e));
 }
 function paperLayout(drawn) {
   // 按抽题顺序，遇到题组的第一道题时把同组抽中的题按 setPos 接在后面
@@ -586,7 +573,7 @@ function dailyBySubject(list) {
   return SUBJECTS.map(s => [s[0], list.filter(e => e.subject === s[0])]).filter(x => x[1].length);
 }
 function subjectBatch(todo, today, limit, subject) {
-  // 这一科此刻的一批：只在这一科的错题里按 dailyList 的到期、排序与题组规则装到一批为止（每科各算一批）
+  // 这一科此刻的一批：只在这一科的错题里按 dailyList 的到期与排序取到一批为止（每科各算一批）
   return dailyList(todo.filter(e => e.subject === subject), today, limit);
 }
 function dueNowIds(todo, today) {
