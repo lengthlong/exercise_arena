@@ -83,6 +83,18 @@ assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 10)), ['s2', 's1', 'q2',
 assert.deepStrictEqual(ids(L.dailyList(g, '2026-10-14', 3)), ['s2', 's1', 'q4']);
 // 上限是确数：去掉 s1、s2 后上限 1 只挑 q4，不整组放入
 assert.deepStrictEqual(ids(L.dailyList(g.filter(e => e.id !== 's1' && e.id !== 's2'), '2026-10-14', 1)), ['q4']);
+// 排序键相同（同一分钟录入）时先按题组（独立题在前），组内按 setPos，再按 id：题组被上限切开时先出组内最前面的几道
+const tieAt = '2026-10-10T09:00';
+const tieSet = done => [['a1', 'T', 3], ['b1', 'U', 1], ['b2', 'U', 2], ['k', null, null], ['x1', 'T', 2], ['y1', 'T', 1]].map(([id, setId, setPos]) =>
+  Object.assign({ id, due: '2026-10-14', createdAt: '2026-10-10', recordedAt: tieAt, mastered: false, attempts: done ? [da('2026-10-12', 'right', 'daily', '2026-10-12T08:00')] : [] }, setId ? { setId, setPos } : {}));
+// 按 id 会挑 a1（T3）、b1、b2（U1、U2）；按新规则挑 k、T1、T2
+assert.deepStrictEqual(ids(L.dailyList(tieSet(false), '2026-10-14', 3)), ['k', 'y1', 'x1']);
+assert.deepStrictEqual(ids(L.dailyList(tieSet(false), '2026-10-14', 10)), ['k', 'y1', 'x1', 'a1', 'b1', 'b2']);
+// 做过且作答时刻相同（同一张卷上一起交）时同样
+assert.deepStrictEqual(ids(L.dailyList(tieSet(true), '2026-10-14', 3)), ['k', 'y1', 'x1']);
+// setPos 按数值比：12 道一组，上限 3 挑 1、2、3（按字符串比会挑 1、10、11）
+const big = Array.from({ length: 12 }, (_, i) => ({ id: 'g' + (i + 1), setId: 'B', setPos: i + 1, due: '2026-10-14', createdAt: '2026-10-10', recordedAt: tieAt, mastered: false }));
+assert.deepStrictEqual(ids(L.dailyList(big, '2026-10-14', 3)), ['g1', 'g2', 'g3']);
 // 卷面合并：按抽题顺序，遇到题组第一道题时接上同组抽中的题
 const drawn = [
   { id: 'a', setId: null }, { id: 'q4', setId: 'S', setPos: 2 }, { id: 'b' }, { id: 'q2', setId: 'S', setPos: 1 }, { id: 'c' }];
