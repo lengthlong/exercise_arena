@@ -343,6 +343,10 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .lift-svg .plate { fill: var(--amber); stroke: var(--ink); stroke-width: 1.5; }
 .lane-name { font-weight: 500; overflow-wrap: anywhere; }
 .kg { font: 700 20px/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.calc { font-variant-numeric: tabular-nums; }
+.extra-row { align-items: center; gap: 8px; margin-top: 8px; }
+.extra-row b { min-width: 2ch; text-align: center; font-size: 18px; }
+.coin-earn { margin: 0; font: 600 17px/1.3 var(--font-body); color: var(--amber); }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 6px; padding-top: 4px; }
 .step { display: grid; gap: 4px; text-align: center; min-width: 0; }
 .step .who { display: flex; justify-content: center; align-items: flex-end; gap: 0; min-height: 4px; }
@@ -782,10 +786,13 @@ function dashboardData(todo, done, today) {
   return { total: todo.length, mastered, newMastered7, newMasteredToday, days, ladder,
     streak: st.streak, doneToday: st.doneToday, todayRight };
 }
-function helloStats(d) {
+const fmtP = v => String(Math.round(v * 10) / 10);
+function helloStats(d, g) {
+  // g：本人的余额与本周的星，有才写
   const items = [`✅ ${d.todayRight} right today`];
-  if (d.newMasteredToday > 0) items.push(`⭐ ${d.newMasteredToday} mastered today`);
+  if (d.newMasteredToday > 0) items.push(`🏅 ${d.newMasteredToday} mastered today`);
   items.push(`🔥 ${d.streak}-day streak`);
+  if (g) items.push(`🪙 ${g.coins} coin${g.coins === 1 ? '' : 's'}`, `⭐ ${fmtP(g.stars)} star${g.stars === 1 ? '' : 's'}`);
   return items;
 }
 /* ---------- 设置、计划与回顾 ---------- */
@@ -994,45 +1001,91 @@ function paperName(p, papers, view, uid, userName, topicName) {
   return `Batch ${i >= 0 ? i + 1 : done.length + 1}`;
 }
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
-function coinsFor(exs, matches, uid, today) {
-  // 金币：本周（周一到今天）内，阶梯每升一级 2 枚、每掌握一道 10 枚；阶梯按 deriveState 的同一套规则走本人的阶梯输入
-  // 余额：金币减去本周开赛、本人参赛的各场 rounds × 10（开赛即扣）
-  const from = weekStart(today), inWin = d => d >= from && d <= today;
-  let up = 0, mastered = 0;
-  for (const e of exs) {
-    const mine = (e.attempts || []).filter(a => a.by === uid);
-    let step = 1, m = false;
-    for (const a of ladderInput(mine)) {
-      if (m) { if (a.result === 'wrong') { m = false; step = 1; } continue; }
-      if (a.result === 'right') {
-        if (step === 4) { m = true; if (inWin(a.date)) mastered++; }
-        else { step++; if (inWin(a.date)) up++; }
-      } else if (a.result === 'wrong') step = 1;
-    }
+function attemptCoins(attempts, from, to) {
+  // 一位用户对一道错题的作答（已按 by 筛好）：按 deriveState 的同一套阶梯规则从头推，只给每日重做、date 在 from–to 的作答定枚数
+  // 做对得进入的那一级的数（2、3、4），在第 4 级做对即掌握得 5；部分对、做错得 1，from–to 内每道题只给一次；掌握后做错按做错给、回到第 1 级，做对、部分对得 0
+  // 返回得了枚数的作答：[{ a, kind: 'up' | 'mastered' | 'tried', n }]
+  let step = 1, m = false, tried = false;
+  const out = [];
+  for (const a of ladderInput(attempts)) {
+    let kind = null, n = 0;
+    if (m) { if (a.result === 'wrong') { m = false; step = 1; kind = 'tried'; } }
+    else if (a.result === 'right') { if (step === 4) { m = true; kind = 'mastered'; n = 5; } else { step++; kind = 'up'; n = step; } }
+    else { if (a.result === 'wrong') step = 1; kind = 'tried'; }
+    if (!kind || a.mode === 'paper' || a.date < from || a.date > to) continue;
+    if (kind === 'tried') { if (tried) continue; tried = true; n = 1; }
+    out.push({ a, kind, n });
   }
-  const coins = up * 2 + mastered * 10;
-  let spent = 0;
-  for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10))) spent += (Number(mt.rounds) || 0) * ROUND_COST;
-  return { up, mastered, coins, spent, balance: coins - spent };
+  return out;
 }
-const ROUND_COST = 10;
-function entrants(userIds, owners, balances, starter, rounds) {
-  // 参赛者：默认归属人与开赛人的相同、余额够付 rounds × 10 的用户；开赛人在最前，其余按 userIds 顺序；开赛人不够或不到两人时为空
-  const need = rounds * ROUND_COST, own = id => owners[id] || id, group = own(starter);
-  const ok = id => own(id) === group && (balances[id] || 0) >= need;
+const ENTRY = 10, EXTRA_MAX = 10;
+function stakeOf(mt, uid) {
+  // 一位参赛者在一场里的投入：有 stakes 时取它，旧比赛按 rounds × 10
+  const v = mt.stakes ? Number(mt.stakes[uid]) : NaN;
+  return Number.isFinite(v) ? v : (Number(mt.rounds) || 0) * ENTRY;
+}
+function coinsFor(exs, matches, uid, today) {
+  // 金币：本周（周一到今天）每日重做的作答按 attemptCoins 给；up 是升到 2、3、4 级各几次
+  // 余额：金币减去本周开赛、本人参赛的各场里本人的投入（开赛即扣）
+  const from = weekStart(today), inWin = d => d >= from && d <= today;
+  const up = { 2: 0, 3: 0, 4: 0 };
+  let mastered = 0, tried = 0, coins = 0;
+  for (const e of exs) for (const x of attemptCoins((e.attempts || []).filter(a => a.by === uid), from, today)) {
+    coins += x.n;
+    if (x.kind === 'up') up[x.n]++; else if (x.kind === 'mastered') mastered++; else tried++;
+  }
+  let spent = 0;
+  for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10))) spent += stakeOf(mt, uid);
+  return { up, mastered, tried, coins, spent, balance: coins - spent };
+}
+function paperCoins(exs, uid, paperId) {
+  // 一张卷上本人的作答挣的金币：每道题按本人的全部作答重放（时段取这张卷的作答所在的那一周），只加带本卷 paperId 的
+  const out = { coins: 0, up: 0, mastered: 0, tried: 0 };
+  for (const e of exs) {
+    const mine = (e.attempts || []).filter(a => a.by === uid), hit = mine.find(a => a.paperId === paperId);
+    if (!hit) continue;
+    const from = weekStart(hit.date);
+    for (const x of attemptCoins(mine, from, addDays(from, 6))) if (x.a.paperId === paperId) { out.coins += x.n; out[x.kind]++; }
+  }
+  return out;
+}
+function maxExtra(balance) {
+  // 开赛人最多能多投几枚：0–10，且余额要够付 10 枚投入加多投的
+  return Math.max(0, Math.min(EXTRA_MAX, Math.floor(balance) - ENTRY));
+}
+function entrants(userIds, owners, balances, starter, extra) {
+  // 参赛者：默认归属人与开赛人的相同、余额够付 10 枚的用户（开赛人要够付 10 + extra）；开赛人在最前，其余按 userIds 顺序；开赛人不够或不到两人时为空
+  const own = id => owners[id] || id, group = own(starter);
+  const ok = id => own(id) === group && (balances[id] || 0) >= ENTRY + (id === starter ? extra || 0 : 0);
   if (!ok(starter)) return [];
   const out = [starter].concat(userIds.filter(id => id !== starter && ok(id)));
   return out.length >= 2 ? out : [];
 }
-function liftRound(balances, round, rand) {
-  // 举重一局：第 round 局按「开赛时余额 − (round − 1) × 10」× 0.7–1.3 的随机数，四舍五入到整 kg；名次 = 1 + 举得比他重的人数
-  const kg = {}, places = {};
-  for (const id of Object.keys(balances)) kg[id] = Math.round(Math.max(0, balances[id] - (round - 1) * ROUND_COST) * (0.7 + 0.6 * rand()));
-  for (const id of Object.keys(kg)) places[id] = 1 + Object.keys(kg).filter(x => kg[x] > kg[id]).length;
-  return { kg, places };
+// 举重：幸运数是 1.0、1.1 … 10.0 这 91 个数之一，k = 0…90 时为 (10 + k) / 10；重量按十分之一 kg 的整数算，免得浮点误差
+const liftTenths = (stake, k) => stake * (10 + k);
+function liftRound(stakes, rand) {
+  // 举重一局：每人抽一个幸运数，举起投入 × 幸运数 kg（保留一位小数）；名次 = 1 + 举得比他重的人数
+  const t = {}, kg = {}, luck = {}, places = {};
+  for (const id of Object.keys(stakes)) {
+    const k = Math.min(90, Math.floor(rand() * 91));
+    t[id] = liftTenths(stakes[id], k); kg[id] = t[id] / 10; luck[id] = (10 + k) / 10;
+  }
+  for (const id of Object.keys(t)) places[id] = 1 + Object.keys(t).filter(x => t[x] > t[id]).length;
+  return { kg, luck, places };
+}
+function liftChances(stakes) {
+  // 各人赢这一局的机会（0–1）：独赢 + 并列时平分；对自己的每个幸运数，乘上其余各人举得比他轻的概率（同重算一半）；三人以上同重时是近似
+  const ids = Object.keys(stakes), out = {};
+  const below = (j, x) => { let lt = 0, eq = 0; for (let k = 0; k <= 90; k++) { const v = liftTenths(stakes[j], k); if (v < x) lt++; else if (v === x) eq++; } return (lt + eq / 2) / 91; };
+  for (const i of ids) {
+    let p = 0;
+    for (let k = 0; k <= 90; k++) { const x = liftTenths(stakes[i], k); let q = 1; for (const j of ids) if (j !== i) q *= below(j, x); p += q / 91; }
+    out[i] = p;
+  }
+  return out;
 }
 function roundPoints(places) {
-  // 一局的得分：用户 id → 名次（并列同名次）；没有并列时得分 = 打败的人数，并列的几人平分所占几个名次的得分之和
+  // 一局的星：用户 id → 名次（并列同名次）；没有并列时星 = 打败的人数，并列的几人平分所占几个名次的星之和
   const ids = Object.keys(places), n = ids.length, out = {};
   for (const id of ids) {
     const p = places[id];
@@ -1044,14 +1097,14 @@ function roundPoints(places) {
   return out;
 }
 function matchTotals(points) {
-  // 一场的总分与本场冠军（总分最高者，可并列）
+  // 一场各人的星与本场冠军（星最多者，可并列）
   const totals = {};
   for (const r of points || []) for (const id of Object.keys(r)) totals[id] = (totals[id] || 0) + r[id];
   const top = Math.max(...Object.values(totals), -Infinity);
   return { totals, champions: Object.keys(totals).filter(id => totals[id] === top) };
 }
 function scoreboard(matches, userIds, today, period) {
-  // 积分榜：period 为 'week'（含今天的那个周一到周日）或 'all'；整场计入开赛日期所在的周；只列 userIds（页面传本组）；按总分降序，同分同名次，没得分的人列 0 分
+  // 积分榜：period 为 'week'（含今天的那个周一到周日）或 'all'；整场计入开赛日期所在的周；只列 userIds（页面传本组）；按星降序，星数相同同名次，没得星的人列 0
   const wk = weekStart(today), tot = {};
   (userIds || []).forEach(id => { tot[id] = 0; });
   for (const mt of matches || []) {
@@ -1068,7 +1121,7 @@ function weekMatches(matches, group, today) {
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 function podium(rows, coins) {
-  // 领奖台：所有人按得分、再按本周挣的金币从高到低排；得分与金币都相同的站同一级；只摆前三级
+  // 领奖台：所有人按星、再按本周挣的金币从高到低排；星与金币都相同的站同一级；只摆前三级
   coins = coins || {};
   const key = r => [r.points, coins[r.id] || 0];
   const order = rows.slice().sort((a, b) => b.points - a.points || (coins[b.id] || 0) - (coins[a.id] || 0));
@@ -1142,7 +1195,7 @@ const S = {
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
-  boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项
+  boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
 };
 let draftSeq = 1, setSeq = 1;
 const pendingPos = {};
@@ -1274,10 +1327,11 @@ function renderPractice() {
 /* 问候、今天的对题数、新掌握数与连续天数 */
 function hiLine() { const n = S.names[S.me]; return n ? `Hi ${esc(n)}` : 'Hi'; }
 function helloBlock(dateLine, db) {
-  // 两行：问候与日期；今天的对题数、新掌握数与连续天数，放不下时折行
+  // 两行：问候与日期；今天的对题数、新掌握数、连续天数、余额与本周的星，放不下时折行
+  const today = localToday(), g = { coins: coinInfo(S.me, today).balance, stars: weekStars(S.me, today) };
   return `<section class="hello" aria-label="Hello">
     <div class="hello-top"><h1>${hiLine()}</h1><span class="day">${dateLine}</span></div>
-    <p class="hello-line hello-stats">${esc(helloStats(db).join(' · '))}</p>
+    <p class="hello-line hello-stats">${esc(helloStats(db, g).join(' · '))}</p>
   </section>`;
 }
 
@@ -1472,6 +1526,18 @@ function cardNav(idx, n, act, lastLabel) {
     : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next →</button>`;
   return `<div class="card-nav"><button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>← Previous</button>${next}</div>`;
 }
+function runCoinsLine(p, exs) {
+  // 每日卷交卷后：这张卷挣的金币；用本次判好的作答加原有历史即时算，不等 snapshot；主观题自评存好后才算进
+  const R = S.run, today = localToday();
+  const aug = exs.map(e => {
+    const has = (e.attempts || []).some(a => a.paperId === p.id && a.by === S.me), r = R.results[e.id];
+    const ready = r && (e.format !== 'open' || R.saved[e.id]);
+    return has || !ready ? e : Object.assign({}, e, { attempts: (e.attempts || []).concat([{ by: S.me, date: today, mode: 'daily', paperId: p.id, result: r }]) });
+  });
+  const c = paperCoins(aug, S.me, p.id);
+  const parts = [[c.up, 'climbed'], [c.mastered, 'mastered'], [c.tried, 'tried']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
+  return `<p class="coin-earn">🪙 +${c.coins} coin${c.coins === 1 ? '' : 's'}${parts.length ? ` <span class="small muted">(${parts.join(' · ')})</span>` : ''}</p>`;
+}
 function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
 function renderPaperRun() {
   // 检验卷与每日卷同一个作答页：一次一张卡，翻页条在卡片上方，Hand in 在顶上一行、作答阶段也在最后一张卡的底部；交卷即存客观题，主观题自评即存并锁定
@@ -1489,6 +1555,7 @@ function renderPaperRun() {
     // 摘要卡右上角是返回（与 View details 的返回同一位置）
     h += `<section class="panel"><div class="sum-head"><p class="h3 grow">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p><button type="button" class="btn ghost small" data-act="exit-run" aria-label="Back to today">← Back<span class="wide-only"> to today</span></button></div>
       <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
+      ${isDaily(p) ? runCoinsLine(p, exs) : ''}
       <p class="muted small">${toMark ? 'Check your written answers against the model answers and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
   }
   if (R.phase === 'answer' && R.warn) {
@@ -1916,14 +1983,16 @@ function renderSettings() {
 function groupOf(id) { return S.owners[id] || id; }
 function myGroup() { const g = groupOf(S.me); return S.userIds.filter(id => groupOf(id) === g); }
 function coinInfo(id, today) { return coinsFor(S.exercises, S.matches, id, today || localToday()); }
-const fmtP = v => String(Math.round(v * 10) / 10);
+// 这一局播完前，积分榜、星与历史先不算它，免得提前看到结果
+function shownMatches() { return matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches; }
+function weekStars(id, today) { const r = scoreboard(shownMatches(), myGroup(), today, 'week').find(x => x.id === id); return r ? r.points : 0; }
 function renderGames() {
-  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
-  const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
-    <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
-    <p class="small muted">Earned: ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10.</p></section>`;
-  // 这一局播完前，积分榜与历史先不算它，免得提前看到结果
-  const shown = matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches;
+  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup(), stars = weekStars(S.me, today);
+  const parts = [[c.up[2], 2, 'up to ladder 2'], [c.up[3], 3, 'up to ladder 3'], [c.up[4], 4, 'up to ladder 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried']].filter(x => x[0]);
+  const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins &amp; stars this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
+    <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div><div><span class="mid star-n">⭐ ${fmtP(stars)}</span><span class="small muted">stars</span></div></div>
+    <p class="small muted">${parts.length ? `Earned: ${parts.map(x => `${x[0]} ${x[2]} × ${x[1]}`).join(' + ')}.` : 'No coins yet this week.'} Redo: 2, 3 or 4 coins for the ladder you climb to, 5 for mastering, 1 for trying (once per question each week).</p></section>`;
+  const shown = shownMatches();
   // 游戏：举重、赛跑、爬梯三个标签；赛跑、爬梯还没做
   const games = [['lift', 'Lifting'], ['sprint', 'Racing'], ['climb', 'Climbing']], g = S.gameTab;
   const gameBlock = `<section class="panel"><div class="gtabs" role="tablist">${games.map(x => `<button type="button" role="tab" data-act="game-tab" data-v="${x[0]}" aria-selected="${g === x[0]}" ${matchLive() ? 'disabled' : ''}>${x[1]}</button>`).join('')}</div>
@@ -1933,7 +2002,7 @@ function renderGames() {
 function boardBlock(today, group, matches) {
   // 积分榜：领奖台，本周或全部时间
   const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows, Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])));
-  // 领奖台：本组所有人都站上去（按得分，同分比本周挣的金币），台阶里写名字
+  // 领奖台：本组所有人都站上去（按星，星数相同比本周挣的金币），台阶里写名字
   // 小人：圆脸、笑脸、上衣按台阶的颜色；冠军举双臂并挂奖牌，亚军挥一只手，季军双手叉腰
   const arms = ['M21 40 L11 24 M39 40 L49 24', 'M21 40 L14 54 M39 40 L48 26', 'M21 40 L13 48 L19 56 M39 40 L47 48 L41 56'];
   const fig = i => `<svg viewBox="0 0 60 92" class="pod-fig" aria-hidden="true">
@@ -1970,14 +2039,15 @@ function liftPose(svg, e) {
   if (arm) arm.setAttribute('d', liftArms(e));
   if (bar) bar.setAttribute('transform', `translate(0 ${-40 * e})`);
 }
-function resultCards(players, kgs, pts, phase) {
-  // 一局的选手卡：动画中重量从 0 涨起；播完显示 kg、名次与得分，第一名高亮；kgs 为 null（没存 lifts 的旧比赛）时不显示 kg
+function resultCards(players, kgs, pts, phase, luck, stakes) {
+  // 一局的选手卡：动画中重量从 0 涨起；播完写算式「投入 × 幸运数 =」与 kg、名次与星，第一名高亮；kgs 为 null（没存 lifts 的旧比赛）时不显示 kg，luck 为 null（旧比赛）时不写算式
   const noKg = !kgs; kgs = kgs || {};
   const anim = phase === 'anim', maxKg = Math.max(...players.map(id => kgs[id] || 0), 1);
   const place = id => 1 + players.filter(x => pts[x] > pts[id]).length;
+  const calc = id => !anim && luck && luck[id] != null ? `<div class="calc small muted">${stakes[id]} × ${luck[id].toFixed(1)} =</div>` : '';
   return `<div class="lcards">${players.map(id => `<div class="lcard ${!anim && place(id) === 1 ? 'win' : ''}">${lifterSvg(kgs[id] || 0, maxKg, anim ? 'anim' : 'up')}
-    <div class="lane-name">${esc(userName(id))}</div>${noKg ? '' : `<div class="kg" data-kg="${kgs[id] || 0}">${anim ? 0 : kgs[id] || 0} kg</div>`}
-    <div class="tags">${anim ? '' : `<span class="chip">#${place(id)}</span><span class="chip">+${fmtP(pts[id])}</span>`}</div></div>`).join('')}</div>`;
+    <div class="lane-name">${esc(userName(id))}</div>${calc(id)}${noKg ? '' : `<div class="kg" data-kg="${kgs[id] || 0}">${anim ? 0 : fmtP(kgs[id] || 0)} kg</div>`}
+    <div class="tags">${anim ? '' : `<span class="chip">#${place(id)}</span><span class="chip">+${fmtP(pts[id])} ⭐</span>`}</div></div>`).join('')}</div>`;
 }
 function championLine(pts) {
   const t = matchTotals([pts]);
@@ -1988,37 +2058,47 @@ function liftBlock(today, group, matches) {
   let arena, arenaInfo = '', arenaBtn = '';
   if (L && L.phase === 'saving') arena = `<p class="muted small">Getting ready…</p>`;
   else if (L && L.phase === 'error') arena = `<p class="note err">${esc(L.err)}</p><div class="row"><button type="button" class="btn" data-act="game-done">Done</button></div>`;
-  else if (L) arena = resultCards(L.players, L.kg, L.pts, L.phase) + (L.phase === 'anim'
+  else if (L) arena = resultCards(L.players, L.kg, L.pts, L.phase, L.luck, L.stakes) + (L.phase === 'anim'
       ? '<div class="row"><button type="button" class="btn" data-act="game-skip">Skip</button></div>'
       : `${championLine(L.pts)}<div class="row"><button type="button" class="btn primary" data-act="game-done">Done</button></div>`);
   else {
-    const ins = entrants(S.userIds, S.owners, bal, S.me, 1);
-    const why = bal[S.me] < ROUND_COST ? `You need ${ROUND_COST} coins to play; you have ${bal[S.me]}.`
-      : !ins.length ? (group.length < 2 ? 'Nobody else shares your default owner yet.' : `Nobody else has ${ROUND_COST} coins this week.`) : '';
+    // 开赛前：开赛人可以多投 0–maxExtra 枚；选手卡写余额、投入与赢的机会，随多投的枚数即时变
+    const mx = maxExtra(bal[S.me] || 0), extra = S.extra = Math.min(S.extra || 0, mx);
+    const ins = entrants(S.userIds, S.owners, bal, S.me, extra);
+    const stakes = Object.fromEntries(ins.map(id => [id, ENTRY + (id === S.me ? extra : 0)]));
+    const ch = ins.length ? liftChances(stakes) : {};
+    const why = bal[S.me] < ENTRY ? `You need ${ENTRY} coins to play; you have ${bal[S.me]}.`
+      : !ins.length ? (group.length < 2 ? 'Nobody else shares your default owner yet.' : `Nobody else has ${ENTRY} coins this week.`) : '';
     arena = `<div class="lcards">${group.map(id => {
-      const inn = ins.includes(id), st = inn ? 'in' : bal[id] < ROUND_COST ? 'not enough coins' : 'ready';
+      const inn = ins.includes(id);
+      const tags = inn ? `<span class="chip coin-chip">puts in ${stakes[id]}</span><span class="chip in-chip">${Math.round(ch[id] * 100)}% chance</span>`
+        : `<span class="chip">${bal[id] < ENTRY ? 'not enough coins' : 'ready'}</span>`;
       return `<div class="lcard ${inn ? '' : 'out'}">${lifterSvg(0, 1, 'rest')}<div class="lane-name">${esc(userName(id))}${id === S.me ? ' (me)' : ''}</div>
-        <div class="tags"><span class="chip coin-chip">${bal[id]} coins</span><span class="chip ${inn ? 'in-chip' : ''}">${st}</span></div></div>`;
+        <div class="small muted">${bal[id]} coins</div><div class="tags">${tags}</div></div>`;
     }).join('')}</div>`;
+    if (ins.length) arena += `<div class="row extra-row"><span class="small">Extra coins from me</span>
+      <button type="button" class="btn ghost small" data-act="extra" data-v="-1" aria-label="One less" ${extra <= 0 ? 'disabled' : ''}>−</button><b class="num">${extra}</b>
+      <button type="button" class="btn ghost small" data-act="extra" data-v="1" aria-label="One more" ${extra >= mx ? 'disabled' : ''}>+</button><span class="small muted">0–${mx}</span></div>`;
     arenaInfo = why || plural(ins.length, 'lifter');
     arenaBtn = `<button type="button" class="btn primary" data-act="game-start" ${ins.length ? '' : 'disabled'}>Start</button>`;
   }
   const hist = weekMatches(matches, group, today).filter(mt => mt.game === 'lift' && (mt.points || []).length);
   const H = S.hist;
   const items = hist.map(mt => {
-    const pts = mt.points[0], kgs = (mt.lifts || [])[0] || null, ps = mt.players.filter(id => id in pts);
+    const pts = mt.points[0], kgs = (mt.lifts || [])[0] || null, luck = (mt.luck || [])[0] || null, ps = mt.players.filter(id => id in pts);
+    const stakes = Object.fromEntries(ps.map(id => [id, stakeOf(mt, id)]));
     const order = ps.slice().sort((x, y) => pts[y] - pts[x]);
-    const line = order.map(id => `<span class="h-p">${esc(userName(id))} <b>#${1 + ps.filter(x => pts[x] > pts[id]).length}</b>${kgs ? ` ${kgs[id]} kg` : ''} <span class="muted">+${fmtP(pts[id])}</span></span>`).join('');
+    const line = order.map(id => `<span class="h-p">${esc(userName(id))} <b>#${1 + ps.filter(x => pts[x] > pts[id]).length}</b>${kgs ? ` ${fmtP(kgs[id])} kg` : ''} <span class="muted">+${fmtP(pts[id])} ⭐</span></span>`).join('');
     const open = H && H.id === mt.id;
     let body = '';
-    if (open && H.phase !== 'rest') body = resultCards(ps, kgs, pts, H.phase) + (H.phase === 'anim'
+    if (open && H.phase !== 'rest') body = resultCards(ps, kgs, pts, H.phase, luck, stakes) + (H.phase === 'anim'
       ? '<div class="row"><button type="button" class="btn" data-act="hist-skip">Skip</button></div>'
       : `${championLine(pts)}<div class="row"><button type="button" class="btn" data-act="hist-done">Done</button></div>`);
     else if (open) body = `<div class="lcards">${ps.map(id => `<div class="lcard">${lifterSvg(0, 1, 'rest')}<div class="lane-name">${esc(userName(id))}</div>
-      <div class="tags"><span class="chip coin-chip">${(mt.balances || {})[id] != null ? mt.balances[id] : '—'} coins</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
+      <div class="tags"><span class="chip coin-chip">puts in ${stakes[id]}</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
     return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span><span class="h-chev" aria-hidden="true">${open ? '▴' : '▾'}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
-  return `<div class="gsec"><p class="small muted">Each lifter lifts their coins × a lucky number; the heaviest lift wins.</p></div>
+  return `<div class="gsec"><p class="small muted">Everyone puts in ${ENTRY} coins; the starter can add up to ${EXTRA_MAX} more. Each lifter lifts the coins put in × a lucky number from 1 to 10 — more coins, better chance, no sure win. Beat a lifter, win a ⭐.</p></div>
     <div class="gsec arena-cards"><div class="sec-head"><p class="h3">Arena</p>${arenaInfo ? `<span class="small muted">${esc(arenaInfo)}</span>` : ''}<span class="sec-r">${arenaBtn}</span></div>${arena}</div>
     <div class="gsec"><p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</div>`;
 }
@@ -2033,7 +2113,7 @@ function countUp(scope) {
     if (!root.isConnected) { clearInterval(timer); return; }
     const f = Math.min(1, Math.max(0, (performance.now() - t0 - 200) / 1400)), e = f < .5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2;
     svgs.forEach(svg => liftPose(svg, e));
-    els.forEach(el => { el.textContent = Math.round(Number(el.dataset.kg) * e) + ' kg'; });
+    els.forEach(el => { el.textContent = (f >= 1 ? fmtP(Number(el.dataset.kg)) : Math.round(Number(el.dataset.kg) * e)) + ' kg'; });
     if (f >= 1) clearInterval(timer);
   }, 30);
 }
@@ -2043,21 +2123,23 @@ function histPlay() {
   histTimer = setTimeout(() => { if (S.hist === H && H.phase === 'anim') { H.phase = 'shown'; render(); } }, 2000);
 }
 async function startMatch() {
-  // 开赛即写（按局数预扣），算出这一局后把 points 与 lifts 一起追加写回，写成后再播动画
+  // 开赛即写（投入即扣），算出这一局后把 points、lifts 与 luck 一起追加写回，写成后再播动画；多投的枚数按此刻的余额收紧，开赛后清零
   const today = localToday();
   const bal = Object.fromEntries(myGroup().map(id => [id, coinInfo(id, today).balance]));
-  const players = entrants(S.userIds, S.owners, bal, S.me, 1);
+  const extra = Math.min(S.extra || 0, maxExtra(bal[S.me] || 0));
+  const players = entrants(S.userIds, S.owners, bal, S.me, extra);
   if (!players.length) return;
   const balances = Object.fromEntries(players.map(id => [id, bal[id]]));
+  const stakes = Object.fromEntries(players.map(id => [id, ENTRY + (id === S.me ? extra : 0)]));
   const ref = S.db.collection('matches').doc();
-  const L = S.lift = { id: ref.id, players, phase: 'saving', kg: null, pts: null, err: null }; S.hist = null; render();
-  const res = liftRound(balances, 1, Math.random), pts = roundPoints(res.places);
+  const L = S.lift = { id: ref.id, players, stakes, phase: 'saving', kg: null, luck: null, pts: null, err: null }; S.hist = null; S.extra = 0; render();
+  const res = liftRound(stakes, Math.random), pts = roundPoints(res.places);
   try {
-    await ref.set({ game: 'lift', by: S.me, players, rounds: 1, balances, at: nowLocal(), points: [], lifts: [] });
-    await S.db.doc('matches/' + ref.id).update({ points: [pts], lifts: [res.kg] });
+    await ref.set({ game: 'lift', by: S.me, players, rounds: 1, balances, stakes, at: nowLocal(), points: [], lifts: [], luck: [] });
+    await S.db.doc('matches/' + ref.id).update({ points: [pts], lifts: [res.kg], luck: [res.luck] });
   } catch (err) { if (S.lift === L) { L.phase = 'error'; L.err = dbErr(err); render(); } return; }
   if (S.lift !== L) return;
-  L.kg = res.kg; L.pts = pts; L.phase = 'anim'; render();
+  L.kg = res.kg; L.luck = res.luck; L.pts = pts; L.phase = 'anim'; render();
   countUp('.arena-cards');
   clearTimeout(liftTimer);
   liftTimer = setTimeout(() => { if (S.lift === L && L.phase === 'anim') { L.phase = 'shown'; render(); } }, 2000);
@@ -2087,6 +2169,7 @@ document.addEventListener('click', async ev => {
       case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
+      case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
       case 'game-start': await startMatch(); break;
       case 'game-skip': if (S.lift && S.lift.phase === 'anim') { S.lift.phase = 'shown'; render(); } break;
       case 'game-done': clearTimeout(liftTimer); if (!matchLive()) S.lift = null; render(); break;
