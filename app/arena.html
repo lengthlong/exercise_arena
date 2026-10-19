@@ -995,13 +995,12 @@ function paperName(p, papers, view, uid, userName, topicName) {
 }
 function parseList(t) { return Array.isArray(t) ? t.map(x => String(x).trim()).filter(Boolean) : String(t || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean); }
 function coinsFor(exs, matches, uid, today) {
-  // 金币：本周（周一到今天）内，每日重做的做对 1 枚、阶梯每升一级 2 枚、每掌握一道 10 枚；阶梯按 deriveState 的同一套规则走本人的阶梯输入
+  // 金币：本周（周一到今天）内，阶梯每升一级 2 枚、每掌握一道 10 枚；阶梯按 deriveState 的同一套规则走本人的阶梯输入
   // 余额：金币减去本周开赛、本人参赛的各场 rounds × 10（开赛即扣）
   const from = weekStart(today), inWin = d => d >= from && d <= today;
-  let right = 0, up = 0, mastered = 0;
+  let up = 0, mastered = 0;
   for (const e of exs) {
     const mine = (e.attempts || []).filter(a => a.by === uid);
-    for (const a of mine) if (a.mode !== 'paper' && a.result === 'right' && inWin(a.date)) right++;
     let step = 1, m = false;
     for (const a of ladderInput(mine)) {
       if (m) { if (a.result === 'wrong') { m = false; step = 1; } continue; }
@@ -1011,10 +1010,10 @@ function coinsFor(exs, matches, uid, today) {
       } else if (a.result === 'wrong') step = 1;
     }
   }
-  const coins = right + up * 2 + mastered * 10;
+  const coins = up * 2 + mastered * 10;
   let spent = 0;
   for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10))) spent += (Number(mt.rounds) || 0) * ROUND_COST;
-  return { right, up, mastered, coins, spent, balance: coins - spent };
+  return { up, mastered, coins, spent, balance: coins - spent };
 }
 const ROUND_COST = 10;
 function entrants(userIds, owners, balances, starter, rounds) {
@@ -1886,7 +1885,7 @@ function renderPaperSheet(paperId) {
   if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
   h += solutionBlock(e);
   h += cardNav(i, rows.length, 'sheet-go') + '</article>';
-  if (e.setId) h += materialBlock(setById(e.setId), !!S.paperOpenSets[e.setId]);
+  if (e.setId) h += materialBlock(setById(e.setId), S.paperOpenSets[e.setId] !== false);
   return h;
 }
 
@@ -1922,7 +1921,7 @@ function renderGames() {
   const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
   const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
     <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
-    <p class="small muted">Earned: ${c.right} right × 1 + ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10.</p></section>`;
+    <p class="small muted">Earned: ${c.up} ladder steps × 2 + ${c.mastered} mastered × 10.</p></section>`;
   // 这一局播完前，积分榜与历史先不算它，免得提前看到结果
   const shown = matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches;
   // 游戏：举重、赛跑、爬梯三个标签；赛跑、爬梯还没做
@@ -2299,12 +2298,12 @@ document.addEventListener('change', async ev => {
   } catch (err) { S.errMsg = dbErr(err); render(); }
 });
 
-// 题组材料展开或收起时记下（作答页记在 S.run.openSets，详情页记在 S.paperOpenSets），重画与翻到同组其他卡时沿用
+// 题组材料展开或收起时记下（作答页记在 S.run.openSets，默认收起；详情页记在 S.paperOpenSets，默认展开、收起记 false），重画与翻到同组其他卡时沿用
 document.addEventListener('toggle', ev => {
   const d = ev.target;
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
   const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;
-  if (d.open) store[d.dataset.set] = true; else delete store[d.dataset.set];
+  if (S.run) { if (d.open) store[d.dataset.set] = true; else delete store[d.dataset.set]; } else store[d.dataset.set] = d.open;
 }, true);
 // 整行可点的卷子：Enter 键同点击
 document.addEventListener('keydown', ev => {
