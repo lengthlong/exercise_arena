@@ -480,28 +480,28 @@ assert.strictEqual(ps(24, 11), '1 … 11 12 13 … 24');
 assert.strictEqual(ps(24, 23), '1 … 20 21 22 23 24');
 assert.strictEqual(ps(24, 11, 9), '1 … 10 11 12 13 14 … 24');
 assert.strictEqual(ps(10, 1, 3), '1 2 3 4 5 … 10');   // max 不足 7 时按 7
-// 金币：本周（周一到今天）；每日重做做对 1 枚，阶梯每升一级 2 枚，掌握 10 枚；检验卷做对、部分对、做错不给；只数本人
+// 金币：本周（周一到今天）；阶梯每升一级 2 枚，掌握 10 枚；做对本身、检验卷做对、部分对、做错不给；只数本人
 const CD = '2026-10-16', ca = (date, result, mode, by) => ({ date, result, mode: mode || 'daily', by: by || 'uS' });   // 2026-10-16 是周五，本周从 10-12 起
-const coin = (attempts, uid, matches) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts }], matches || [], uid || 'uS', CD); return { right: c.right, up: c.up, mastered: c.mastered, total: c.coins }; };
-assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca(CD, 'right')]), { right: 2, up: 2, mastered: 0, total: 6 });   // 周一算
-assert.deepStrictEqual(coin([ca('2026-10-11', 'right')]), { right: 0, up: 0, mastered: 0, total: 0 });   // 上周日不算
-assert.deepStrictEqual(coin([ca('2026-10-11', 'right'), ca('2026-10-12', 'right')]), { right: 1, up: 1, mastered: 0, total: 3 });   // 本周之前的升级仍推阶梯
-assert.deepStrictEqual(coin([ca(CD, 'right', 'paper'), ca(CD, 'partial'), ca(CD, 'wrong')]), { right: 0, up: 0, mastered: 0, total: 0 });
+const coin = (attempts, uid, matches) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts }], matches || [], uid || 'uS', CD); return { up: c.up, mastered: c.mastered, total: c.coins }; };
+assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca(CD, 'right')]), { up: 2, mastered: 0, total: 4 });   // 周一算
+assert.deepStrictEqual(coin([ca('2026-10-11', 'right')]), { up: 0, mastered: 0, total: 0 });   // 上周日不算
+assert.deepStrictEqual(coin([ca('2026-10-11', 'right'), ca('2026-10-12', 'right')]), { up: 1, mastered: 0, total: 2 });   // 本周之前的升级仍推阶梯
+assert.deepStrictEqual(coin([ca(CD, 'right', 'paper'), ca(CD, 'partial'), ca(CD, 'wrong')]), { up: 0, mastered: 0, total: 0 });
 // 检验卷上做错让阶梯回到第 1 级，之后的升级从 2 级重新算
-assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), ca('2026-10-14', 'right')]), { right: 2, up: 2, mastered: 0, total: 6 });
-// 升到 2、3、4 级各 2 枚；第 4 级再做对即掌握：这次做对 1 枚、掌握 10 枚、不再算升级
+assert.deepStrictEqual(coin([ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), ca('2026-10-14', 'right')]), { up: 2, mastered: 0, total: 4 });
+// 升到 2、3、4 级各 2 枚；第 4 级再做对即掌握：掌握 10 枚、不再算升级
 const m4 = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15'].map(d => ca(d, 'right'));
-assert.deepStrictEqual(coin(m4), { right: 4, up: 3, mastered: 1, total: 20 });
-assert.deepStrictEqual(coin(m4.concat([ca(CD, 'right')])), { right: 5, up: 3, mastered: 1, total: 21 });   // 掌握后做对：只给做对
-assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')]), { right: 0, up: 0, mastered: 0, total: 0 });
-assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')], 'uA').total, 3);
+assert.deepStrictEqual(coin(m4), { up: 3, mastered: 1, total: 16 });
+assert.deepStrictEqual(coin(m4.concat([ca(CD, 'right')])), { up: 3, mastered: 1, total: 16 });   // 掌握后做对：不给
+assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')]), { up: 0, mastered: 0, total: 0 });
+assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')], 'uA').total, 2);
 // 余额：金币减去本周开赛、本人参赛的各场 rounds × 10；中途离开（points 不满）也扣整场；上周开赛的不扣；不在 players 里的不扣；可为负
 const bal = (matches, uid) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts: m4 }], matches, uid || 'uS', CD); return [c.coins, c.spent, c.balance].join(); };
-assert.strictEqual(bal([]), '20,0,20');
-assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, at: '2026-10-12T08:00', points: [{ uA: 1, uS: 0 }] }]), '20,10,10');
-assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 3, at: '2026-10-15T20:00', points: [{ uA: 1, uS: 0 }] }]), '20,30,-10');   // 中途离开也扣整场；余额可为负
-assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 5, at: '2026-10-11T23:55', points: [] }]), '20,0,20');   // 上周日开赛的不扣
-assert.strictEqual(bal([{ players: ['uA', 'uB'], rounds: 5, at: CD + 'T09:00', points: [] }]), '20,0,20');
+assert.strictEqual(bal([]), '16,0,16');
+assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, at: '2026-10-12T08:00', points: [{ uA: 1, uS: 0 }] }]), '16,10,6');
+assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 3, at: '2026-10-15T20:00', points: [{ uA: 1, uS: 0 }] }]), '16,30,-14');   // 中途离开也扣整场；余额可为负
+assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 5, at: '2026-10-11T23:55', points: [] }]), '16,0,16');   // 上周日开赛的不扣
+assert.strictEqual(bal([{ players: ['uA', 'uB'], rounds: 5, at: CD + 'T09:00', points: [] }]), '16,0,16');
 // 参赛者：默认归属人与开赛人的相同、余额够付 rounds × 10；开赛人在最前；开赛人不够或不到两人时为空
 const own = { uS: 'uS', uA: 'uS', uB: 'uS' };   // uC 没有设置：默认归属人是自己
 const balOf = { uS: 39, uA: 156, uB: 0, uC: 80 }, U = ['uS', 'uA', 'uB', 'uC'];
