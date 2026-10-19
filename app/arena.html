@@ -346,6 +346,9 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .calc { font-variant-numeric: tabular-nums; }
 .extra-row { align-items: center; gap: 8px; margin-top: 8px; }
 .extra-row b { min-width: 2ch; text-align: center; font-size: 18px; }
+.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; color: var(--muted); }
+.rules li { display: grid; grid-template-columns: 1.4em minmax(0, 1fr); gap: 6px; align-items: baseline; }
+.rules b { color: var(--ink); font-weight: 600; }
 .coin-earn { margin: 0; font: 600 17px/1.3 var(--font-body); color: var(--amber); }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 6px; padding-top: 4px; }
 .step { display: grid; gap: 4px; text-align: center; min-width: 0; }
@@ -362,9 +365,10 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .pod-fig .medal { fill: var(--hl); stroke: var(--ink); stroke-width: 1.5; }
 .step .block { border-radius: 8px 8px 0 0; color: var(--paper); background: var(--pc); display: grid; align-content: start; justify-items: center; padding: 7px 4px 0; min-width: 0; }
 .step .block .bn { font: 600 14px/1.25 var(--font-body); max-width: 100%; overflow-wrap: anywhere; }
-.step.s1 .block { height: 56px; }
-.step.s2 .block { height: 44px; }
-.step.s3 .block { height: 34px; }
+.step .block .bs { font: 500 12.5px/1.2 var(--font-body); }
+.step.s1 .block { height: 62px; }
+.step.s2 .block { height: 50px; }
+.step.s3 .block { height: 42px; }
 .lcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; }
 .lcard { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface-2); text-align: center; min-width: 0; }
 .lcard.win { border-color: var(--amber); background: var(--amber-soft); }
@@ -1064,17 +1068,21 @@ function entrants(userIds, owners, balances, starter, extra) {
 // 举重：幸运数是 1.0、1.1 … 10.0 这 91 个数之一，k = 0…90 时为 (10 + k) / 10；重量按十分之一 kg 的整数算，免得浮点误差
 const liftTenths = (stake, k) => stake * (10 + k);
 function liftRound(stakes, rand) {
-  // 举重一局：每人抽一个幸运数，举起投入 × 幸运数 kg（保留一位小数）；名次 = 1 + 举得比他重的人数
-  const t = {}, kg = {}, luck = {}, places = {};
-  for (const id of Object.keys(stakes)) {
-    const k = Math.min(90, Math.floor(rand() * 91));
-    t[id] = liftTenths(stakes[id], k); kg[id] = t[id] / 10; luck[id] = (10 + k) / 10;
+  // 举重一局：每人抽一个幸运数，举起投入 × 幸运数 kg（保留一位小数）；一局没有并列：同重的几人重抽，直到各不相同（重抽 50 次仍同重时按 stakes 的键顺序定先后，只为结果确定）
+  const ids = Object.keys(stakes), t = {}, kg = {}, luck = {}, places = {};
+  const draw = id => { const k = Math.min(90, Math.floor(rand() * 91)); t[id] = liftTenths(stakes[id], k); luck[id] = (10 + k) / 10; };
+  ids.forEach(draw);
+  for (let n = 0; n < 50; n++) {
+    const tied = ids.filter(id => ids.some(x => x !== id && t[x] === t[id]));
+    if (!tied.length) break;
+    tied.forEach(draw);
   }
-  for (const id of Object.keys(t)) places[id] = 1 + Object.keys(t).filter(x => t[x] > t[id]).length;
+  const order = ids.slice().sort((a, b) => t[b] - t[a] || ids.indexOf(a) - ids.indexOf(b));
+  for (const id of ids) { kg[id] = t[id] / 10; places[id] = order.indexOf(id) + 1; }
   return { kg, luck, places };
 }
 function liftChances(stakes) {
-  // 各人赢这一局的机会（0–1）：独赢 + 并列时平分；对自己的每个幸运数，乘上其余各人举得比他轻的概率（同重算一半）；三人以上同重时是近似
+  // 各人赢这一局的机会（0–1）：对自己的每个幸运数，乘上其余各人举得比他轻的概率；同重会重抽，这里按一半算，与重抽的结果差不到 1%
   const ids = Object.keys(stakes), out = {};
   const below = (j, x) => { let lt = 0, eq = 0; for (let k = 0; k <= 90; k++) { const v = liftTenths(stakes[j], k); if (v < x) lt++; else if (v === x) eq++; } return (lt + eq / 2) / 91; };
   for (const i of ids) {
@@ -1103,16 +1111,22 @@ function matchTotals(points) {
   const top = Math.max(...Object.values(totals), -Infinity);
   return { totals, champions: Object.keys(totals).filter(id => totals[id] === top) };
 }
-function scoreboard(matches, userIds, today, period) {
-  // 积分榜：period 为 'week'（含今天的那个周一到周日）或 'all'；整场计入开赛日期所在的周；只列 userIds（页面传本组）；按星降序，星数相同同名次，没得星的人列 0
-  const wk = weekStart(today), tot = {};
-  (userIds || []).forEach(id => { tot[id] = 0; });
+function scoreboard(matches, userIds, today, period, coins) {
+  // 星榜：period 为 'week'（含今天的那个周一到周日）或 'all'；整场计入开赛日期所在的周；只列 userIds（页面传本组）；没得星的人列 0
+  // 没有并列：按星降序；星数相同时 coins（本周挣的金币）多的在前；再相同时先拿到这个星数的在前（最后一次得星的开赛时刻早）；再相同时按用户 id
+  const wk = weekStart(today), tot = {}, got = {};
+  coins = coins || {};
+  (userIds || []).forEach(id => { tot[id] = 0; got[id] = ''; });
   for (const mt of matches || []) {
     if (period === 'week' && weekStart(String(mt.at || '').slice(0, 10)) !== wk) continue;
-    for (const r of mt.points || []) for (const id of Object.keys(r)) if (id in tot) tot[id] += r[id];
+    for (const r of mt.points || []) for (const id of Object.keys(r)) if (id in tot) {
+      tot[id] += r[id];
+      if (r[id] > 0 && String(mt.at || '') > got[id]) got[id] = String(mt.at || '');
+    }
   }
-  const rows = (userIds || []).map((id, i) => ({ id, points: tot[id], i })).sort((a, b) => b.points - a.points || a.i - b.i);
-  return rows.map(r => ({ id: r.id, points: r.points, rank: 1 + rows.filter(x => x.points > r.points).length }));
+  const rows = (userIds || []).map(id => ({ id, points: tot[id], got: got[id] }))
+    .sort((a, b) => b.points - a.points || (coins[b.id] || 0) - (coins[a.id] || 0) || a.got.localeCompare(b.got) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return rows.map((r, i) => ({ id: r.id, points: r.points, rank: i + 1 }));
 }
 function weekMatches(matches, group, today) {
   // 本周历史：开赛日期在本周、参赛者与 group 有交集的比赛，按开赛时刻新的在前
@@ -1120,19 +1134,9 @@ function weekMatches(matches, group, today) {
   return (matches || []).filter(mt => weekStart(String(mt.at || '').slice(0, 10)) === wk && (mt.players || []).some(id => (group || []).includes(id)))
     .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
-function podium(rows, coins) {
-  // 领奖台：所有人按星、再按本周挣的金币从高到低排；星与金币都相同的站同一级；只摆前三级
-  coins = coins || {};
-  const key = r => [r.points, coins[r.id] || 0];
-  const order = rows.slice().sort((a, b) => b.points - a.points || (coins[b.id] || 0) - (coins[a.id] || 0));
-  const steps = [[], [], []];
-  let step = -1, prev = null;
-  for (const r of order) {
-    const k = key(r).join();
-    if (k !== prev) { step++; prev = k; }
-    if (step < 3) steps[step].push(r.id);
-  }
-  return steps;
+function podium(rows) {
+  // 领奖台：星榜的前三名各站一级（星榜没有并列）
+  return [0, 1, 2].map(i => rows[i] ? [rows[i].id] : []);
 }
 /* LOGIC:END */
 </script>
@@ -1983,15 +1987,16 @@ function renderSettings() {
 function groupOf(id) { return S.owners[id] || id; }
 function myGroup() { const g = groupOf(S.me); return S.userIds.filter(id => groupOf(id) === g); }
 function coinInfo(id, today) { return coinsFor(S.exercises, S.matches, id, today || localToday()); }
-// 这一局播完前，积分榜、星与历史先不算它，免得提前看到结果
+// 这一局播完前，星榜、星与历史先不算它，免得提前看到结果
 function shownMatches() { return matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches; }
 function weekStars(id, today) { const r = scoreboard(shownMatches(), myGroup(), today, 'week').find(x => x.id === id); return r ? r.points : 0; }
+function weekCoins(group, today) { return Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])); }
 function renderGames() {
-  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup(), stars = weekStars(S.me, today);
+  const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
   const parts = [[c.up[2], 2, 'up to ladder 2'], [c.up[3], 3, 'up to ladder 3'], [c.up[4], 4, 'up to ladder 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried']].filter(x => x[0]);
-  const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins &amp; stars this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
-    <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div><div><span class="mid star-n">⭐ ${fmtP(stars)}</span><span class="small muted">stars</span></div></div>
-    <p class="small muted">${parts.length ? `Earned: ${parts.map(x => `${x[0]} ${x[2]} × ${x[1]}`).join(' + ')}.` : 'No coins yet this week.'} Redo: 2, 3 or 4 coins for the ladder you climb to, 5 for mastering, 1 for trying (once per question each week).</p></section>`;
+  const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
+    <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
+    <p class="small muted">${parts.length ? `Earned: ${parts.map(x => `${x[0]} ${x[2]} × ${x[1]}`).join(' + ')}.` : 'No coins yet this week.'}</p></section>`;
   const shown = shownMatches();
   // 游戏：举重、赛跑、爬梯三个标签；赛跑、爬梯还没做
   const games = [['lift', 'Lifting'], ['sprint', 'Racing'], ['climb', 'Climbing']], g = S.gameTab;
@@ -2000,9 +2005,10 @@ function renderGames() {
   return boardBlock(today, group, shown) + coinsBlock + gameBlock;
 }
 function boardBlock(today, group, matches) {
-  // 积分榜：领奖台，本周或全部时间
-  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per), steps = podium(rows, Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])));
-  // 领奖台：本组所有人都站上去（按星，星数相同比本周挣的金币），台阶里写名字
+  // 星榜：领奖台，本周或全部时间；没有并列（同星比本周挣的金币，再比谁先拿到）
+  const per = S.boardPeriod, rows = scoreboard(matches, group, today, per, weekCoins(group, today)), steps = podium(rows);
+  const starsOf = Object.fromEntries(rows.map(x => [x.id, x.points]));
+  // 领奖台：前三名各站一级，台阶里写名字与星；第四名起在下面列一行
   // 小人：圆脸、笑脸、上衣按台阶的颜色；冠军举双臂并挂奖牌，亚军挥一只手，季军双手叉腰
   const arms = ['M21 40 L11 24 M39 40 L49 24', 'M21 40 L14 54 M39 40 L48 26', 'M21 40 L13 48 L19 56 M39 40 L47 48 L41 56'];
   const fig = i => `<svg viewBox="0 0 60 92" class="pod-fig" aria-hidden="true">
@@ -2014,9 +2020,11 @@ function boardBlock(today, group, matches) {
     <circle class="eye" cx="26" cy="21" r="1.4"/><circle class="eye" cx="34" cy="21" r="1.4"/>
     <path class="smile" d="M25.5 25.5 Q30 29.5 34.5 25.5"/></svg>`;
   const step = i => `<div class="step s${i + 1}"><div class="who">${steps[i].map(() => fig(i)).join('')}</div>
-    <div class="block">${steps[i].length ? `<span class="bn">${steps[i].map(id => esc(userName(id))).join(', ')}</span>` : ''}</div></div>`;
-  return `<section class="panel"><div class="coin-top"><p class="h2">Scoreboard</p><div class="seg" role="group" aria-label="Period">${[['week', 'This week'], ['all', 'All time']].map(x => `<button type="button" data-act="board-period" data-v="${x[0]}" aria-pressed="${per === x[0]}">${x[1]}</button>`).join('')}</div></div>
+    <div class="block">${steps[i].length ? `<span class="bn">${esc(userName(steps[i][0]))}</span><span class="bs">⭐ ${fmtP(starsOf[steps[i][0]])}</span>` : ''}</div></div>`;
+  const rest = rows.slice(3).map(x => `${x.rank}. ${esc(userName(x.id))} ⭐ ${fmtP(x.points)}`).join(' · ');
+  return `<section class="panel"><div class="coin-top"><p class="h2">Starboard</p><div class="seg" role="group" aria-label="Period">${[['week', 'This week'], ['all', 'All time']].map(x => `<button type="button" data-act="board-period" data-v="${x[0]}" aria-pressed="${per === x[0]}">${x[1]}</button>`).join('')}</div></div>
     <div class="podium">${step(1)}${step(0)}${step(2)}</div>
+    ${rest ? `<p class="small muted">${rest}</p>` : ''}
     ${rows.every(r => !r.points) ? `<p class="small muted">${per === 'week' ? 'No matches this week yet.' : 'No matches yet.'}</p>` : ''}</section>`;
 }
 function lifterSvg(kg, maxKg, mode) {
@@ -2098,7 +2106,11 @@ function liftBlock(today, group, matches) {
       <div class="tags"><span class="chip coin-chip">puts in ${stakes[id]}</span></div></div>`).join('')}</div><div class="row"><button type="button" class="btn primary" data-act="hist-start">Start</button></div>`;
     return `<li class="${open ? 'open' : ''}"><button type="button" class="h-head" data-act="hist-toggle" data-v="${esc(mt.id)}" aria-expanded="${open}"><span class="h-when">${esc(fmtWhen(mt.at))}</span><span class="h-line">${line}</span><span class="h-chev" aria-hidden="true">${open ? '▴' : '▾'}</span></button>${open ? `<div class="h-body">${body}</div>` : ''}</li>`;
   }).join('');
-  return `<div class="gsec"><p class="small muted">Everyone puts in ${ENTRY} coins; the starter can add up to ${EXTRA_MAX} more. Each lifter lifts the coins put in × a lucky number from 1 to 10 — more coins, better chance, no sure win. Beat a lifter, win a ⭐.</p></div>
+  return `<div class="gsec"><ul class="rules small">
+      <li><span aria-hidden="true">🪙</span><span>Everyone puts in <b>${ENTRY} coins</b>. The starter can add up to <b>${EXTRA_MAX} more</b>.</span></li>
+      <li><span aria-hidden="true">🏋️</span><span>Lift = <b>coins put in × a lucky number</b> from 1 to 10. Heaviest lift wins; same weight lifts again.</span></li>
+      <li><span aria-hidden="true">⭐</span><span>Beat a lifter, win a star. More coins, better chance — never a sure win.</span></li>
+    </ul></div>
     <div class="gsec arena-cards"><div class="sec-head"><p class="h3">Arena</p>${arenaInfo ? `<span class="small muted">${esc(arenaInfo)}</span>` : ''}<span class="sec-r">${arenaBtn}</span></div>${arena}</div>
     <div class="gsec"><p class="h3">History</p>${hist.length ? `<ul class="hist">${items}</ul>` : '<p class="small muted">No rounds this week yet.</p>'}</div>`;
 }

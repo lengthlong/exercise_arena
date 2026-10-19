@@ -542,9 +542,16 @@ const lr = (st, r) => { const x = L.liftRound(st, () => r); return JSON.stringif
 assert.strictEqual(lr({ uS: 10, uA: 20 }, 0), JSON.stringify([{ uS: 10, uA: 20 }, { uS: 1, uA: 1 }, { uS: 2, uA: 1 }]));
 assert.strictEqual(lr({ uS: 10, uA: 20 }, 0.9999999), JSON.stringify([{ uS: 100, uA: 200 }, { uS: 10, uA: 10 }, { uS: 2, uA: 1 }]));
 assert.strictEqual(lr({ uS: 15 }, 31.5 / 91), JSON.stringify([{ uS: 61.5 }, { uS: 4.1 }, { uS: 1 }]));   // 15 × 4.1 = 61.5，不是 61 或 62
-const tie = L.liftRound({ a: 10, b: 20 }, (() => { const q = [10.5 / 91, 0]; return () => q.shift(); })());
-assert.deepStrictEqual([tie.luck.a, tie.luck.b, tie.kg.a, tie.kg.b, tie.places.a, tie.places.b], [2, 1, 20, 20, 1, 1]);   // 10 × 2.0 与 20 × 1.0 同重
-assert.deepStrictEqual({ ...L.roundPoints(tie.places) }, { a: 0.5, b: 0.5 });
+// 一局没有并列：同重的几人重抽，没同重的不重抽
+const seq = q => () => q.shift();
+const tie = L.liftRound({ a: 10, b: 20 }, seq([10.5 / 91, 0, 40.5 / 91, 0.5 / 91]));   // 先 10 × 2.0 与 20 × 1.0 同重，重抽后 10 × 5.0 = 50、20 × 1.0 = 20
+assert.deepStrictEqual([tie.luck.a, tie.luck.b, tie.kg.a, tie.kg.b, tie.places.a, tie.places.b], [5, 1, 50, 20, 1, 2]);
+const tie3 = L.liftRound({ a: 10, b: 10, c: 20 }, seq([0.5 / 91, 0.5 / 91, 90.5 / 91, 30.5 / 91, 20.5 / 91]));   // a、b 同为 10 kg，c 200 kg 不重抽；a、b 重抽为 40、30
+assert.deepStrictEqual([tie3.kg.a, tie3.kg.b, tie3.kg.c, tie3.places.a, tie3.places.b, tie3.places.c], [40, 30, 200, 2, 3, 1]);
+const stuck = L.liftRound({ a: 10, b: 10 }, () => 0);   // 一直同重：重抽 50 次后按键顺序定先后
+assert.deepStrictEqual([stuck.places.a, stuck.places.b], [1, 2]);
+assert.deepStrictEqual({ ...L.roundPoints(stuck.places) }, { a: 1, b: 0 });
+assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1 }) }, { a: 0.5, b: 0.5 });   // 旧比赛里的并列照旧平分
 // 赢的机会：独赢 + 并列平分；投入多只让机会大，不保证赢
 const pct = st => JSON.stringify(Object.fromEntries(Object.entries(L.liftChances(st)).map(([k, v]) => [k, Math.round(v * 100)])));
 assert.strictEqual(pct({ a: 10, b: 10 }), JSON.stringify({ a: 50, b: 50 }));
@@ -563,22 +570,22 @@ assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 2, c: 3, d: 4 }) }, { a: 3,
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1, c: 3 }) }, { a: 1.5, b: 1.5, c: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 2, c: 2, d: 4 }) }, { a: 3, b: 1.5, c: 1.5, d: 0 });
 assert.deepStrictEqual({ ...L.roundPoints({ a: 1, b: 1 }) }, { a: 0.5, b: 0.5 });
-// 积分榜：本周（周一到周日）或全部；整场计入开赛日；星数相同同名次；没得星的人列 0
+// 星榜：本周（周一到周日）或全部；整场计入开赛日；没得星的人列 0；没有并列：同星比本周挣的金币，再比谁先拿到这个星数（最后一次得星的开赛时刻早），再按 id
 const sbm = [
   { at: '2026-10-12T18:00', points: [{ uS: 1, uA: 0 }, { uS: 0, uA: 1 }] },   // 周一
   { at: '2026-10-11T23:55', points: [{ uS: 2, uA: 1, uB: 0 }] },           // 上周日开赛，即使比到周一也算上周
   { at: '2026-10-16T09:00', points: [{ uA: 1, uB: 0 }] }];
-const board = (period, uids) => Array.from(L.scoreboard(sbm, uids || ['uS', 'uA', 'uB', 'uC'], CD, period), r => [r.id, r.points, r.rank].join(':')).join(' ');
-assert.strictEqual(board('week'), 'uA:2:1 uS:1:2 uB:0:3 uC:0:3');
-assert.strictEqual(board('all'), 'uS:3:1 uA:3:1 uB:0:3 uC:0:3');
+const board = (period, uids, coins) => Array.from(L.scoreboard(sbm, uids || ['uS', 'uA', 'uB', 'uC'], CD, period, coins), r => [r.id, r.points, r.rank].join(':')).join(' ');
+assert.strictEqual(board('week'), 'uA:2:1 uS:1:2 uB:0:3 uC:0:4');   // uB、uC 都是 0 星 0 金币：按 id
+assert.strictEqual(board('week', null, { uC: 5 }), 'uA:2:1 uS:1:2 uC:0:3 uB:0:4');   // 同星比金币
+assert.strictEqual(board('all'), 'uS:3:1 uA:3:2 uB:0:3 uC:0:4');   // 同星同金币：uS 10-12 拿到 3 星，uA 10-16 才拿到
+assert.strictEqual(board('all', null, { uA: 9, uS: 5 }), 'uA:3:1 uS:3:2 uB:0:3 uC:0:4');   // 金币先于谁先拿到
 assert.strictEqual(board('week', ['uS', 'uB']), 'uS:1:1 uB:0:2');   // 只列名单（本组）里的人
-// 领奖台：所有人按星、再按本周挣的金币排；两者都相同的站同一级；只摆前三级
-const pod = (rows, coins) => JSON.stringify(L.podium(rows, coins));
+// 领奖台：星榜的前三名各站一级
+const pod = rows => JSON.stringify(L.podium(rows));
 const U4 = ['uS', 'uA', 'uB', 'uC'];
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'week')), JSON.stringify([['uA'], ['uS'], ['uB', 'uC']]));   // 0 分的也上台
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all')), JSON.stringify([['uS', 'uA'], ['uB', 'uC'], []]));   // 同分同金币站同一级，下一位站下一级
-assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'all'), { uS: 5, uA: 9, uB: 1 }), JSON.stringify([['uA'], ['uS'], ['uB']]));   // 同分比金币；第四位不上台
-assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week'), { uS: 39, uA: 156 }), JSON.stringify([['uA'], ['uS'], []]));   // 没比赛时按金币
+assert.strictEqual(pod(L.scoreboard(sbm, U4, CD, 'week')), JSON.stringify([['uA'], ['uS'], ['uB']]));
+assert.strictEqual(pod(L.scoreboard([], ['uS', 'uA'], CD, 'week', { uS: 39, uA: 156 })), JSON.stringify([['uA'], ['uS'], []]));   // 没比赛时按金币
 assert.strictEqual(Array.from(L.scoreboard([], ['uS'], CD, 'week'), r => r.points).join(), '0');
 // 本周历史：开赛日期在本周、参赛者与本组有交集；按开赛时刻新的在前
 const wm = [{ id: 'm1', at: '2026-10-12T08:00', players: ['uS', 'uA'] }, { id: 'm2', at: '2026-10-11T23:55', players: ['uS', 'uA'] },
