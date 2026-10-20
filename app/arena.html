@@ -223,7 +223,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 /* Last 7 days：7 列平分块宽的叠柱 */
-.bars7 { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; height: 134px; border-bottom: 1px solid var(--line); }
+.bars7 { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; height: 144px; border-bottom: 1px solid var(--line); }
 .bars7 .col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; border-radius: 4px 4px 0 0; }
 .bars7 .col:hover { background: var(--surface-2); }
 .bars7 .v { font: 500 11px var(--font-body); color: var(--muted); margin-bottom: 2px; }
@@ -234,24 +234,30 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .bars7 .stack i:last-child { border-radius: 3px 3px 0 0; }
 .bars7 .stack.none { height: 2px; background: var(--line); border-radius: 1px; }
 .bars7-x { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
-.bars7-x .rt { display: block; font-weight: 500; color: var(--ink); }
-/* Last 7 days 的组合图：左轴作答次数、右轴正确率，两轴共用三条横线；正确率线叠在柱上 */
-.combo { display: grid; grid-template-columns: 26px minmax(0, 1fr) 32px; column-gap: 6px; }
+/* Last 7 days 的组合图：左轴作答次数、右轴正确率，两轴共用三条横线；正确率是主角：蓝色粗线带底色描边、大点、点上写百分比，柱子淡下去作背景，次数在悬停时才出 */
+.combo { display: grid; grid-template-columns: 26px minmax(0, 1fr) 34px; column-gap: 6px; }
 .combo .ax-t { font-size: 11px; color: var(--muted); margin-bottom: 2px; white-space: nowrap; }
 .combo .ax-t.l { grid-column: 1 / 3; }
-.combo .ax-t.r { grid-column: 3; text-align: right; }
-.combo .ax { position: relative; height: 134px; font-size: 10.5px; color: var(--muted); }
+.combo .ax-t.r { grid-column: 3; text-align: right; color: var(--pen); font-weight: 600; }
+.combo .ax { position: relative; height: 144px; font-size: 10.5px; color: var(--muted); }
 .combo .ax span { position: absolute; transform: translateY(-50%); line-height: 1; }
 .combo .ax.l span { right: 0; }
-.combo .ax.r span { left: 0; }
+.combo .ax.r span { left: 0; color: var(--pen); font-weight: 600; }
 .combo .plot { position: relative; min-width: 0; }
 .combo .grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--rule); }
-.combo .plot svg { position: absolute; left: 0; top: 0; width: 100%; height: 134px; overflow: visible; pointer-events: none; z-index: 1; }
-.combo .bars7 .v { position: relative; z-index: 2; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
-.combo .plot path { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.combo .plot i.dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.combo .bars7 .stack { opacity: .45; }
+.combo .bars7 .stack b, .combo .bars7 .v { visibility: hidden; }
+.combo .bars7 .col:hover .stack { opacity: 1; }
+.combo .bars7 .col:hover .stack b, .combo .bars7 .col:hover .v { visibility: visible; }
+.combo .bars7 .v { position: relative; z-index: 4; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
+.combo .plot svg { position: absolute; left: 0; top: 0; width: 100%; height: 144px; overflow: visible; pointer-events: none; z-index: 1; }
+.combo .plot path { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.combo .plot path.halo { stroke: var(--surface); stroke-width: 7; }
+.combo .plot path.rate { stroke: var(--pen); stroke-width: 3; }
+.combo .plot i.dot { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--pen); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.combo .plot b.rl { position: absolute; transform: translate(-50%, calc(-100% - 7px)); font: 600 12px/1 var(--font-body); color: var(--pen); white-space: nowrap; pointer-events: none; z-index: 3; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
 .combo .bars7-x { grid-column: 2; }
-.legend i.ln { height: 2px; width: 14px; vertical-align: 3px; }
+.legend i.ln { height: 3px; width: 16px; border-radius: 2px; vertical-align: 3px; }
 /* Ladders：环形图与图例 */
 .lad { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 18px; align-items: center; }
 @media (max-width: 420px) { .lad { grid-template-columns: minmax(0, 1fr); justify-items: center; } .lad .lad-legend { width: 100%; } }
@@ -1436,7 +1442,7 @@ function reviewBlock(week) {
     <p class="h3">Last 7 days</p>
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
     <p class="small muted">${esc(reviewLine(week))}</p>
-    <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span><span><i class="ln" style="background:var(--ink)"></i>Correct rate</span></div>
+    <div class="legend small"><span style="color:var(--pen);font-weight:600"><i class="ln" style="background:var(--pen)"></i>Correct rate</span><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
     ${activityChart(week.days)}
     ${mastered ? `<div class="sub"><p class="h3">Newly mastered</p>${mastered}</div>` : ''}
   </section>`;
@@ -1444,8 +1450,8 @@ function reviewBlock(week) {
 
 function activityChart(days) {
   // 组合图：每天一列、7 列平分块宽；每列一根按对、部分对、错自下而上叠的柱子（最后一天是今天），柱高按左轴（作答次数，顶为 axisMax）成比例，段间 2px 间隔，段高够 13px 才写次数；
-  // 正确率线（dayRates）按右轴 0–100% 叠在柱上，没有作答的那天断开；两轴共用 0、一半、顶三条横线；每天的百分比也写在星期下面；每列一个提示
-  const n = days.length, TOP = 14, H = 120, PH = TOP + H;
+  // 正确率线（dayRates）按右轴 0–100% 叠在柱上，没有作答的那天断开，每个点上写百分比；两轴共用 0、一半、顶三条横线；柱子淡下去、柱上的次数藏起来（悬停或点按那一列时恢复），每列一个提示
+  const n = days.length, TOP = 24, H = 120, PH = TOP + H;
   const tots = days.map(d => d.right + d.partial + d.wrong), top = axisMax(Math.max(1, ...tots));
   const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
   const rates = dayRates(days), rx = i => (i + 0.5) * 100 / n, ry = r => (TOP + (100 - r) / 100 * H).toFixed(1);
@@ -1459,13 +1465,13 @@ function activityChart(days) {
   rates.forEach((r, i) => { if (r != null) path += `${i && rates[i - 1] != null ? 'L' : 'M'}${rx(i).toFixed(2)} ${ry(r)} `; });
   const ticks = [1, 0.5];
   const grid = ticks.map(f => `<div class="grid" style="top:${TOP + (1 - f) * H}px"></div>`).join('');
-  const dots = rates.map((r, i) => r == null ? '' : `<i class="dot" style="left:${rx(i).toFixed(2)}%;top:${ry(r)}px"></i>`).join('');
+  const dots = rates.map((r, i) => r == null ? '' : `<i class="dot" style="left:${rx(i).toFixed(2)}%;top:${ry(r)}px"></i><b class="rl num" style="left:${rx(i).toFixed(2)}%;top:${ry(r)}px">${r}%</b>`).join('');
   const axL = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${top * f}</span>`).join('');
   const axR = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${100 * f}%</span>`).join('');
   const label = `Answers (left axis, 0 to ${top}) and correct rate (right axis, 0 to 100%) in the last ${n} days: ${days.map((d, i) => `${i === n - 1 ? 'today' : wd(d.date)} ${tots[i]} answers${rates[i] == null ? '' : ', ' + rates[i] + '% right'}`).join('; ')}`;
   return `<div class="combo" role="img" aria-label="${label}"><span class="ax-t l" aria-hidden="true">Answers</span><span class="ax-t r" aria-hidden="true">Correct</span>`
-    + `<div class="ax l" aria-hidden="true">${axL}</div><div class="plot">${grid}<div class="bars7">${cols}</div><svg viewBox="0 0 100 ${PH}" preserveAspectRatio="none" aria-hidden="true"><path d="${path.trim()}"/></svg>${dots}</div><div class="ax r" aria-hidden="true">${axR}</div>`
-    + `<div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span>${i === n - 1 ? 'Today' : wd(d.date)}${rates[i] == null ? '' : `<b class="rt num">${rates[i]}%</b>`}</span>`).join('')}</div></div>`;
+    + `<div class="ax l" aria-hidden="true">${axL}</div><div class="plot">${grid}<div class="bars7">${cols}</div><svg viewBox="0 0 100 ${PH}" preserveAspectRatio="none" aria-hidden="true"><path class="halo" d="${path.trim()}"/><path class="rate" d="${path.trim()}"/></svg>${dots}</div><div class="ax r" aria-hidden="true">${axR}</div>`
+    + `<div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span>${i === n - 1 ? 'Today' : wd(d.date)}</span>`).join('')}</div></div>`;
 }
 
 /* 阶梯：五段的环形图与图例 */
