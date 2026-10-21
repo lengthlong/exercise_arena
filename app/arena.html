@@ -1284,14 +1284,14 @@ async function cleanupSet(setId, goneId) {
   if (!setId) return;
   if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
 }
-function photosBlock(ids, alt) {
-  // 照片默认收起：「Show photo (n)」，点开才显示
+function photosBlock(ids, alt, open) {
+  // 照片默认收起：「Show photo (n)」，点开才显示；open 为真时一开始就展开
   if (!ids || !ids.length) return '';
-  return `<details class="photos"><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
+  return `<details class="photos"${open ? ' open' : ''}><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
 }
-function materialBlock(set, open) {
+function materialBlock(set, open, photosOpen) {
   if (!set) return '';
-  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo')}</details>`;
+  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo', photosOpen)}</details>`;
 }
 // 卷名前的两枚标签（类型、科目）与短名字（paperName）；卷名出现处都用这一对
 const paperTag = p => `${isDaily(p) ? '<span class="chip k-daily">Daily</span>' : '<span class="chip k-check">Check</span>'}${p.subject ? subjChip(p.subject) : ''}`;
@@ -1883,7 +1883,8 @@ function renderDetail() {
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
-    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
+    // 题目详情页的题组材料默认展开，连材料照片一起
+    else h += `${materialBlock(qs, true, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
   }
   h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
