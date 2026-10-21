@@ -1284,15 +1284,15 @@ async function cleanupSet(setId, goneId) {
   if (!setId) return;
   if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
 }
-function photosBlock(ids, alt, open) {
-  // 照片默认收起：「Show photo (n)」，点开才显示；open 为真时一开始就展开
+function photosBlock(ids, alt) {
+  // 照片默认收起：「Show photo (n)」，点开才显示
   if (!ids || !ids.length) return '';
-  return `<details class="photos"${open ? ' open' : ''}><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
+  return `<details class="photos"><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
 }
 function materialBlock(set, open) {
-  // 题组材料连同材料照片一起展开；收起与否由调用处记下
+  // 题组材料默认展开，收起与否由调用处记下；材料照片同题目照片，默认收起
   if (!set) return '';
-  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo', true)}</details>`;
+  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo')}</details>`;
 }
 // 卷名前的两枚标签（类型、科目）与短名字（paperName）；卷名出现处都用这一对
 const paperTag = p => `${isDaily(p) ? '<span class="chip k-daily">Daily</span>' : '<span class="chip k-check">Check</span>'}${p.subject ? subjChip(p.subject) : ''}`;
