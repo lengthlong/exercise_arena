@@ -1289,9 +1289,10 @@ function photosBlock(ids, alt, open) {
   if (!ids || !ids.length) return '';
   return `<details class="photos"${open ? ' open' : ''}><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
 }
-function materialBlock(set, open, photosOpen) {
+function materialBlock(set, open) {
+  // 题组材料连同材料照片一起展开；收起与否由调用处记下
   if (!set) return '';
-  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo', photosOpen)}</details>`;
+  return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo', true)}</details>`;
 }
 // 卷名前的两枚标签（类型、科目）与短名字（paperName）；卷名出现处都用这一对
 const paperTag = p => `${isDaily(p) ? '<span class="chip k-daily">Daily</span>' : '<span class="chip k-check">Check</span>'}${p.subject ? subjChip(p.subject) : ''}`;
@@ -1613,7 +1614,7 @@ function renderPaperRun() {
   if (exs.length) {
     const i = R.idx, e = exs[i], key = 'p' + i;
     h += cardPager(marks, i, 'card-go');
-    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
+    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认展开，收起后同组各卡保持收起（R.openSets）
     const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
     h += `<article class="sheet">${questionBody(e, { key, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
     if (R.phase === 'review') {
@@ -1621,7 +1622,7 @@ function renderPaperRun() {
       if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
     }
     h += cardNav(i, exs.length, 'card-go', R.phase === 'answer' ? (R.warn ? 'Hand in anyway' : 'Hand in') : '') + '</article>';
-    if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
+    if (e.setId) h += materialBlock(setById(e.setId), !(R.openSets && R.openSets[e.setId] === false));
   }
   if (R.phase === 'review' && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
@@ -1883,8 +1884,7 @@ function renderDetail() {
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
-    // 题目详情页的题组材料默认展开，连材料照片一起
-    else h += `${materialBlock(qs, true, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
+    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
   }
   h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
@@ -2438,12 +2438,12 @@ document.addEventListener('change', async ev => {
   } catch (err) { S.errMsg = dbErr(err); render(); }
 });
 
-// 题组材料展开或收起时记下（作答页记在 S.run.openSets，默认收起；详情页记在 S.paperOpenSets，默认展开、收起记 false），重画与翻到同组其他卡时沿用
+// 题组材料展开或收起时记下（作答页记在 S.run.openSets，卷子详情页记在 S.paperOpenSets；都默认展开，收起记 false），重画与翻到同组其他卡时沿用
 document.addEventListener('toggle', ev => {
   const d = ev.target;
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
   const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;
-  if (S.run) { if (d.open) store[d.dataset.set] = true; else delete store[d.dataset.set]; } else store[d.dataset.set] = d.open;
+  store[d.dataset.set] = d.open;
 }, true);
 // 整行可点的卷子：Enter 键同点击
 document.addEventListener('keydown', ev => {
