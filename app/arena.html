@@ -270,12 +270,14 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .nn { font-weight: 600; fill: var(--ink); }
 .ladpair .np { fill: var(--muted); }
 .ladpair .runner circle { fill: currentColor; }
-.ladpair .climber .cs { fill: currentColor; stroke: #1b2231; stroke-width: 1.1; }
-.ladpair .climber .ch { fill: #f6d7b8; stroke: #1b2231; stroke-width: 1.1; }
-.ladpair .climber .hair { fill: #3b2a1e; }
+.ladpair .climber .cs { fill: var(--cf); stroke: var(--cd); stroke-width: 1.2; }
+.ladpair .climber .ch { fill: #ffe0bd; stroke: var(--cd); stroke-width: 1.1; }
+.ladpair .climber .hair { fill: #4a2c17; }
 .ladpair .climber .ce { fill: #1b2231; }
 .ladpair .climber .cm { fill: none; stroke: #1b2231; stroke-width: .9; stroke-linecap: round; }
-.ladpair .climber .ca, .ladpair .climber .cl { fill: none; stroke: #1b2231; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .climber .ca, .ladpair .climber .cl { fill: none; stroke: var(--cf); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .climber .zz { font: 700 8px var(--font-body); fill: var(--cf); }
+.ladpair .climber .csh { fill: #000; opacity: .18; }
 .ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ladpair .nu { font-weight: 600; fill: var(--green); }
 .ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
@@ -1589,20 +1591,28 @@ const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day
 // 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；各级题数写在梯子右边（NL、NR 起）；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
 const LAD = { W: 388, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
   curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
-// 右梯上的爬梯小人（比两梯之间跑的大一些）：脚踩在那一级的横档上，双手抓扶手；ph 是手脚交替的相位（-1…1），动画逐帧改它
-function climberLimbs(ph) {
-  const a = `M-3 -17 L-8 ${(-27 + 3 * ph).toFixed(1)} M3 -17 L8 ${(-27 - 3 * ph).toFixed(1)}`;
-  const l = `M-2 -9 L-5 ${(-1 - 3 * Math.max(0, ph)).toFixed(1)} M2 -9 L5 ${(-1 - 3 * Math.max(0, -ph)).toFixed(1)}`;
-  return { a, l };
+// 右梯上的小人：右梯上有题的 1–4 级各站一个，姿势按级——1 级躺着、2 级坐着、3 级站着、4 级跳着；颜色是不随深浅色变的亮色；
+// 以那一级横档的上沿为原点；动画（playLadder）逐帧改 data-pose 对应的部位：躺着的打呼、坐着的晃腿、站着的挥手、跳着的上下跳
+const POSES = ['lie', 'sit', 'stand', 'jump'];
+const VIVID = [['#ff7a45', '#c2410c'], ['#facc15', '#a16207'], ['#22c55e', '#15803d'], ['#ec4899', '#be185d']];
+function headSvg(x, y) {
+  return `<circle class="ch" cx="${x}" cy="${y}" r="5"/><path class="hair" d="M${x - 5} ${y - 1} Q${x - 4.5} ${y - 6.5} ${x} ${y - 6} Q${x + 4.5} ${y - 6.5} ${x + 5} ${y - 1} Q${x + 2} ${y - 3.5} ${x - 5} ${y - 1} z"/>`
+    + `<circle class="ce" cx="${x - 1.8}" cy="${y - .1}" r=".7"/><circle class="ce" cx="${x + 1.8}" cy="${y - .1}" r=".7"/><path class="cm" d="M${x - 1.8} ${y + 2.2} Q${x} ${y + 3.6} ${x + 1.8} ${y + 2.2}"/>`;
 }
-function climberSvg(x, y, color) {
-  const p = climberLimbs(0);
-  return `<g class="climber" transform="translate(${x} ${y})" style="color:${color}"><g class="cb">
-    <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>
-    <rect class="cs" x="-5" y="-19.5" width="10" height="11.5" rx="4.5"/>
-    <circle class="ch" cx="0" cy="-24.5" r="5"/><path class="hair" d="M-5 -25.5 Q-4.5 -31 0 -30.5 Q4.5 -31 5 -25.5 Q2 -28 -5 -25.5 z"/>
-    <circle class="ce" cx="-1.8" cy="-24.6" r=".7"/><circle class="ce" cx="1.8" cy="-24.6" r=".7"/><path class="cm" d="M-1.8 -22.3 Q0 -20.9 1.8 -22.3"/>
-  </g></g>`;
+function poseParts(pose, ph) {
+  // ph：-1…1 的相位；返回会动的部位：l 腿、a 手臂、dy 身子上下
+  if (pose === 'sit') return { l: `M-2 -3 L5 -3 L${(5 + 2.5 * ph).toFixed(1)} 6 M2 -3 L7 -3 L${(7 - 2.5 * ph).toFixed(1)} 6`, a: 'M-3 -14 L-8 -4 M3 -14 L8 -4', dy: 0 };
+  if (pose === 'stand') return { l: 'M-2 -9 L-3 0 M2 -9 L3 0', a: `M-3 -17 L-7 -10 M3 -17 L${(8 + ph).toFixed(1)} ${(-25 + 2 * ph).toFixed(1)}`, dy: 0 };
+  if (pose === 'jump') { const h = Math.abs(ph); return { l: `M-2 -9 L${(-4 + h).toFixed(1)} ${(-1 - 3 * h).toFixed(1)} M2 -9 L${(4 - h).toFixed(1)} ${(-1 - 3 * h).toFixed(1)}`, a: `M-3 -17 L-8 ${(-24 - 3 * h).toFixed(1)} M3 -17 L8 ${(-24 - 3 * h).toFixed(1)}`, dy: -9 * h }; }
+  return { l: 'M7 -5 L17 -4 M7 -3 L16 -1', a: 'M-4 -5 L-10 -1', dy: 0 };
+}
+function climberSvg(x, y, k) {
+  const pose = POSES[k - 1], [c, d] = VIVID[k - 1], p = poseParts(pose, 0);
+  const body = pose === 'lie' ? `<rect class="cs" x="-6" y="-9" width="14" height="8" rx="4"/>${headSvg(-11, -6)}<text class="zz" x="-13" y="-14">z</text>`
+    : pose === 'sit' ? `<rect class="cs" x="-4.5" y="-16" width="9" height="12" rx="4.5"/>${headSvg(0, -21)}`
+    : `<rect class="cs" x="-4.5" y="-20" width="9" height="12" rx="4.5"/>${headSvg(0, -25)}`;
+  return `<g class="climber" data-pose="${pose}" transform="translate(${x} ${y})" style="--cf:${c};--cd:${d}">${pose === 'jump' ? '<ellipse class="csh" cx="0" cy="0" rx="7" ry="1.6"/>' : ''}<g class="cb">
+    <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>${body}</g></g>`;
 }
 function ladderPair(wl, key) {
   // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的「题数/百分比」写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
@@ -1625,8 +1635,8 @@ function ladderPair(wl, key) {
   const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
     + `<linearGradient id="wh-${key}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9a76b"/><stop offset=".6" stop-color="#b27a43"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>`
     + `</defs>`;
-  // 右梯上，本周有题升到的每一级站一个爬梯小人
-  for (let k = 2; k <= 5; k++) if (wl.up[k]) g += climberSvg(RX, y(k) - 3, col(k));
+  // 右梯上有题的 1–4 级各站一个小人，姿势按级
+  for (let k = 1; k <= 4; k++) if (wl.right[k - 1]) g += climberSvg(RX, y(k) - 3.5, k);
   if (wl.fresh) g += `<text class="new num" x="${LX}" y="${bot + 16}">+${wl.fresh} new</text>`;
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
@@ -1656,14 +1666,16 @@ function playLadder(svg) {
   };
   let k = 0;
   for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(LADDER_SEGS[f.to - 1][2]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
-  const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), off: i * 1.7 }));
+  const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ pose: g.dataset.pose, b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), z: g.querySelector('.zz'), sh: g.querySelector('.csh'), off: i * 1.7 }));
   const start = performance.now();
   const step = now => {
     if (!svg.isConnected) { ladRuns.delete(svg); return; }
     for (const c of climbers) {
-      const ph = Math.sin(now / 260 + c.off), p = climberLimbs(ph);
+      const ph = Math.sin(now / (c.pose === 'jump' ? 240 : 320) + c.off), p = poseParts(c.pose, ph);
       c.a.setAttribute('d', p.a); c.l.setAttribute('d', p.l);
-      c.b.setAttribute('transform', `translate(0 ${(-Math.abs(ph) * 1.5).toFixed(2)})`);
+      c.b.setAttribute('transform', `translate(0 ${p.dy.toFixed(2)})`);
+      if (c.sh) c.sh.setAttribute('rx', (7 - 3 * Math.abs(ph)).toFixed(1));
+      if (c.z) { const t = (now / 1600 + c.off) % 1; c.z.setAttribute('y', (-12 - 10 * t).toFixed(1)); c.z.setAttribute('x', (-13 + 4 * t).toFixed(1)); c.z.style.opacity = String(1 - t); }
     }
     for (const r of runners) {
       const t = (((now - start - r.t0) % CYCLE) + CYCLE) % CYCLE / DUR;
