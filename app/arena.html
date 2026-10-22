@@ -260,15 +260,17 @@ details.photos[open] > summary { margin-bottom: 6px; }
 /* 两架梯子：左为周初、右为周末；中间一列级名；小圆点的爬升动画 */
 .ladpair { display: grid; gap: 4px; justify-items: center; }
 .ladpair svg { width: 100%; max-width: 380px; height: auto; display: block; cursor: pointer; overflow: visible; }
-.ladpair .rail { stroke: var(--line); stroke-width: 4; stroke-linecap: round; }
-.ladpair .rung { stroke-width: 4; stroke-linecap: round; }
-.ladpair .pill { fill: var(--surface); stroke-width: 1.5; }
+.ladpair .lcol { fill: var(--surface-2); }
+.ladpair .rail { fill: var(--line); }
+.ladpair .pill { fill: var(--surface); stroke-width: 2; }
 .ladpair text { font: 500 11px var(--font-body); fill: var(--muted); }
 .ladpair .pn { font: 600 12px var(--font-body); fill: var(--ink); text-anchor: middle; }
-.ladpair .lv { text-anchor: middle; }
-.ladpair .lv.m, .ladpair .pct.m { fill: var(--green); font-weight: 600; }
-.ladpair .upn { text-anchor: end; font-weight: 600; fill: var(--pen); font-size: 10.5px; }
-.ladpair .end { text-anchor: middle; font-weight: 600; fill: var(--ink); }
+.ladpair .lv { text-anchor: end; fill: var(--ink); }
+.ladpair .lv.m { fill: var(--green); font-weight: 600; }
+.ladpair .pct { font-size: 10.5px; }
+.ladpair .arrow { fill: none; stroke-linecap: round; opacity: .8; }
+.ladpair .alab { fill: var(--surface); stroke-width: 1.2; }
+.ladpair .an { font: 600 10.5px var(--font-body); fill: var(--ink); text-anchor: middle; }
 .ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
 .lad-cap { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: 14px; }
 .lad-cap .up { color: var(--pen); font-weight: 500; }
@@ -1539,7 +1541,7 @@ function thisWeekBlock(today, ws, sc, recent, db) {
     ${chartLegend(true)}
     ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
     <ul class="goals">${lines.map(x => `<li class="${x.ok ? 'ok' : ''}">${esc(x.text)}</li>`).join('')}</ul>
-    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, ws, today), 'this', wd(ws) + ' ' + fmtDate(ws), 'Now')}</div>
+    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, ws, today), 'this')}</div>
     ${masteredList(week)}
   </section>`;
 }
@@ -1551,7 +1553,7 @@ function lastWeekBlock(lws, sc) {
     <p class="small muted">${esc(reviewLine(week))}</p>
     ${chartLegend(false)}
     ${activityChart(week.days, { todayIdx: -1 })}
-    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, lws, lwe), 'last', wd(lws) + ' ' + fmtDate(lws), wd(lwe) + ' ' + fmtDate(lwe))}</div>
+    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}</div>
     ${masteredList(week)}
   </section>`;
 }
@@ -1588,34 +1590,48 @@ function activityChart(days, opts) {
 
 /* 阶梯：1–4 级与掌握五项的名字与颜色（Today 的两架梯子、Exercises 的横条与专题图共用） */
 const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day 3', 'var(--lad2)'], [3, 'Level 3 · day 7', 'var(--lad3)'], [4, 'Level 4 · day 14', 'var(--lad4)'], ['mastered', '★ Mastered', 'var(--lad-m)']];
-// 两架梯子的几何：左梯中心 LX、右梯中心 RX、横档半宽 LW；第 k 级（1–5）横档的 y
-const LAD = { W: 350, H: 240, LX: 44, RX: 250, LW: 24, y: k => 202 - (k - 1) * 38 };
-function ladderPair(wl, key, leftLabel, rightLabel) {
-  // 左梯为周初、右梯为周末（本周为此刻）；横档上写该级题数，右梯另写百分比，顶级写「N mastered」；左梯顶级恒为空；左梯 1 级下写「+N new」；右梯各级旁写「↑ n」
-  // 下面一行说明升到各级的题数，下降的另起一行；data-flows 给爬升动画（armLadders）
-  const { W, H, LX, RX, LW, y } = LAD, sh = ladderShares({ 1: wl.right[0], 2: wl.right[1], 3: wl.right[2], 4: wl.right[3], mastered: wl.right[4] });
-  const rails = cx => `<line class="rail" x1="${cx - LW}" y1="${y(5) - 22}" x2="${cx - LW}" y2="${y(1) + 16}"/><line class="rail" x1="${cx + LW}" y1="${y(5) - 22}" x2="${cx + LW}" y2="${y(1) + 16}"/>`;
-  const pill = (cx, k, n, show) => `<line class="rung" x1="${cx - LW}" y1="${y(k)}" x2="${cx + LW}" y2="${y(k)}" style="stroke:${LADDER_SEGS[k - 1][2]}"/>${show ? `<rect class="pill" x="${cx - 17}" y="${y(k) - 9}" width="34" height="18" rx="9" style="stroke:${LADDER_SEGS[k - 1][2]}"/><text class="pn num" x="${cx}" y="${y(k) + 4}">${n}</text>` : ''}`;
-  let g = rails(LX) + rails(RX);
+// 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
+const LAD = { W: 356, H: 226, TX: 94, LX: 128, RX: 290, LW: 22, A0: 188, A1: 260, y: k => 186 - (k - 1) * 38,
+  curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
+function ladderPair(wl, key) {
+  // 左梯为周初、右梯为周末（本周为此刻）；级名在左梯左边；两架梯子的横档上写该级题数、旁边写百分比（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
+  // 从左梯到右梯每股升级画一支箭头（粗细按题数），箭头上写题数；下面一行说明升到各级的题数，下降的另起一行；data-flows 给爬升动画（armLadders）
+  const { W, H, TX, LX, RX, LW, y } = LAD;
+  const share = n => ladderShares({ 1: n[0], 2: n[1], 3: n[2], 4: n[3], mastered: n[4] });
+  const shL = share(wl.left), shR = share(wl.right), col = k => LADDER_SEGS[k - 1][2];
+  const ladder = cx => `<rect class="lcol" x="${cx - LW - 12}" y="${y(5) - 22}" width="${2 * LW + 24}" height="${y(1) - y(5) + 44}" rx="12"/>`
+    + [-1, 1].map(sd => `<rect class="rail" x="${cx + sd * LW - 3.5}" y="${y(5) - 16}" width="7" height="${y(1) - y(5) + 32}" rx="3.5"/>`).join('');
+  const rung = (cx, k, n, show) => `<rect class="rung" x="${cx - LW}" y="${y(k) - 3}" width="${2 * LW}" height="6" rx="3" style="fill:${col(k)}"/>`
+    + (show ? `<rect class="pill" x="${cx - 18}" y="${y(k) - 10}" width="36" height="20" rx="10" style="stroke:${col(k)}"/><text class="pn num" x="${cx}" y="${y(k) + 4}">${n}</text>` : '');
+  let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
-    g += pill(LX, k, wl.left[k - 1], k < 5) + pill(RX, k, wl.right[k - 1], true);
-    g += `<text class="lv${k === 5 ? ' m' : ''}" x="${(LX + RX) / 2}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1]}</text>`;
-    g += k === 5 ? `<text class="pct m" x="${RX + LW + 6}" y="${y(k) + 4}">${wl.right[4]} mastered</text>` : `<text class="pct num" x="${RX + LW + 6}" y="${y(k) + 4}">${sh[k - 1].pct}%</text>`;
-    if (k > 1 && wl.up[k]) g += `<text class="upn num" x="${RX - LW - 5}" y="${y(k) - 4}">↑ ${wl.up[k]}</text>`;
+    g += `<text class="lv${k === 5 ? ' m' : ''}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1]}</text>`;
+    g += rung(LX, k, wl.left[k - 1], k < 5) + rung(RX, k, wl.right[k - 1], true);
+    if (k < 5) g += `<text class="pct num" x="${LX + LW + 8}" y="${y(k) + 4}">${shL[k - 1].pct}%</text>`;
+    g += `<text class="pct num" x="${RX + LW + 8}" y="${y(k) + 4}">${shR[k - 1].pct}%</text>`;
   }
-  g += `<text class="end" x="${LX}" y="12">${esc(leftLabel)}</text><text class="end" x="${RX}" y="12">${esc(rightLabel)}</text>`;
-  if (wl.fresh) g += `<text class="new num" x="${LX}" y="${y(1) + 32}">+${wl.fresh} new</text>`;
+  // 箭头：粗细 1.5–5 按题数开方；题数写在弧线中点
+  const maxN = Math.max(1, ...wl.flows.map(f => f.n));
+  let arrows = '', labels = '';
+  for (const f of wl.flows) {
+    const c = LAD.curve(f), w = (1.5 + 3.5 * Math.sqrt(f.n / maxN)).toFixed(1);
+    arrows += `<path class="arrow" d="M${c.x0} ${c.y0} Q${c.cx} ${c.cy} ${c.x1} ${c.y1}" style="stroke:${col(f.to)};stroke-width:${w}" marker-end="url(#ah-${key}-${f.to})"/>`;
+    const mx = 0.25 * c.x0 + 0.5 * c.cx + 0.25 * c.x1, my = 0.25 * c.y0 + 0.5 * c.cy + 0.25 * c.y1, t = `+${f.n}`;
+    labels += `<rect class="alab" x="${(mx - 4 - 3.4 * t.length).toFixed(1)}" y="${(my - 8).toFixed(1)}" width="${(8 + 6.8 * t.length).toFixed(1)}" height="16" rx="8" style="stroke:${col(f.to)}"/><text class="an num" x="${mx.toFixed(1)}" y="${(my + 4).toFixed(1)}">${t}</text>`;
+  }
+  const defs = `<defs>${[2, 3, 4, 5].map(k => `<marker id="ah-${key}-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:${col(k)}"/></marker>`).join('')}</defs>`;
+  if (wl.fresh) g += `<text class="new num" x="${LX}" y="${y(1) + 34}">+${wl.fresh} new</text>`;
   const ups = [[2, 'to level 2'], [3, 'to level 3'], [4, 'to level 4']].filter(([k]) => wl.up[k]).map(([k, t]) => `<span class="up">↑ <b class="num">${wl.up[k]}</b> ${t}</span>`);
   if (wl.up[5]) ups.push(`<span class="up m">★ <b class="num">${wl.up[5]}</b> mastered</span>`);
   const cap = ups.length ? ups.join('<span class="sep">·</span>') : '<span class="muted">No climbs yet — every right answer moves a question up.</span>';
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []).join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
   return `<div class="ladpair" data-key="${key}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-act="lad-replay" data-flows='${JSON.stringify(wl.flows)}'><title>Tap to replay</title>${g}<g class="dots"></g></svg>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-act="lad-replay" data-flows='${JSON.stringify(wl.flows)}'><title>Tap to replay</title>${defs}${g}${arrows}${labels}<g class="dots"></g></svg>
     <p class="lad-cap">${cap}</p>${wl.down ? `<p class="small muted lad-down">↓ ${wl.down} moved down</p>` : ''}
   </div>`;
 }
-// 爬升动画：每股流放 min(n, 10) 个小圆点，从左梯 from 级沿中间上方的弧线飞到右梯 to 级，每个约 1.2 秒、依次错开 80ms；第一次进入视野时播一次，点梯子重播；减少动态效果时不播
+// 爬升动画：每股流放 min(n, 10) 个小圆点，从左梯 from 级沿那支箭头的弧线飞到右梯 to 级，每个约 1.2 秒、依次错开 80ms；第一次进入视野时播一次，点梯子重播；减少动态效果时不播
 const ladPlayed = new Set();
 let ladObserver = null;
 function playLadder(svg) {
@@ -1624,10 +1640,10 @@ function playLadder(svg) {
   try { flows = JSON.parse(svg.dataset.flows || '[]'); } catch (e) { return; }
   const layer = svg.querySelector('.dots'); if (!layer) return;
   layer.innerHTML = '';
-  const NS = 'http://www.w3.org/2000/svg', { LX, RX, LW, y } = LAD, dots = [];
+  const NS = 'http://www.w3.org/2000/svg', dots = [];
   let delay = 0;
   for (const f of flows) {
-    const x0 = LX + LW, y0 = y(f.from), x1 = RX - LW, y1 = y(f.to), cx = (x0 + x1) / 2, cy = Math.min(y0, y1) - 36;
+    const { x0, y0, x1, y1, cx, cy } = LAD.curve(f);
     for (let i = 0; i < Math.min(f.n, 10); i++) {
       const c = document.createElementNS(NS, 'circle');
       c.setAttribute('r', '4'); c.setAttribute('class', 'fly'); c.style.fill = LADDER_SEGS[f.to - 1][2]; c.style.opacity = '0';
