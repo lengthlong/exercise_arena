@@ -1,21 +1,27 @@
 # 0030 Today 的本周目标、阶梯图与升级；作答页的返回；材料折叠沿用；从已有题组再找题；Exercises 与 Papers 分子标签
 
-> 状态：**讨论中（2026-10-22）**
+> 状态：**待落盘（2026-10-22）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
 | D1 This week 的句子怎样改 | 已裁 | A 的鼓励句；另按用户补充：Next 7 days 改为 This week、Last 7 days 改为 Last week，都按日历周（周一到周日），都用 Last 7 days 那种组合图 | 二·D1 |
+| D1b 目标句的字样 | 已裁 | A：照核销行 3 的字样（复审 F11） | 二·D1 |
 | D1a This week 的图怎样画还没到的天、目标句放哪 | 已裁 | A：今天之前与今天画实际作答，今天上面与以后各天画虚线的计划柱；目标句放图下，不另画圆点 | 二·D1 |
 | D2 Ladders 画成什么样的梯子 | 已裁 | A：竖梯五级；另按用户补充：This week 与 Last week 各画两架梯子（左为周初、右为周末或此刻），之间播放爬升动画 | 二·D2 |
 | D2a 独立的 Ladders 一块还留不留 | 已裁 | A：去掉；This week 的右梯就是此刻的阶梯 | 二·D2 |
 | D2b 两架梯子怎样数、怎样动 | 已裁 | A：周内新录的题算在左梯第 1 级（标「+N new」），只给升级的题播动画，退回的只写一行；另按用户补充：周初已掌握的题不放进左梯（周末仍掌握的），标「N mastered」；图下一行写升到各级的题数 | 二·D2 |
+| D2c 右梯是否也去掉周初已掌握的题 | 已裁 | B：两架梯子都去掉（复审 F1） | 二·D2 |
+| D2d This week 是否也列本周新掌握的题 | 已裁 | A：列（复审 F7） | 二·D2 |
+| D2e 阶梯的级名全站统一为 Level | 已裁 | A：全站用 level（复审 F5） | 二·D2 |
 | D3 「moved up」放在哪、要不要动画 | 已裁 | A 的位置（从 Last 7 days 拿掉），动画用 D2 的两架梯子 | 二·D3 |
 | D4 作答页与卷子详情的返回按钮 | 已裁 | A 的位置与改名；离开不确认 | 二·D4 |
 | D4a 离开后作答怎样保留 | 已裁 | 用户原话：只存每日卷，直接存在卷子上（不另设 drafts）；检验卷不存 | 二·D4 |
+| D4b 隔天才接着做的每日卷 | 已裁 | A 加用户补充：接着做这一科最新那张没交的每日卷（不论哪天），日期改为今天（复审 F4） | 二·D4 |
 | D5 照片与材料的展开状态沿用到同材料的下一题 | 已裁 | 用户原话直接定 | 二·D5 |
 | D6 Record 能否选已有题组让 AI 再找题 | 已裁 | A：Record 页选题组，再写提示，点 Read with AI | 二·D6 |
 | D6a 再找题时找哪些题 | 已裁 | B：没录的都可以起草，用户可写提示指定哪些 | 二·D6 |
 | D6b 当时没做错的题，错因怎样填 | 已裁 | B：AI 照样猜一个错因 | 二·D6 |
+| D6c 补录的题错次从几起 | 已裁 | A：照旧从 1 起（复审 F2） | 二·D6 |
 | D7 Exercises 按科目分子标签 | 已裁 | A | 二·D7 |
 | D8 Exercises 每科小结写什么 | 已裁 | A：专题图加两列小榜 | 二·D8 |
 | D9 Papers 分 Daily 与 Check 两个子标签 | 已裁 | A | 二·D9 |
@@ -67,7 +73,7 @@
 
 ### E5 材料与照片的展开状态
 
-- 材料（`materialBlock`）是 `<details>`：作答页默认收起，详情页默认展开；展开或收起记在 `S.run.openSets` / `S.paperOpenSets`，翻到同组下一题时沿用。
+- 材料（`materialBlock`）是 `<details>`：作答页与详情页都默认展开（本轮开始后线上第 57、58 版的直接指示，基线 042da0e）；收起记在 `S.run.openSets` / `S.paperOpenSets`，翻到同组下一题时沿用。
 - 照片（`photosBlock`，「Show photo (n)」）也是 `<details>`，默认收起，不记状态：材料里的照片、题目自己的照片，翻一题就又收起。49 个题组都有照片；70 道错题自带照片。
 
 ### E6 Record（`renderRecord`、`recognise`）
@@ -118,6 +124,10 @@ D1a This week 的图怎样画还没到的天（依赖 D1）：
 
 **裁决（2026-10-22）：A。**
 
+D1b 目标句的字样（复审 F11 引出）：核销行 3 列出四种天数句与两种检验卷句，每句自带图标，前面不再加勾；「🎉 N practice days」的 N 是实际练的天数。A 照用；B 用户改字。
+
+**裁决（2026-10-22）：A。**
+
 本轮跟着变的（D1 的机械落实）：最近 7 天滚动统计只留给 Today 的两句提示（「Read the Key idea again…」与检验卷建议的专题）；Last week 的问候数字、统计行、组合图与 Newly mastered 都按上周一到周日；Exercises 的「最近 7 天正确率」（D8）照旧滚动 7 天。
 
 ### D2 Ladders 画成什么样的梯子
@@ -144,6 +154,18 @@ D2b 两架梯子怎样数、怎样动（依赖 D2）。本周（10-19 周一到�
 2. 图下一行按到达的级写：「↑ 83 to level 2 · ↑ 10 to level 3 · ★ 0 mastered」，为 0 的项不写（全为 0 时写「No climbs yet — every right answer moves a question up.」）。一道题本周从 1 级升到 3 级只算「to level 3」一次。
 3. 梯子的级名按用户的说法写 Level：横档旁写「Level 1 · day 1」…「Level 4 · day 14」，顶上「★ Mastered」。
 
+D2c 右梯是否也去掉周初已掌握的题（复审 F1：落实 1 写的「也不放进右梯」与 D2a「右梯就是此刻的阶梯」冲突）：A（推荐）右梯完整，顶级数全部掌握的题；B 两架都去掉，右梯顶级只数本周新掌握的。
+
+**裁决（2026-10-22）：B。** 右梯的题数与百分比只算梯子上的题（不含周初已掌握、周末仍掌握的），不再等同于全部错题的阶梯；D2a 的「右梯就是此刻的阶梯」按此理解。
+
+D2d This week 是否也列本周新掌握的题（复审 F7）：A（推荐）有本周新掌握的就在 This week 梯子下列「Newly mastered」，同 Last week；B 只在说明行写数。
+
+**裁决（2026-10-22）：A。**
+
+D2e 级名是否全站统一（复审 F5）：A（推荐）全站改说 level：Exercises 阶梯圆点的提示「Waiting at level 2 (day 3)」、每科小卡的读屏文字「152 at level 1 …」、Settings「How the review ladder works」改写为「After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.」；B 只 Today 的梯子用 Level。
+
+**裁决（2026-10-22）：A。**
+
 ### D3 「moved up」放在哪、要不要动画
 
 证据：E3。依赖 D2。
@@ -169,13 +191,14 @@ D4a 作答怎样自动保存（依赖 D4）：agent 给的选项是存在本人�
 **裁决（2026-10-22）：只存每日卷，存在卷子上。** 落实（机械）：
 
 1. 每日卷在作答阶段，回答一变，停顿约 1 秒后把整份回答写进这张卷的 `responses`（错题 id → 回答）；Back 离开时先把没写的写掉。交卷时 `responses` 写成 `null`。这不是作答：阶梯与金币仍只在交卷时变。
-2. 再点这一科的每日重做时，今天这一科本人没交的那张每日卷**接着做**（不再删掉重组），带出 `responses`，从第一张卡开始；没有这样的卷才新组一张。更早没交的每日卷照旧不接着做、不列出。
+2. 再点这一科的每日重做时，本人这一科没交的每日卷**接着做**（不再删掉重组），带出 `responses`，从第一张卡开始；没有这样的卷才新组一张。隔天的情形见 2a。
+2a. D4b 隔天才接着做（复审 F4：「更早的不接着做」是 agent 加的限制，交用户裁）：A（推荐）接着做这一科最新那张没交的每日卷，不论哪天生成；B 只接着做今天的。用户原话：「A. And the paper's name should be update to 'today'. The same effect as "B + load the answers from last uncommitted paper". Since we choose questions in a LRU-first order and we will choose the same questions the next day.」**裁决（2026-10-22）：A，日期改为今天。** 落实：再点这一科的每日重做时，取本人这一科最新（`madeAt`，否则 `createdAt`）那张没交的每日卷接着做，带出 `responses`；它不是今天生成的，就把 `createdAt` 改为今天、`madeAt` 改为此刻、`title` 改为今天的卷名（题照旧）。没有才新组一张。更早的没交的每日卷照旧不列出、不删。上面第 2 条按此改。
 3. 检验卷不存：作答阶段点 Back，没交的回答照旧丢掉（不确认）。
 4. 术语表 Daily paper「没交的会被新的一张取代」、DATA.md「每日卷只属于 for 的用户，不接着做」一段及其已知代价随之改写。
 
 ### D5 照片与材料的展开状态沿用到同材料的下一题
 
-证据：E5。用户原话已定：「the 'images' and the 'material' should keep as it was (folded or expanded) for the next question with the same 'images' and 'material'」。做法：材料照旧按题组记；照片按「这组照片」（照片 id 依次连成的串）记展开或收起，作答页与卷子详情各记各的，翻到有同一组照片的下一题时沿用；默认值不变（材料作答页收起、详情页展开，照片收起）。离开作答页或详情页后不保留。
+证据：E5。用户原话已定：「the 'images' and the 'material' should keep as it was (folded or expanded) for the next question with the same 'images' and 'material'」。做法：材料照旧按题组记；照片按「这组照片」（照片 id 依次连成的串）记展开或收起，作答页与卷子详情各记各的，翻到有同一组照片的下一题时沿用；默认值不变（材料都展开，照片收起）。离开作答页或详情页后不保留。
 
 **裁决（2026-10-22）：用户原话直接定。**
 
@@ -198,7 +221,13 @@ D6b 当时没做错的题，错因怎样填（依赖 D6a）：A（推荐）错�
 
 **裁决（2026-10-22）：B，流程按用户原话。** 落实：Record 的录入块里加「From a saved question set」下拉（先按 Subject 筛；默认「— New photos or text」）。选了题组：拍照与选照片两个按钮收起，文字框的标签改为「Hint for AI (optional)」，占位「e.g. Questions 5 to 8 only」；Subject 跟题组；点原来的「Read with AI」，把这组的照片、材料文字、组里已录的题干与提示交给 AI，请它按提示起草还没录的题（没给提示就起草全部没录的），错因照样猜，看得见 Sophia 的错答就填；草稿挂在这个题组上。照片取不到时照常提示并只用文字。
 
-本轮跟着变的（D6a 的机械落实）：术语表 Exercise 的定义改为「录入练习场、要重做的一道题：做错后录入的，或从已录题组的材料里补录的」；Record 的定义加一句「也可以选一个已有题组，让 AI 补录组里还没录的题」。错因照旧必有。
+D6c 补录的题错次从几起（复审 F2）：起点 `wrongCount = 1` 对所有错题相同。A（推荐）照旧从 1 起，DATA.md 写明补录的题 `wrongAnswer` 可为空、错因是 AI 的猜测；B 当时没做错的从 0 起，要加一个字段标记、改阶梯起点与断言。
+
+**裁决（2026-10-22）：A。**
+
+补录的题在组内的顺序照已有规则（`setPos` 取组内最大值加一），排在已录的题之后（复审 F16，规则不变）。
+
+本轮跟着变的（D6a 的机械落实）：术语表 Exercise 的定义改为「录入练习场、要重做的一道题：做错后录入的，或从已录题组的材料里补录的」；Record 的定义加一句「也可以选一个已有题组，让 AI 补录组里还没录的题」；Error cause 的定义改为「做错的主要原因（补录的题由 AI 推测）」；DATA.md 的 `wrongAnswer` 写明补录时可为空；ADR 0003「逐题的阶梯保留了「只重做做错的题」」一句随 D6a 改写。错因照旧必有。
 
 ### D7 Exercises 按科目分子标签
 
@@ -256,27 +285,54 @@ D6b 当时没做错的题，错因怎样填（依赖 D6a）：A（推荐）错�
 
 | # | 裁决 | 目标文件 | 改动 |
 |---|---|---|---|
-| 1 | D1、D3 | `app/arena.html` 纯逻辑 | `weekReview(done, papers, from, to, uid)` 改为按区间（含两端）算：`days` 为 from…to 每天一项（今天以后各天为 0），`newlyMastered` 按区间，去掉 `moved`；`reviewLine` 去掉「N moved up」一项，其余字样不变。调用：Last week 用上周一到上周日；This week 的实际柱用本周一到本周日；Today 的 `keyIdeaTip` 与检验卷建议照旧用最近 7 天（today−6…today） |
+| 1 | D1、D3 | `app/arena.html` 纯逻辑 | `weekReview(done, papers, from, to, uid)` 改为按区间（含两端）算：`days` 为 from…to 每天一项（今天以后各天为 0），`questions`、对错计数、`practised`、`newlyMastered` 都按区间，去掉 `moved`；`reviewLine` 去掉「N moved up」一项，其余字样不变。调用：Last week 用上周一到上周日；This week 的实际柱与 Newly mastered 用本周一到本周日；Today 的 `keyIdeaTip` 与检验卷建议的专题照旧用最近 7 天（today−6…today）。`dashboardData` 不动（问候行照旧用它） |
 | 2 | D1a | `app/arena.html` 纯逻辑 | 加 `weekPlan(todo, today, from)`：from 起 7 天每天的计划题数：今天以前 0；今天为此刻到期的题数（`dueNowIds` 的个数）；今天以后取 `dueByDay` 同一天的数 |
-| 3 | D1 | `app/arena.html` 纯逻辑 | 加 `goalLines(g, st, today, weekEnd, practisedToday, topic)` 取代 `paperTry`，返回 `[{ ok, text }]`：天数一行——达到「🎉 N practice days — goal reached!」；还差 k 天且本周剩下能练的天数（今天以后的天数，今天没练过再加 1）≥ k：g.days 为 0 时「New week, fresh start — practise on N days to reach your goal.」，否则「D day(s) done — k more to reach N. Keep going!」；来不及时「D day(s) done this week — every day counts!」（D 为 0 时「Every day counts — start today!」）。`st.papersPerWeek` > 0 时检验卷一行——达到「✓ P check paper(s) done — nice work!」，否则「A check paper shows what you've mastered — try one on <topic>.」（没有错得多的专题时「mixed topics」）。`paperTry` 删去 |
-| 4 | D2b | `app/arena.html` 纯逻辑 | 加 `ladderAt(e, date)`：按 `ladderInput` 与 `deriveState` 同一套逐次规则，只看 `date` ≤ 给定日的作答，返回 1–4 或 5（掌握）；`createdAt` 晚于该日返回 `null`。加 `weekLadders(todo, from, to)`：每道题 `a = ladderAt(e, from−1)`、`b = ladderAt(e, to)`；`b` 为 null 跳过；`a` 为 null 时 `a = 1` 并计入 `fresh`；`a`、`b` 都是 5 时计入 `masteredBefore`，不进两架梯子；其余计入 `left[a]`、`right[b]`；`b > a` 计入 `up[b]`（2、3、4、5）与流 `{from: a, to: b, n}`；`b < a` 计入 `down`。返回 `{ left, right, fresh, masteredBefore, up, down, flows }`（`left`、`right` 是 1–5 五项） |
-| 5 | D1、D1a、D2、D2a | `app/arena.html` Today | Today 只剩三块：Today（不动）、This week、Last week；`planBlock`、`reviewBlock`、`progressBlock` 改写，独立的 Ladders 块删去。**This week**：小标题「This week」与日期「19–25 Oct」；图例「Correct rate · Right · Partly · Wrong · Planned」；组合图周一到周日（今天一列写「Today」，其余写星期），计划柱为虚线空心、写计划数，叠在今天实际柱之上、以后各天单独立；左轴顶取各天（实际 + 计划）的最大值，正确率线只连有作答的天；目标句（行 3）一行一句，前面达到为 ✓、没达到为 ○；下面两架梯子（行 7，from 本周一、to 今天）。**Last week**：小标题「Last week」与「12–18 Oct」；「N questions reviewed」与统计行（行 1）；同一组合图（没有计划柱）；两架梯子（from 上周一、to 上周日）；上周有新掌握的才列「Newly mastered」。每列提示与 `aria-label` 照旧写日期、对错次数与正确率，计划柱加「N planned」 |
-| 6 | D2、D2b | `app/arena.html` Today | 加 `ladderPair(wl, opts)` 画两架梯子：一个 SVG，左梯、中间一列级名、右梯；五根横档自下而上「Level 1 · day 1」「Level 2 · day 3」「Level 3 · day 7」「Level 4 · day 14」「★ Mastered」（顶级绿色，其余用现有的 `--lad1…4` 蓝阶）；每架梯子横档上写该级题数，右梯另写百分比（`ladderShares`）；左梯第 1 级旁「+N new」（N 为 0 不写），左梯顶上「N mastered」（为 0 不写）；右梯各级旁「↑ n」（`up`）。图下说明一行：「↑ 83 to level 2 · ↑ 10 to level 3 · ★ 2 mastered」，为 0 的项不写，都为 0 时「No climbs yet — every right answer moves a question up.」；`down` > 0 时再写一行小字「↓ 3 back to level 1」。`role="img"`、`aria-label` 写左右各级题数与说明行 |
-| 7 | D2b | `app/arena.html` Today | 爬升动画：每股流 `{from, to, n}` 放 `min(n, 10)` 个小圆点，从左梯 from 级飞到右梯 to 级（经过中间列上方的弧线），每个约 1.2 秒、依次错开 80ms，落定后消失；块第一次进入视野时播一次（`IntersectionObserver`），本次打开页面里重画不再自动播；点梯子重播；`prefers-reduced-motion: reduce` 时不播 |
-| 8 | D4 | `app/arena.html` 作答页、卷子详情 | 作答页顶上一行：最左「‹ Back」（`exit-run`），再是标签与卷名，最右作答阶段的「Hand in」；「Stop」删去；交卷后摘要卡右上角的「← Back to today」删去，顶上一行的 Back 照留。卷子详情：页面顶上一行最左「‹ Back」（`paper-view-close`），摘要卡里的「← Back to papers」删去。`cardNav`：第一张卡左下不可点的「← Previous」改为「‹ Back」，动作同顶上的 Back；其余卡照旧 Previous。离开都不确认 |
-| 9 | D4a | `app/arena.html` 作答页与事件 | 每日卷作答阶段：作答框输入、点选项或词表后，停顿 1 秒把 `S.run.responses` 整份 `update` 进 `papers/{id}` 的 `responses`；同一张卷一次只有一个写入在途，写完再写最新的；Back 时先把待写的写掉再退出；写入失败显示在作答页的错误提示里。交卷写 `handedIn` 的同一次 `update` 带上 `responses: null`。`start-daily`：今天这一科本人没交的每日卷（`openDailyPaper`）存在就接着做，`responses` 取卷上的、从第一张卡开始；不存在才按这一科此刻的一批新组一张；删卷的代码去掉。检验卷不存回答 |
-| 10 | D5 | `app/arena.html` | `photosBlock` 加 `data-photos`（照片 id 用逗号连起来）与展开参数；作答页记在 `S.run.openPhotos`，卷子详情记在 `S.paperOpenPhotos`（`paper-view` 时清空），`toggle` 监听照记；渲染题目照片与材料照片时按记下的状态展开，默认收起。材料的记法不变 |
-| 11 | D6、D6a、D6b | `app/arena.html` Record | 录入块加下拉「From a saved question set」：第一项「— New photos or text」，其余为有错题挂着的题组（Subject 选了某科时只列这科），每项「<title> · N recorded」（不是所选科目时前面加科目），按 `createdAt` 新的在前、再按标题。选了题组：Subject 设为题组的科目并锁定；拍照、选照片两个按钮与托盘收起；文字框标签改为「Hint for AI (optional)」、占位「e.g. Questions 5 to 8 only」；说明行改为「AI reads this set's material and drafts the questions not recorded yet.」。点「Read with AI」：用 `fetch('/_blob/<id>')` 把题组照片取成 Blob（取不到的跳过，并在结果提示里说「Couldn't load N photo(s); used the text only」），用新提示词 `morePrompt(set, recorded, hint)`（字段与录入同一套；写明组里已录的题干，别再起草；按提示选题，没有提示就起草全部没录的；看得见 Sophia 的回答就填 `wrongAnswer`，错因照样给最可能的一项；不返回 `sets`，每份草稿都属于这个题组）调 `S.sample.json`；草稿 `setRef` 为这个题组的 id、`images` 为空；结果提示「Found N drafts for "<title>".」。归属人、检查与保存照旧。识别成功后清空提示，题组保持选中 |
-| 12 | D7 | `app/arena.html` Exercises | 筛选块上方一行子标签「All 302 · English 288 · Science 14」（只列按 Owner 筛选后有错题的科目，数字随 Owner 变），驱动 `S.filters.subject`，所选写进本地存储 `arena.exSubject`（读取失败按 All）；Subject 下拉删去；Topic 下拉在选了某科时可用；「Clear filters」不清子标签；All 下的每科小卡点了切到那科的子标签 |
+| 3 | D1、D1b | `app/arena.html` 纯逻辑 | 加 `goalLines(g, st, today, weekEnd, practisedToday, topic)` 取代 `paperTry`，返回 `[{ ok, text }]`。天数一行：`g.days` ≥ 目标时「🎉 D practice days — goal reached!」（D 为实际天数）；还差 k 天、且本周剩下能练的天数（今天以后的天数，今天没练过再加 1）≥ k 时：D 为 0「New week, fresh start — practise on N days to reach your goal.」，否则「D day(s) done — k more to reach N. Keep going!」；来不及时「D day(s) done this week — every day counts!」（D 为 0 时「Every day counts — start today!」）。`st.papersPerWeek` > 0 时检验卷一行：达到「✓ P check paper(s) done — nice work!」，否则「A check paper shows what you've mastered — try one on <topic>.」（没有错得多的专题时为「mixed topics」）。每句自带图标，渲染时前面不再加勾。`paperTry` 删去 |
+| 4 | D2b、D2c | `app/arena.html` 纯逻辑 | 加 `ladderAt(e, date)`：按 `ladderInput` 与 `deriveState` 同一套逐次规则，只看 `date` ≤ 给定日的作答，返回 1–4 或 5（掌握）；`createdAt` 晚于该日返回 `null`。加 `weekLadders(todo, from, to)`：每道题 `a = ladderAt(e, from−1)`、`b = ladderAt(e, to)`；`b` 为 null 跳过；`a` 为 null 时 `a = 1` 并计入 `fresh`；`a`、`b` 都是 5 时计入 `masteredBefore`，两架梯子都不放；其余计入 `left[a]`、`right[b]`；`b > a` 计入 `up[b]`（2、3、4、5）与流 `{from: a, to: b, n}`；`b < a` 计入 `down`。返回 `{ left, right, fresh, masteredBefore, up, down, flows }`（`left`、`right` 各五项，对应 1–4 级与掌握） |
+| 5 | D1、D1a、D2、D2a、D2d | `app/arena.html` Today | Today 只剩三块：Today（不动）、This week、Last week；`planBlock`、`reviewBlock` 改写，`progressBlock` 与环形图样式（`.lad`、`.lad-legend` 等）删去；`LADDER_SEGS` 保留（每科小卡与专题图要用），级名改为 Level（行 17）。`activityChart(days, opts)` 加参数：`todayIdx`（哪一列写「Today」，没有为 −1，其余列写星期）、各天可带 `planned`；`aria-label` 改为按日期写（不再写「in the last N days」）。计划柱为虚线空心、写计划数，叠在今天的实际柱之上、以后各天单独立；左轴顶取各天（实际 + 计划）的最大值；正确率线只连有作答的天。**This week**：小标题「This week」与日期「19–25 Oct」；图例「Correct rate · Right · Partly · Wrong · Planned」；组合图周一到周日；目标句（行 3）；两架梯子（行 6，from 本周一、to 今天）；本周有新掌握的列「Newly mastered」。**Last week**：小标题「Last week」与「12–18 Oct」；「N questions reviewed」与统计行（行 1）；同一组合图（没有计划柱，没有 Today 列）；两架梯子（from 上周一、to 上周日）；上周有新掌握的列「Newly mastered」。每列提示写日期、对错次数与正确率，计划柱加「N planned」 |
+| 6 | D2、D2b、D2c | `app/arena.html` Today | 加 `ladderPair(wl)` 画两架梯子：一个 SVG，左梯、中间一列级名、右梯；五根横档自下而上「Level 1 · day 1」「Level 2 · day 3」「Level 3 · day 7」「Level 4 · day 14」「★ Mastered」（顶级绿色，其余用 `--lad1…4` 蓝阶）；两架梯子的横档上写该级题数，右梯另写百分比（`ladderShares(right)`，只算梯子上的题）；左梯第 1 级旁「+N new」，左梯顶上「N mastered」（`masteredBefore`），为 0 都不写；右梯各级旁「↑ n」（`up`）。图下说明一行：「↑ 83 to level 2 · ↑ 10 to level 3 · ★ 2 mastered」，为 0 的项不写，都为 0 时「No climbs yet — every right answer moves a question up.」；`down` > 0 时再写一行小字「↓ 3 moved down」（复审 F9：周初在 3 级、周内做错又做对的题周末在 2 级，不一定回到 1 级）。`role="img"`，`aria-label` 写左右各级题数与说明行 |
+| 7 | D2b | `app/arena.html` Today | 爬升动画：每股流 `{from, to, n}` 放 `min(n, 10)` 个小圆点，从左梯 from 级飞到右梯 to 级（经过中间列上方的弧线），每个约 1.2 秒、依次错开 80ms，落定后消失；一块第一次进入视野时播一次（`IntersectionObserver`），本次打开页面里重画不再自动播；点梯子重播；`prefers-reduced-motion: reduce` 时不播 |
+| 8 | D4 | `app/arena.html` 作答页、卷子详情 | 作答页顶上一行：最左「‹ Back」（`exit-run`），再是标签与卷名，最右作答阶段的「Hand in」；「Stop」删去；交卷后摘要卡右上角的「← Back to today」删去，顶上一行的 Back 照留。卷子详情：页面顶上一行最左「‹ Back」（`paper-view-close`），摘要卡里的「← Back to papers」删去。`cardNav(idx, n, act, lastLabel, backAct)` 加返回动作参数：第一张卡左下不可点的「← Previous」改为「‹ Back」（作答页 `exit-run`，详情 `paper-view-close`）；其余卡照旧 Previous。离开都不确认 |
+| 9 | D4a、D4b | `app/arena.html` 作答页与事件 | 每日卷作答阶段：作答框输入、点选项或词表后，停顿 1 秒把 `S.run.responses` 整份 `update` 进 `papers/{id}` 的 `responses`；同一张卷一次只有一个写入在途，写完若还有新改动再写最新的；Back 时先清掉计时器、把待写的写掉再退出；写入失败显示在作答页的错误提示里。交卷：先清掉计时器、等在途的写入完成，再在写 `handedIn` 的同一次 `update` 里带上 `responses: null`，此后不再写 `responses`（复审 F3）。`start-daily`：取本人这一科最新（`madeAt`，否则 `createdAt`）那张没交的每日卷（`openDailyPaper` 改为不限日期、取最新）接着做，`responses` 取卷上的、从第一张卡开始；它不是今天生成的，先 `update` 把 `createdAt` 改为今天、`madeAt` 改为此刻、`title` 改为今天的卷名；没有才按这一科此刻的一批新组一张；删卷的代码去掉。检验卷不存回答 |
+| 10 | D5 | `app/arena.html` | `photosBlock` 加 `data-photos`（照片 id 用逗号连起来）与展开参数；作答页记在 `S.run.openPhotos`，卷子详情记在 `S.paperOpenPhotos`（`paper-view` 时清空），`toggle` 监听照记；作答页与卷子详情渲染题目照片与材料照片时按记下的状态展开，默认收起。材料的记法不变（都默认展开，收起后同组沿用） |
+| 11 | D6、D6a、D6b | `app/arena.html` Record | 录入块加下拉「From a saved question set」：第一项「— New photos or text」，其余为有错题挂着的题组（Subject 选了某科时只列这科），每项「<title> · N recorded」（Subject 为「Let AI decide」时前面加科目），按 `createdAt` 新的在前、再按标题。选了题组：Subject 设为题组的科目并锁定；拍照、选照片两个按钮与托盘收起；文字框标签改为「Hint for AI (optional)」、占位「e.g. Questions 5 to 8 only」；说明行改为「AI reads this set's material and drafts the questions not recorded yet.」。点「Read with AI」：用 `fetch('/_blob/<id>')` 把题组照片取成 Blob，按 `S.imgLimits` 只取前 `maxCount` 张、跳过超过 `maxInputBytes` 的（复审 F8）；取不到或跳过的在结果提示里说「Couldn't use N photo(s)」；页面不能发照片（`S.imgLimits` 为空）时只用文字。新提示词 `morePrompt(set, recorded, hint)`：字段与录入同一套；写明组里已录的题干，不要再起草；按提示选题，没有提示就起草全部没录的；看得见 Sophia 的回答就填 `wrongAnswer`，错因照样给最可能的一项；不返回 `sets`。调 `S.sample.json`；草稿 `setRef` 为这个题组的 id、`images` 为空；结果提示「Found N drafts for "<title>".」。归属人、检查与保存照旧（`setPos` 照已有规则接在组内最后）。识别成功后清空提示，题组保持选中 |
+| 12 | D7 | `app/arena.html` Exercises | 筛选块上方一行子标签「All 302 · English 288 · Science 14」（只列按 Owner 筛选后有错题的科目，数字随 Owner 变），驱动 `S.filters.subject`，所选写进本地存储 `arena.exSubject`（读写包在 try 里，读不到按 All；存的科目已无错题时按 All）；Subject 下拉删去；Topic 下拉在选了某科时可用；`clear-filters` 改为保留 `subject`（复审）；All 下的每科小卡点了切到那科的子标签 |
 | 13 | D8 | `app/arena.html` 纯逻辑 | 加 `topicSummary(exs, subject, today)`：该科每个有错题的专题 `{ topic, n, steps: [1,2,3,4,掌握], answers, right, wrong, rate }`，`answers` 等取 today−6…today 的作答（视图里本人的全部作答，含检验卷），`rate` = 做对 / 作答取整百分比，作答不到 5 次为 `null`；按 n 多到少、再按 id。另返回 `stronger`（`rate` 非空，按 rate 高到低、再按 n 多到少、再按 id，前三）与 `weaker`（`rate` 非空且不在 `stronger` 里，按 rate 低到高、再按 wrong 多到少、再按 id，前三） |
-| 14 | D8 | `app/arena.html` Exercises | 选了某科时，筛选块下方一块小结：一行「288 exercises · 269 due · 0 mastered」；专题图：每个专题一行（最多 8 行，其余合成一行「Other topics」），专题名、按阶梯五级分段的横条（长度按题数、相对最多的专题）、行尾最近 7 天正确率（`null` 写「—」），点一行设 Topic 筛选（「Other topics」不可点）；「Getting stronger」「Needs more work」两列，每行专题名与正确率，后者加「N wrong」，为空时写「Not enough answers in the last 7 days yet.」；错因一条分段横条加图例（错因名与题数）。选 All 时照旧每科小卡（`subjectCards` 不变） |
-| 15 | D9 | `app/arena.html` Papers | Papers 顶上一行子标签「Check papers N · Daily papers N」（`visiblePapers` 里两种各几张），状态 `S.paperTab`，写进本地存储 `arena.paperTab`，默认 check。Check：「Make a check paper」与检验卷列表，筛选 Owner、Subject、Status，四种排序照旧。Daily：每日卷列表（行 16），筛选只有 Subject。Kind 筛选删去；列表行首的类型标签与左侧色条（`k-daily`、`k-check` 行样式）删去；Today、作答页、卷子详情里的类型标签照旧 |
-| 16 | D10、D11 | `app/arena.html` 纯逻辑与 Papers | 加 `dailyGroups(papers, from, all)`：只取每日卷，`all` 为假时只取 `createdAt` ≥ from（today−6）；按 `createdAt` 分组，新的在前，组内按 `madeAt` 新的在前、再按 id；另返回没列出的张数 `older`。Daily 子标签按组列：组标题「Today」「Yesterday」或「Mon 20 Oct」，行内科目标签、得分「8/10」、「Done 08:15」、Delete；没有排序下拉；`older` > 0 时底下「Show older (N)」，点了列全部（`S.dailyAll`，换子标签或离开 Papers 时复原） |
-| 17 | D1 | `app/arena.html` Settings | 设置页小字「The goal shows in Next 7 days on Today.」改为「The goal shows in This week on Today.」 |
-| 18 | D1–D11 | `app/logic.test.js` | 改写并导出：`weekReview` 按区间（含今天以后为 0、`newlyMastered` 按区间、无 `moved`）、`reviewLine` 无 moved；删去 `paperTry` 的断言，加 `goalLines`（达到、来得及（0 天与非 0 天）、来不及（0 天与非 0 天）、检验卷达到与没达到、`papersPerWeek` 为 0 时无检验卷行）；加 `weekPlan`（今天以前 0、今天为到期数、以后同 `dueByDay`）、`ladderAt`（未录为 null、升级、掌握、做错回 1、检验卷上做对不升）、`weekLadders`（新录算左梯 1 级与 `fresh`、跨两级只算一次 `up`、退回计 `down`、周初掌握且仍掌握计 `masteredBefore` 不进梯子、周初掌握后做错留在左梯顶级）、`topicSummary`（不到 5 次为 null、`stronger` 与 `weaker` 不重复、排序）、`dailyGroups`（最近 7 天、`all`、组序与组内序、`older`） |
-| 19 | D4a | `DATA.md` | `papers/{id}` 表加一行：`responses` | 对象，可省 | 每日卷：本人还没交时已填的回答，错题 id → 回答；作答阶段停顿后写入，交卷时写成 `null`；不是作答，不进阶梯与金币；检验卷不写。「每日卷只属于 `for` 的用户，不接着做：…」一段改为：每日卷只属于 `for` 的用户。再次开始这一科的每日重做时，本人今天这一科没交的每日卷接着做，带出 `responses`；没有才新生成一张。更早没交的每日卷不再接着做，不列出，文档不删；旧式混合每日卷（`subject` 为 `null`）同样不接着做。已知代价改为：同一用户在两台设备上同时开着同一张没交的每日卷时，后写的 `responses` 覆盖先写的。写入规则「交卷即保存」加一句：每日卷交卷时一并把 `responses` 写成 `null` |
-| 20 | D4a、D6a | `CONTEXT.md` | Exercise：定义改为「录入练习场、要重做的一道题：做错后录入的，或从已录题组的材料里补录的；连同正确答案、讲解、当时的回答、错因和归类。错题可以属于一个题组，有一个归属人。」（`_Avoid_` 不变）。Record：加一句「也可以选一个已有题组，由 AI 按提示补录组里还没录的题。」Daily paper：「没交的会被新的一张取代」改为「今天没交的下次接着做，留着已填的回答；更早没交的被新的一张取代」 |
-| 21 | 影响面 | 验证（不改文件） | 检索「Next 7 days」「Last 7 days」「moved up」「Stop」「paperTry」「progressBlock」「k-daily」「k-check」「Kind」「不接着做」「做错后被录入」在 `CONTEXT.md`、`DATA.md`、`adr/`、`app/` 的出现，逐处改或确认不适用（`paperTag` 的 `.chip.k-daily`/`.chip.k-check` 标签样式保留）；`./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；落盘者逐行对照本表核对实际稿 |
-| 22 | 完成标准 | 验证（不改文件） | 本地测试壳（内存 `db`、`assets`、`user`，`sample` 用假件返回固定 JSON；10-22 读出的线上数据副本，Sophia，时钟定在 10-22）：Today 三块，This week 柱与虚线计划柱、目标句、两架梯子（左 268 道含「+34 new」，「↑ 83 to level 2 · ↑ 10 to level 3」，「↓ 3 back to level 1」）与动画、Last week 两架梯子（「+268 new」）；每日卷答两题后 Back，再点同一科继续、回答还在，交卷后 `responses` 为 null；检验卷首卡 Back；同组两题翻页时照片与材料保持展开；Record 选题组、写提示、点 Read with AI，草稿挂在该题组、提示词含已录题干与提示；Exercises 子标签、English 小结（「Getting stronger」首行 Gerunds, infinitives & modals 77%）；Papers 两个子标签、Daily 按天分组与「Show older」。375 宽与 1100 宽、亮暗两套各看一遍，`scrollWidth` 不超过视口；控制台无错误 |
-| 23 | 发布 | 线上页面 | 发布前读线上，核对与上次提交的 `app/arena.html` 相同；发布到原网址，能力与契约不变（省略 `capabilities`）；读回线上，去掉外壳后与本地文件相同；不改数据 |
-| 24 | —— | 不改 | `adr/` 不改：没有新的取舍需要长期记理由（作答存在卷子上的理由是用户的裁决：每日卷只属于一个人、交卷前没有作答）。已冻结的讨论不改。提交只含 `app/arena.html`、`app/logic.test.js`、`CONTEXT.md`、`DATA.md` 与本讨论文件；测试壳与数据副本不进提交 |
+| 14 | D8 | `app/arena.html` Exercises | 选了某科时，筛选块下方一块小结：一行「288 exercises · 269 due · 0 mastered」；专题图：每个专题一行（最多 8 行，其余合成一行「Other topics」），专题名、按阶梯五级分段的横条（长度按题数、相对最多的专题；颜色同 `LADDER_SEGS`）、行尾最近 7 天正确率（`null` 写「—」），点一行设 Topic 筛选（「Other topics」不可点）；「Getting stronger」「Needs more work」两列，每行专题名与正确率，后者加「N wrong」，为空时写「Not enough answers in the last 7 days yet.」；错因一条分段横条加图例（错因名与题数）。选 All 时照旧每科小卡（`subjectCards` 不变，读屏文字按行 17 改） |
+| 15 | D9 | `app/arena.html` Papers | Papers 顶上一行子标签「Check papers N · Daily papers N」（`visiblePapers` 里两种各几张），状态 `S.paperTab`，写进本地存储 `arena.paperTab`（读写包在 try 里），默认 check。Check：「Make a check paper」与检验卷列表，筛选 Owner、Subject、Status，四种排序与每页 20 张照旧。Daily：每日卷列表（行 16），筛选只有 Subject。Kind 筛选删去（`filterPapers` 的 `kind` 由子标签给）；列表行首的类型标签与左侧色条（`.item.k-daily`、`.item.k-check` 行样式）删去，行里照留科目标签（复审 F14）；Today、作答页、卷子详情里的 `paperTag` 照旧 |
+| 16 | D10、D11 | `app/arena.html` 纯逻辑与 Papers | 加 `dailyGroups(papers, from, all)`：只取每日卷，`all` 为假时只取 `createdAt` ≥ from（today−6）；按 `createdAt` 分组，新的在前，组内按 `madeAt` 新的在前、再按 id；另返回没列出的张数 `older`。Daily 子标签按组列：组标题「Today」「Yesterday」或「Mon 20 Oct」，行内科目标签、得分「8/10」、「Done 08:15」、Delete；没有排序下拉，也不分页；`older` > 0 时底下「Show older (N)」，点了列全部（`S.dailyAll`，换子标签或离开 Papers 时复原） |
+| 17 | D2e | `app/arena.html` | 级名全站改说 level：`ladderHtml` 的提示「Waiting at level N (day X)」；每科小卡横条的读屏文字「N at level 1 …, N mastered」；Settings「How the review ladder works」改为 D2e 的字样；Today 梯子按行 6 |
+| 18 | D1 | `app/arena.html` Settings | 设置页小字「The goal shows in Next 7 days on Today.」改为「The goal shows in This week on Today.」 |
+| 19 | D1–D11 | `app/logic.test.js` | 改写并导出：`weekReview` 按区间（今天以后为 0、`newlyMastered` 按区间、无 `moved`）、`reviewLine` 无 moved；删去 `paperTry` 的断言与导出表里的 `paperTry`，加 `goalLines`（达到、来得及（0 天与非 0 天）、来不及（0 天与非 0 天）、检验卷达到与没达到、`papersPerWeek` 为 0 时无检验卷行）；加 `weekPlan`（今天以前 0、今天为到期数、以后同 `dueByDay`）、`ladderAt`（未录为 null、升级、掌握、做错回 1、检验卷上做对不升）、`weekLadders`（新录算左梯 1 级与 `fresh`、跨两级只算一次 `up`、下降计 `down`、周初掌握且仍掌握计 `masteredBefore` 不进两架梯子、周初掌握后做错留在左梯顶级）、`openDailyPaper`（不限日期、取最新、交过的不取）、`topicSummary`（不到 5 次为 null、`stronger` 与 `weaker` 不重复、排序）、`dailyGroups`（最近 7 天、`all`、组序与组内序、`older`）；测试与 LOGIC 里说「Last 7 days」「最近 7 天」「Ladders 的环形图」「删掉换新」的注释按新含义改（`ladderShares`、`visiblePapers`、`openDailyPaper`，复审 F12） |
+| 20 | D4a、D4b、D6c | `DATA.md` | `papers/{id}` 表加一行：`responses` · 对象，可省 · 每日卷：本人还没交时已填的回答，错题 id → 回答；作答阶段停顿后写入，交卷时写成 `null`；不是作答，不进阶梯与金币；检验卷不写。`createdAt` 一行加：每日卷隔天接着做时改为接着做那天。「每日卷只属于 `for` 的用户，不接着做：…」一段改为：每日卷只属于 `for` 的用户。没交的每日卷不列出（复审 F13）。再次开始这一科的每日重做时，本人这一科最新那张没交的每日卷接着做，带出 `responses`；它不是当天生成的，把 `createdAt`、`madeAt`、`title` 改为当天；没有才新生成一张。更早的没交的每日卷不再接着做，文档不删；旧式混合每日卷（`subject` 为 `null`）同样不接着做。已知代价改为：同一用户在两台设备上同时开着同一张没交的每日卷时，后写的 `responses` 覆盖先写的。`wrongAnswer` 一行改为「当时的错答；从已录题组补录、当时没做错或看不到的为空」。写入规则「交卷即保存」加一句：每日卷交卷时一并把 `responses` 写成 `null` |
+| 21 | D4b、D6a | `CONTEXT.md` | Exercise：定义改为「录入练习场、要重做的一道题：做错后录入的，或从已录题组的材料里补录的；连同正确答案、讲解、当时的回答、错因和归类。错题可以属于一个题组，有一个归属人。」（`_Avoid_` 不变）。Record：加一句「也可以选一个已有题组，由 AI 按提示补录组里还没录的题。」Error cause：定义改为「做错的主要原因，取四类之一：…；补录的题由 AI 推测。」Daily paper：「没交的会被新的一张取代」改为「没交的下次接着做，带着已填的回答」 |
+| 22 | D6a | `adr/0003-question-set-holds-shared-material-questions-keep-own-ladder.md` | 「逐题的阶梯保留了「只重做做错的题」：同组里她做对的题照常升级…」改为「逐题的阶梯让组里每道题各走各的：一道做对照常升级，不被同组做错的题拖回去；阶梯、改判与掌握的规则对组内的题照常适用。」（复审 F15：补录后组里会有当时没做错的题） |
+| 23 | 影响面 | 验证（不改文件） | 检索「Next 7 days」「Last 7 days」「moved up」「Stop」「paperTry」「progressBlock」「k-daily」「k-check」「Kind」「不接着做」「做错后」「错答」「当初做错」「1st redo」「2nd redo」「环形图」在 `CONTEXT.md`、`DATA.md`、`adr/`、`app/` 的出现，逐处改或确认不适用（`paperTag` 的 `.chip.k-daily`、`.chip.k-check` 标签样式保留）；`./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；落盘者逐行对照本表核对实际稿 |
+| 24 | 完成标准 | 验证（不改文件） | 本地测试壳（内存 `db`、`assets`、`user`，`sample` 为假件、记下提示词与照片数并返回固定 JSON；`/_blob/` 由测试壳给占位图；10-22 读出的线上数据副本，Sophia，时钟定在 10-22 19:00）：Today 三块；This week 柱与虚线计划柱、目标句、两架梯子（左 302 道含「+34 new」，「↑ 83 to level 2 · ↑ 10 to level 3」，「↓ 3 moved down」）与动画；Last week 两架梯子（「+268 new」「↑ 65 to level 2 · ↑ 5 to level 3」）；每日卷答两题后 Back，再点同一科继续、回答还在，交卷后 `responses` 为 null；把一张没交的每日卷改成昨天生成，再点那一科，接着做且日期改为今天；检验卷首卡 Back；同组两题翻页时照片与材料保持展开；Record 选题组、写提示、点 Read with AI，草稿挂在该题组，提示词含已录题干与提示，照片作为 Blob 传入；Exercises 子标签、English 小结（「Getting stronger」首行 Gerunds, infinitives & modals 77%）；Papers 两个子标签、Daily 按天分组与「Show older」。375 宽与 1100 宽、亮暗两套各看一遍，`scrollWidth` 不超过视口；控制台无错误 |
+| 25 | 发布 | 线上页面 | 发布前读线上，核对与当前提交的 `app/arena.html` 相同；发布到原网址，能力与契约不变（省略 `capabilities`）；读回线上，去掉外壳后与本地文件相同；不改数据。线上 `fetch('/_blob/<id>')` 与 `sample` 收照片由 agent 无法在 claude.ai 里实测，作为未验证项披露，请用户第一次用时看结果提示 |
+| 26 | —— | 不改 | 已冻结的讨论不改。提交只含 `app/arena.html`、`app/logic.test.js`、`CONTEXT.md`、`DATA.md`、`adr/0003-…` 与本讨论文件；测试壳与数据副本不进提交 |
+
+## 四、复审（2026-10-22）
+
+复审者（新上下文 subagent）交回 16 条，逐条核验：
+
+| 发现 | 核验 | 处置 |
+|---|---|---|
+| F1 右梯排除周初掌握与 D2a 冲突 | 成立 | 改设计：新题 D2c 交用户，裁 B；行 4、6 |
+| F2 补录没做错的题，Error cause、`wrongAnswer`、`wrongCount` 的影响面 | 成立：`CONTEXT.md` Error cause「当初做错」、`DATA.md` `wrongAnswer`「当时的错答」 | 机械补行 20、21；`wrongCount` 起点作新题 D6c 交用户，裁 A（不改） |
+| F3 自动保存与交卷抢写 | 成立 | 机械：行 9 交卷前清计时器、等在途写入 |
+| F4 更早没交的每日卷静默丢回答 | 成立：是 agent 加的限制 | 改设计：新题 D4b，裁 A 并改日期；行 9、20、21 |
+| F5 `LADDER_SEGS` 会被连带删掉；级名不统一 | 成立：`subjectCards` 用 `LADDER_SEGS` | 机械：行 5 写明保留；级名作新题 D2e，裁 A，行 17 |
+| F6 `activityChart` 把最后一列写死为 Today | 成立 | 机械：行 5 加 `todayIdx` 参数、改 `aria-label` |
+| F7 This week 不列本周新掌握 | 成立 | 新题 D2d，裁 A；行 5 |
+| F8 补录取照片未按限额；线上未实测 | 成立 | 机械：行 11 按 `S.imgLimits`；行 25 披露未实测 |
+| F9 「↓ back to level 1」可能说错 | 成立：wrong 后再 right 会停在 2 级 | 机械：行 6 改「↓ N moved down」 |
+| F10 核对数字 268 应为 302 | 成立 | 机械：行 24 |
+| F11 目标句图标重复、N 含义、两句新字样 | 成立 | 新题 D1b 请用户过目，裁 A；行 3 写明 |
+| F12 注释与测试导出漏改 | 成立：测试第 5 行导出 `paperTry` | 机械：行 19 |
+| F13 新段落丢了「没交的每日卷不列出」 | 成立 | 机械：行 20 |
+| F14 去掉 `paperTag` 会连科目标签；Daily 分页未写 | 成立 | 机械：行 15、16 |
+| F15 ADR 0003「只重做做错的题」 | 成立 | 机械：新行 22 |
+| F16 补录题的 `setPos` 顺序 | 成立，规则已有 | 不改规则，写进 D6 |
+
+重写了行 1、3、4、5、6、8、9、11、12、14、15、16、17、19、20、21、22、23、24、25，按简报自查：每行对得上登记表；新的设计选择（D1b、D2c、D2d、D2e、D4b、D6c）都已交用户裁决。改动面比初稿大（多了 ADR 一行与级名一行），但都是裁决的直接落实，不另派复审；第 6 步问用户。
