@@ -248,13 +248,11 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .combo .plot i.dot { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--pen); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
 .combo .plot b.rl { position: absolute; transform: translate(-50%, calc(-100% - 7px)); font: 600 12px/1 var(--font-body); color: var(--pen); white-space: nowrap; pointer-events: none; z-index: 3; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
 .combo .bars7-x { grid-column: 2; }
-.legend i.ln { height: 3px; width: 16px; border-radius: 2px; vertical-align: 3px; }
 /* This week 与 Last week：标题行、计划柱、目标句 */
 .wk-head { display: flex; align-items: baseline; gap: 8px; }
-.bars7 .plan { width: 60%; max-width: 56px; display: flex; justify-content: center; align-items: flex-start; border: 1.5px dashed var(--pen); border-bottom: 0; border-radius: 3px 3px 0 0; background: var(--pen-soft); position: relative; z-index: 2; }
+.bars7 .plan { width: 60%; max-width: 56px; display: flex; justify-content: center; align-items: flex-start; border: 1.5px dashed var(--pen); border-bottom: 0; border-radius: 3px 3px 0 0; background: var(--pen-soft); }
 .bars7 .plan b { font: 600 10.5px/1 var(--font-body); color: var(--pen); margin-top: 2px; }
 .bars7-x .is-today { color: var(--pen); font-weight: 600; }
-.legend i.pl { border: 1.5px dashed var(--pen); background: var(--pen-soft); box-sizing: border-box; }
 .goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; }
 .goals li.ok { color: var(--green); font-weight: 500; }
 .today-goals { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 8px; }
@@ -1521,7 +1519,6 @@ function todayBlock(today, redo, cps, todo, view, goals) {
 
 /* 本周与上周：组合图、目标句、两架梯子、新掌握 */
 const fmtRange = (a, b) => { const x = fmtDate(a).split(' '), y = fmtDate(b).split(' '); return x[1] === y[1] ? `${x[0]}–${y[0]} ${y[1]}` : `${fmtDate(a)} – ${fmtDate(b)}`; };
-const chartLegend = planned => `<div class="legend small"><span style="color:var(--pen);font-weight:600"><i class="ln" style="background:var(--pen)"></i>Correct rate</span><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span>${planned ? '<span><i class="pl"></i>Planned</span>' : ''}</div>`;
 function masteredList(week) {
   if (!week.newlyMastered.length) return '';
   const label = g => {
@@ -1545,7 +1542,6 @@ function thisWeekBlock(today, ws, sc) {
     <div class="wk-head"><p class="h3">This week</p><span class="small muted num">${fmtRange(ws, we)}</span></div>
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
     <p class="small muted">${esc(reviewLine(week))}</p>
-    ${chartLegend(true)}
     ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
     <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, ws, today), 'this')}</div>
     ${masteredList(week)}
@@ -1557,7 +1553,6 @@ function lastWeekBlock(lws, sc) {
     <div class="wk-head"><p class="h3">Last week</p><span class="small muted num">${fmtRange(lws, lwe)}</span></div>
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
     <p class="small muted">${esc(reviewLine(week))}</p>
-    ${chartLegend(false)}
     ${activityChart(week.days, { todayIdx: -1 })}
     <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}</div>
     ${masteredList(week)}
