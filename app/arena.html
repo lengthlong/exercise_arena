@@ -259,7 +259,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .goals li.ok { color: var(--green); font-weight: 500; }
 /* 两架梯子：左为周初、右为周末；中间一列级名；小圆点的爬升动画 */
 .ladpair { display: grid; gap: 4px; justify-items: center; }
-.ladpair svg { width: 100%; max-width: 380px; height: auto; display: block; cursor: pointer; overflow: visible; }
+.ladpair svg { width: 100%; max-width: 420px; height: auto; display: block; overflow: visible; }
 .ladpair .wrail { stroke: #5e3b1a; stroke-width: .8; }
 .ladpair .wrung { stroke: #6b4423; stroke-width: .6; }
 .ladpair .grain { stroke: #e3b884; stroke-width: .7; stroke-linecap: round; opacity: .55; fill: none; }
@@ -269,9 +269,9 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .nm { font-size: 11.5px; }
 .ladpair .nn { font-weight: 600; fill: var(--ink); }
 .ladpair .np { fill: var(--muted); }
-.ladpair .arrow { fill: none; stroke-linecap: round; opacity: .8; }
-.ladpair .alab { fill: var(--surface); stroke-width: 1.2; }
-.ladpair .an { font: 600 10.5px var(--font-body); fill: var(--ink); text-anchor: middle; }
+.ladpair .runner circle { fill: currentColor; }
+.ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .nu { font-weight: 600; fill: var(--green); }
 .ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
 .lad-down { margin: 0; }
 /* 阶梯分段横条（Exercises 每科小卡） */
@@ -1588,11 +1588,11 @@ function activityChart(days, opts) {
 /* 阶梯：1–4 级与掌握五项的名字与颜色（Today 的两架梯子、Exercises 的横条与专题图共用） */
 const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day 3', 'var(--lad2)'], [3, 'Level 3 · day 7', 'var(--lad3)'], [4, 'Level 4 · day 14', 'var(--lad4)'], ['mastered', '★ Mastered', 'var(--lad-m)']];
 // 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；各级题数写在梯子右边（NL、NR 起）；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
-const LAD = { W: 350, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
+const LAD = { W: 388, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
   curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
 function ladderPair(wl, key) {
   // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的「题数/百分比」写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
-  // 从左梯到右梯每股升级画一支箭头（粗细按题数），箭头上写题数；下降的另起一行；data-flows 给爬升动画（armLadders）
+  // 右梯各级题数后写本周升到这一级的题数「↑83」；下降的另起一行；data-flows 给小人跑跳的动画（armLadders）
   const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
   const share = n => ladderShares({ 1: n[0], 2: n[1], 3: n[2], 4: n[3], mastered: n[4] });
   const shL = share(wl.left), shR = share(wl.right), col = k => LADDER_SEGS[k - 1][2];
@@ -1601,80 +1601,74 @@ function ladderPair(wl, key) {
   const ladder = cx => [1, 2, 3, 4, 5].map(k => `<rect class="wrung" x="${cx - LW - 2}" y="${y(k) - 3.5}" width="${2 * LW + 4}" height="7" rx="3.5" fill="url(#wh-${key})"/>`).join('')
     + [-1, 1].map(sd => { const x = cx + sd * LW - 4; return `<rect class="wrail" x="${x}" y="${top}" width="8" height="${bot - top}" rx="4" fill="url(#wv-${key})"/>`
       + `<path class="grain" d="M${x + 2.6} ${top + 8} L${x + 2.6} ${top + 46} M${x + 5.2} ${top + 70} L${x + 5.2} ${top + 120} M${x + 3} ${top + 140} L${x + 3} ${bot - 10}"/>`; }).join('');
-  const num = (x, k, n, pct) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan><tspan class="np">/${pct}%</tspan></text>`;
+  const num = (x, k, n, pct, up) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan><tspan class="np">/${pct}%</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}</text>`;
   let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
     g += `<text class="lv${k === 5 ? ' m' : ''}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
     if (k < 5) g += num(NL, k, wl.left[k - 1], shL[k - 1].pct);
-    g += num(NR, k, wl.right[k - 1], shR[k - 1].pct);
-  }
-  // 箭头：粗细 1.5–5 按题数开方；题数写在弧线中点
-  const maxN = Math.max(1, ...wl.flows.map(f => f.n));
-  let arrows = '', labels = '';
-  for (const f of wl.flows) {
-    const c = LAD.curve(f), w = (1.5 + 3.5 * Math.sqrt(f.n / maxN)).toFixed(1);
-    arrows += `<path class="arrow" d="M${c.x0} ${c.y0} Q${c.cx} ${c.cy} ${c.x1} ${c.y1}" style="stroke:${col(f.to)};stroke-width:${w}" marker-end="url(#ah-${key}-${f.to})"/>`;
-    const mx = 0.25 * c.x0 + 0.5 * c.cx + 0.25 * c.x1, my = 0.25 * c.y0 + 0.5 * c.cy + 0.25 * c.y1, t = `+${f.n}`;
-    labels += `<rect class="alab" x="${(mx - 4 - 3.4 * t.length).toFixed(1)}" y="${(my - 8).toFixed(1)}" width="${(8 + 6.8 * t.length).toFixed(1)}" height="16" rx="8" style="stroke:${col(f.to)}"/><text class="an num" x="${mx.toFixed(1)}" y="${(my + 4).toFixed(1)}">${t}</text>`;
+    g += num(NR, k, wl.right[k - 1], shR[k - 1].pct, k > 1 ? wl.up[k] : 0);
   }
   const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
     + `<linearGradient id="wh-${key}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9a76b"/><stop offset=".6" stop-color="#b27a43"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>`
-    + `${[2, 3, 4, 5].map(k => `<marker id="ah-${key}-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:${col(k)}"/></marker>`).join('')}</defs>`;
+    + `</defs>`;
   if (wl.fresh) g += `<text class="new num" x="${LX}" y="${bot + 16}">+${wl.fresh} new</text>`;
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
   const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
   return `<div class="ladpair" data-key="${key}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-act="lad-replay" data-flows='${JSON.stringify(wl.flows)}'><title>Tap to replay</title>${defs}${g}${arrows}${labels}<g class="dots"></g></svg>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-flows='${JSON.stringify(wl.flows)}'>${defs}${g}<g class="dots"></g></svg>
     ${wl.down ? `<p class="small muted lad-down">↓ ${wl.down} moved down</p>` : ''}
   </div>`;
 }
-// 爬升动画：每股流放 min(n, 10) 个小圆点，从左梯 from 级沿那支箭头的弧线飞到右梯 to 级，每个约 1.2 秒、依次错开 80ms；第一次进入视野时播一次，点梯子重播；减少动态效果时不播
-const ladPlayed = new Set();
+// 爬升动画：每股升级放 min(n, 6) 个小人，从左梯 from 级沿弧线跑到右梯 to 级，最后一段抬手爬上那一级；每个约 1.8 秒、依次错开，一直循环；
+// 梯子在视野里才播，离开视野或页面重画后停；系统要求减少动态效果时不播
+const ladRuns = new Map();   // svg → 正在播的 requestAnimationFrame 句柄
 let ladObserver = null;
+function stopLadder(svg) { const h = ladRuns.get(svg); if (h) cancelAnimationFrame(h); ladRuns.delete(svg); const l = svg.querySelector('.dots'); if (l) l.innerHTML = ''; }
 function playLadder(svg) {
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (ladRuns.has(svg) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
   let flows = [];
   try { flows = JSON.parse(svg.dataset.flows || '[]'); } catch (e) { return; }
-  const layer = svg.querySelector('.dots'); if (!layer) return;
-  layer.innerHTML = '';
-  const NS = 'http://www.w3.org/2000/svg', dots = [];
-  let delay = 0;
-  for (const f of flows) {
-    const { x0, y0, x1, y1, cx, cy } = LAD.curve(f);
-    for (let i = 0; i < Math.min(f.n, 10); i++) {
-      const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('r', '4'); c.setAttribute('class', 'fly'); c.style.fill = LADDER_SEGS[f.to - 1][2]; c.style.opacity = '0';
-      layer.appendChild(c); dots.push({ c, x0, y0, x1, y1, cx, cy, t0: delay + i * 80 });
-    }
-    delay += 150;
-  }
-  const start = performance.now(), DUR = 1200;
-  const step = now => {
-    let live = false;
-    for (const d of dots) {
-      const t = (now - start - d.t0) / DUR;
-      if (t < 0) { live = true; continue; }
-      if (t >= 1) { d.c.style.opacity = '0'; continue; }
-      live = true;
-      const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2, u = 1 - e;
-      d.c.setAttribute('cx', (u * u * d.x0 + 2 * u * e * d.cx + e * e * d.x1).toFixed(1));
-      d.c.setAttribute('cy', (u * u * d.y0 + 2 * u * e * d.cy + e * e * d.y1).toFixed(1));
-      d.c.style.opacity = t > .9 ? String((1 - t) * 10) : '1';
-    }
-    if (live) requestAnimationFrame(step); else layer.innerHTML = '';
+  const layer = svg.querySelector('.dots'); if (!layer || !flows.length) return;
+  const NS = 'http://www.w3.org/2000/svg', runners = [], DUR = 1800, CYCLE = 2800;
+  // 小人：圆头、身子、两臂、两腿（以脚下为原点，高约 15）
+  const mk = color => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'runner'); g.style.color = color;
+    g.innerHTML = '<circle cx="0" cy="-12.5" r="2.8"/><path class="b" d="M0 -9.5 L0 -4"/><path class="a" d=""/><path class="l" d=""/>';
+    layer.appendChild(g); return g;
   };
-  requestAnimationFrame(step);
+  let k = 0;
+  for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(LADDER_SEGS[f.to - 1][2]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
+  const start = performance.now();
+  const step = now => {
+    if (!svg.isConnected) { ladRuns.delete(svg); return; }
+    for (const r of runners) {
+      const t = (((now - start - r.t0) % CYCLE) + CYCLE) % CYCLE / DUR;
+      if (t >= 1) { r.g.style.opacity = '0'; continue; }
+      const { x0, y0, x1, y1, cx, cy } = r.c, u = 1 - t;
+      const x = u * u * x0 + 2 * u * t * cx + t * t * x1, y = u * u * y0 + 2 * u * t * cy + t * t * y1;
+      const ph = Math.sin(now / 70 + r.t0), climb = t > 0.82;
+      // 跑：两腿前后摆、两臂反向摆；爬：两臂举起交替够横档，两腿交替蹬
+      r.g.querySelector('.l').setAttribute('d', climb ? `M0 -4 L${-2.5} ${(-1 + ph * 2).toFixed(1)} M0 -4 L2.5 ${(-1 - ph * 2).toFixed(1)}` : `M0 -4 L${(ph * 3.5).toFixed(1)} 0 M0 -4 L${(-ph * 3.5).toFixed(1)} 0`);
+      r.g.querySelector('.a').setAttribute('d', climb ? `M0 -8.5 L-3 ${(-14 + ph * 2).toFixed(1)} M0 -8.5 L3 ${(-14 - ph * 2).toFixed(1)}` : `M0 -8.5 L${(-ph * 3).toFixed(1)} -5 M0 -8.5 L${(ph * 3).toFixed(1)} -5`);
+      r.g.setAttribute('transform', `translate(${x.toFixed(1)} ${(y + 3).toFixed(1)})`);
+      r.g.style.opacity = t < 0.06 ? String(t / 0.06) : t > 0.94 ? String((1 - t) / 0.06) : '1';
+    }
+    ladRuns.set(svg, requestAnimationFrame(step));
+  };
+  ladRuns.set(svg, requestAnimationFrame(step));
 }
 function armLadders() {
-  // 重画后调用：本次打开页面里还没播过的梯子，进入视野时播一次
-  const els = Array.from(document.querySelectorAll('.ladpair')).filter(el => !ladPlayed.has(el.dataset.key));
-  if (!els.length) return;
-  if (!('IntersectionObserver' in window)) { for (const el of els) { ladPlayed.add(el.dataset.key); playLadder(el.querySelector('svg')); } return; }
+  // 重画后调用：停掉旧图上的动画；新图进入视野时播、离开时停
+  for (const svg of Array.from(ladRuns.keys())) if (!svg.isConnected) stopLadder(svg);
+  const els = Array.from(document.querySelectorAll('.ladpair svg'));
   if (ladObserver) ladObserver.disconnect();
+  if (!els.length) return;
+  if (!('IntersectionObserver' in window)) { els.forEach(playLadder); return; }
   ladObserver = new IntersectionObserver(entries => {
-    for (const en of entries) if (en.isIntersecting && !ladPlayed.has(en.target.dataset.key)) { ladPlayed.add(en.target.dataset.key); ladObserver.unobserve(en.target); playLadder(en.target.querySelector('svg')); }
-  }, { threshold: 0.5 });
+    for (const en of entries) { if (en.isIntersecting) playLadder(en.target); else stopLadder(en.target); }
+  }, { threshold: 0.3 });
   for (const el of els) ladObserver.observe(el);
 }
 
@@ -2511,7 +2505,6 @@ document.addEventListener('click', async ev => {
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
-      case 'lad-replay': playLadder(b); break;
       case 'game-start': await startMatch(); break;
       case 'game-skip': if (S.lift && S.lift.phase === 'anim') { S.lift.phase = 'shown'; render(); } break;
       case 'game-done': clearTimeout(liftTimer); if (!matchLive()) S.lift = null; render(); break;
