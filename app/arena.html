@@ -270,6 +270,12 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .nn { font-weight: 600; fill: var(--ink); }
 .ladpair .np { fill: var(--muted); }
 .ladpair .runner circle { fill: currentColor; }
+.ladpair .climber .cs { fill: currentColor; stroke: #1b2231; stroke-width: 1.1; }
+.ladpair .climber .ch { fill: #f6d7b8; stroke: #1b2231; stroke-width: 1.1; }
+.ladpair .climber .hair { fill: #3b2a1e; }
+.ladpair .climber .ce { fill: #1b2231; }
+.ladpair .climber .cm { fill: none; stroke: #1b2231; stroke-width: .9; stroke-linecap: round; }
+.ladpair .climber .ca, .ladpair .climber .cl { fill: none; stroke: #1b2231; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ladpair .nu { font-weight: 600; fill: var(--green); }
 .ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
@@ -947,11 +953,6 @@ function reviewLine(week) {
   const parts = [`${week.right} right`, `${week.partial} partly`, `${week.wrong} wrong`, `practised on ${week.practised} of 7 days`];
   return `${week.answers} answer${week.answers === 1 ? '' : 's'}: ${parts.join(' · ')}`;
 }
-function keyIdeaTip(week, topicName) {
-  // 最近 7 天某专题错 3 次以上时，Today 提醒重读讲解
-  const name = topicName || (t => t.topic);
-  return week.topWrong && week.topWrong.n >= 3 ? `Read the Key idea again for ${name(week.topWrong)} before you redo it.` : '';
-}
 function goalLines(g, st, today, weekEnd, practisedToday, topic) {
   // This week 的目标句（每句自带图标）：天数一行；每周检验卷目标大于 0 时再一行，没达到时建议最近 7 天错得最多的专题
   const N = st.practiceDays, D = g.days, days = n => `${n} day${n === 1 ? '' : 's'}`;
@@ -1452,11 +1453,11 @@ function renderPractice() {
   const redo = redoButtons(sc.todo, today);
   const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
   const db = dashboardData(sc.todo, sc.done, today);
-  // 提示与检验卷建议用最近 7 天；This week 是本周一到本周日，Last week 是上周一到上周日
+  // 检验卷建议的专题用最近 7 天；This week 是本周一到本周日，Last week 是上周一到上周日
   const recent = weekReview(sc.done, S.papers, addDays(today, -6), today, S.me);
   const ws = weekStart(today), lws = addDays(ws, -7);
   return helloBlock(dateLine, db)
-    + todayBlock(today, redo, cps, sc.todo, sc.done, recent)
+    + todayBlock(today, redo, cps, sc.todo, sc.done)
     + thisWeekBlock(today, ws, sc, recent, db)
     + lastWeekBlock(lws, sc);
 }
@@ -1480,19 +1481,18 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, cps, todo, view, week) {
+function todayBlock(today, redo, cps, todo, view) {
   // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
   const tc = todayCounts(todo, today, dueNowIds(todo, today));
   const frac = c => `${c.done}/${c.all}`;
   const subjC = Object.fromEntries(tc.bySubject);
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
-  // 还有要做的题时不出 h2（大数字已说明已做/一共），只说过期与今天到期各几题、全部到期题主要哪些专题，错得多的专题提醒重读讲解；没有要做的题时 h2 说做完了或今天没有
+  // 还有要做的题时不出 h2（大数字已说明已做/一共），只说过期与今天到期各几题、全部到期题主要哪些专题；没有要做的题时 h2 说做完了或今天没有
   const head = n ? '' : tc.total.done ? 'All caught up for today!' : 'Nothing due today';
   const ds = dueSplit(todo, today);
   const split = [[ds.overdue, 'overdue'], [ds.today, 'due today']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`).join(' · ');
   const tops = leftMix(todo, dueNowIds(todo, today)).topics.slice(0, 2).map(t => esc(topicLabel(t.subject, t.topic)));
-  const tip = keyIdeaTip(week, t => topicLabel(t.subject, t.topic, 'en'));
   const whatsLeft = `${split}${tops.length ? `<br>Mostly ${tops.join(' and ')}.` : ''}`;
   let h = `<section class="today" aria-label="Today">
     <p class="h3 today-h">Today</p>
@@ -1500,7 +1500,6 @@ function todayBlock(today, redo, cps, todo, view, week) {
     <div class="txt">
       ${head ? `<p class="h2">${head}</p>` : ''}
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
-      ${n && tip ? `<p class="small">${esc(tip)}</p>` : ''}
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (cps.length) {
@@ -1590,6 +1589,21 @@ const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day
 // 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；各级题数写在梯子右边（NL、NR 起）；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
 const LAD = { W: 388, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
   curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
+// 右梯上的爬梯小人（比两梯之间跑的大一些）：脚踩在那一级的横档上，双手抓扶手；ph 是手脚交替的相位（-1…1），动画逐帧改它
+function climberLimbs(ph) {
+  const a = `M-3 -17 L-8 ${(-27 + 3 * ph).toFixed(1)} M3 -17 L8 ${(-27 - 3 * ph).toFixed(1)}`;
+  const l = `M-2 -9 L-5 ${(-1 - 3 * Math.max(0, ph)).toFixed(1)} M2 -9 L5 ${(-1 - 3 * Math.max(0, -ph)).toFixed(1)}`;
+  return { a, l };
+}
+function climberSvg(x, y, color) {
+  const p = climberLimbs(0);
+  return `<g class="climber" transform="translate(${x} ${y})" style="color:${color}"><g class="cb">
+    <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>
+    <rect class="cs" x="-5" y="-19.5" width="10" height="11.5" rx="4.5"/>
+    <circle class="ch" cx="0" cy="-24.5" r="5"/><path class="hair" d="M-5 -25.5 Q-4.5 -31 0 -30.5 Q4.5 -31 5 -25.5 Q2 -28 -5 -25.5 z"/>
+    <circle class="ce" cx="-1.8" cy="-24.6" r=".7"/><circle class="ce" cx="1.8" cy="-24.6" r=".7"/><path class="cm" d="M-1.8 -22.3 Q0 -20.9 1.8 -22.3"/>
+  </g></g>`;
+}
 function ladderPair(wl, key) {
   // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的「题数/百分比」写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
   // 右梯各级题数后写本周升到这一级的题数「↑83」；下降的另起一行；data-flows 给小人跑跳的动画（armLadders）
@@ -1611,6 +1625,8 @@ function ladderPair(wl, key) {
   const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
     + `<linearGradient id="wh-${key}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9a76b"/><stop offset=".6" stop-color="#b27a43"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>`
     + `</defs>`;
+  // 右梯上，本周有题升到的每一级站一个爬梯小人
+  for (let k = 2; k <= 5; k++) if (wl.up[k]) g += climberSvg(RX, y(k) - 3, col(k));
   if (wl.fresh) g += `<text class="new num" x="${LX}" y="${bot + 16}">+${wl.fresh} new</text>`;
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
@@ -1640,9 +1656,15 @@ function playLadder(svg) {
   };
   let k = 0;
   for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(LADDER_SEGS[f.to - 1][2]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
+  const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), off: i * 1.7 }));
   const start = performance.now();
   const step = now => {
     if (!svg.isConnected) { ladRuns.delete(svg); return; }
+    for (const c of climbers) {
+      const ph = Math.sin(now / 260 + c.off), p = climberLimbs(ph);
+      c.a.setAttribute('d', p.a); c.l.setAttribute('d', p.l);
+      c.b.setAttribute('transform', `translate(0 ${(-Math.abs(ph) * 1.5).toFixed(2)})`);
+    }
     for (const r of runners) {
       const t = (((now - start - r.t0) % CYCLE) + CYCLE) % CYCLE / DUR;
       if (t >= 1) { r.g.style.opacity = '0'; continue; }
