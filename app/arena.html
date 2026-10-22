@@ -257,6 +257,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .legend i.pl { border: 1.5px dashed var(--pen); background: var(--pen-soft); box-sizing: border-box; }
 .goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; }
 .goals li.ok { color: var(--green); font-weight: 500; }
+.today-goals { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 8px; }
 /* 两架梯子：左为周初、右为周末；中间一列级名；小圆点的爬升动画 */
 .ladpair { display: grid; gap: 4px; justify-items: center; }
 .ladpair svg { width: 100%; max-width: 420px; height: auto; display: block; overflow: visible; }
@@ -1459,8 +1460,8 @@ function renderPractice() {
   const recent = weekReview(sc.done, S.papers, addDays(today, -6), today, S.me);
   const ws = weekStart(today), lws = addDays(ws, -7);
   return helloBlock(dateLine, db)
-    + todayBlock(today, redo, cps, sc.todo, sc.done)
-    + thisWeekBlock(today, ws, sc, recent, db)
+    + todayBlock(today, redo, cps, sc.todo, sc.done, weekGoals(today, ws, sc, recent, db))
+    + thisWeekBlock(today, ws, sc)
     + lastWeekBlock(lws, sc);
 }
 
@@ -1483,7 +1484,7 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, cps, todo, view) {
+function todayBlock(today, redo, cps, todo, view, goals) {
   // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
   const tc = todayCounts(todo, today, dueNowIds(todo, today));
@@ -1513,6 +1514,8 @@ function todayBlock(today, redo, cps, todo, view) {
       return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
     }).join('')}</div></div>`;
   }
+  // 底部：本周目标的两句（weekGoals）
+  if (goals && goals.length) h += `<ul class="goals today-goals">${goals.map(x => `<li class="${x.ok ? 'ok' : ''}">${esc(x.text)}</li>`).join('')}</ul>`;
   return h + `</section>`;
 }
 
@@ -1527,18 +1530,23 @@ function masteredList(week) {
   };
   return `<div class="sub"><p class="h3">Newly mastered</p><ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul></div>`;
 }
-function thisWeekBlock(today, ws, sc, recent, db) {
-  const st = S.settings, we = addDays(ws, 6);
+function weekGoals(today, ws, sc, recent, db) {
+  // 本周目标的两句（天数、检验卷），放在 Today 块底部；检验卷建议的专题取最近 7 天错得最多的
+  const we = addDays(ws, 6), g = goalProgress(sc.done, S.papers, ws, we, S.me);
+  return goalLines(g, S.settings, today, we, db.doneToday, recent.topWrong ? topicLabel(recent.topWrong.subject, recent.topWrong.topic) : '');
+}
+function thisWeekBlock(today, ws, sc) {
+  // 同 Last week：本周到今天为止复习了几题与统计行，再是组合图（带计划柱）、两架梯子、新掌握
+  const we = addDays(ws, 6);
   const week = weekReview(sc.done, S.papers, ws, we, S.me);
   const plan = weekPlan(sc.todo, today, ws);
   const days = week.days.map((d, i) => Object.assign({}, d, { planned: plan[i].planned }));
-  const g = goalProgress(sc.done, S.papers, ws, we, S.me);
-  const lines = goalLines(g, st, today, we, db.doneToday, recent.topWrong ? topicLabel(recent.topWrong.subject, recent.topWrong.topic) : '');
   return `<section class="panel plan" aria-label="This week">
     <div class="wk-head"><p class="h3">This week</p><span class="small muted num">${fmtRange(ws, we)}</span></div>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
+    <p class="small muted">${esc(reviewLine(week))}</p>
     ${chartLegend(true)}
     ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
-    <ul class="goals">${lines.map(x => `<li class="${x.ok ? 'ok' : ''}">${esc(x.text)}</li>`).join('')}</ul>
     <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, ws, today), 'this')}</div>
     ${masteredList(week)}
   </section>`;
@@ -2302,7 +2310,7 @@ function renderSettings() {
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
       <label class="form-row"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
       <label class="form-row"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
-      <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows in This week on Today.</span></p>
+      <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows at the bottom of the Today box.</span></p>
     </div>
     <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button>${S.settingsMsg ? `<span class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</span>` : ''}</div>
   </section>
