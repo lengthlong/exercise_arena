@@ -34,6 +34,7 @@
   --c-wrong: #b3261e;
   --c-seg-ink: #fff;
   --lad1: #9db2ee; --lad2: #5f80dc; --lad3: #2f52c0; --lad4: #1b307a; --lad-m: #1f7a4a;
+  --v1: #ea580c; --v2: #ca8a04; --v3: #16a34a; --v4: #db2777; --vm: #9333ea;   /* 两架梯子的级名与跑的小人：与右梯小人同色系 */
   --font-body: "Lexend", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-hand: "Patrick Hand", "Lexend", cursive;
   --r: 10px;
@@ -45,6 +46,7 @@
     --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
     --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
     --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
+    --v1: #ff7a45; --v2: #facc15; --v3: #22c55e; --v4: #ec4899; --vm: #c084fc;
     color-scheme: dark;
   }
 }
@@ -54,6 +56,7 @@
   --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
   --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
   --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
+  --v1: #ff7a45; --v2: #facc15; --v3: #22c55e; --v4: #ec4899; --vm: #c084fc;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -263,8 +266,8 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .wrung { stroke: #6b4423; stroke-width: .6; }
 .ladpair .grain { stroke: #e3b884; stroke-width: .7; stroke-linecap: round; opacity: .55; fill: none; }
 .ladpair text { font: 500 11px var(--font-body); fill: var(--muted); }
-.ladpair .lv { text-anchor: end; fill: var(--ink); }
-.ladpair .lv.m { fill: var(--green); font-weight: 600; }
+.ladpair .lv { text-anchor: end; font-weight: 600; }
+.ladpair .lv.v1 { fill: var(--v1); } .ladpair .lv.v2 { fill: var(--v2); } .ladpair .lv.v3 { fill: var(--v3); } .ladpair .lv.v4 { fill: var(--v4); } .ladpair .lv.v5 { fill: var(--vm); }
 .ladpair .nm { font-size: 11.5px; }
 .ladpair .nn { font-weight: 600; fill: var(--ink); }
 .ladpair .np { fill: var(--muted); }
@@ -1597,6 +1600,8 @@ const LAD = { W: 388, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296,
 // 右梯上的小人：右梯上有题的 1–4 级各站一个，姿势按级——1 级躺着、2 级坐着、3 级站着、4 级跳着；颜色是不随深浅色变的亮色；
 // 以那一级横档的上沿为原点；动画（playLadder）逐帧改 data-pose 对应的部位：躺着的打呼、坐着的晃腿、站着的挥手、跳着的上下跳
 const POSES = ['lie', 'sit', 'stand', 'jump'];
+// 级名与跑的小人的颜色（随深浅色取 --v1…--v4、--vm，与右梯小人同色系）
+const VCOL = ['var(--v1)', 'var(--v2)', 'var(--v3)', 'var(--v4)', 'var(--vm)'];
 const VIVID = [['#ff7a45', '#c2410c'], ['#facc15', '#a16207'], ['#22c55e', '#15803d'], ['#ec4899', '#be185d']];
 function headSvg(x, y) {
   return `<circle class="ch" cx="${x}" cy="${y}" r="5"/><path class="hair" d="M${x - 5} ${y - 1} Q${x - 4.5} ${y - 6.5} ${x} ${y - 6} Q${x + 4.5} ${y - 6.5} ${x + 5} ${y - 1} Q${x + 2} ${y - 3.5} ${x - 5} ${y - 1} z"/>`
@@ -1631,7 +1636,7 @@ function ladderPair(wl, key) {
   const num = (x, k, n, pct, up) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan><tspan class="np">/${pct}%</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}</text>`;
   let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
-    g += `<text class="lv${k === 5 ? ' m' : ''}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
+    g += `<text class="lv v${k}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
     if (k < 5) g += num(NL, k, wl.left[k - 1], shL[k - 1].pct);
     g += num(NR, k, wl.right[k - 1], shR[k - 1].pct, k > 1 ? wl.up[k] : 0);
   }
@@ -1668,7 +1673,7 @@ function playLadder(svg) {
     layer.appendChild(g); return g;
   };
   let k = 0;
-  for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(LADDER_SEGS[f.to - 1][2]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
+  for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(VCOL[f.to - 1]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
   const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ pose: g.dataset.pose, b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), z: g.querySelector('.zz'), sh: g.querySelector('.csh'), off: i * 1.7 }));
   const start = performance.now();
   const step = now => {
