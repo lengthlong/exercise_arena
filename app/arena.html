@@ -623,7 +623,7 @@ function handedInAt(paper, view, uid) {
   return last;
 }
 function todayPapers(papers, view, defaultOwner, uid, today) {
-  // Today 的 Check papers：默认归属人的检验卷中我没交的，加我今天交的；没交的在前、组卷日期新的在前，交过的在后、交卷早的在前
+  // Today 的 Exam papers：默认归属人的检验卷中我没交的，加我今天交的；没交的在前、组卷日期新的在前，交过的在后、交卷早的在前
   const at = p => handedInAt(p, view, uid);
   const open = papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !at(p))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(a.id).localeCompare(String(b.id)));
@@ -970,8 +970,8 @@ function goalLines(g, st, today, weekEnd, practisedToday, topic) {
   else out.push({ ok: false, text: D ? `${days(D)} done this week — every day counts!` : 'Every day counts — start today!' });
   if (st.papersPerWeek > 0) {
     const P = g.papers;
-    out.push(P >= st.papersPerWeek ? { ok: true, text: `✓ ${P} check paper${P === 1 ? '' : 's'} done — nice work!` }
-      : { ok: false, text: `A check paper shows what you've mastered — try one on ${topic || 'mixed topics'}.` });
+    out.push(P >= st.papersPerWeek ? { ok: true, text: `✓ ${P} exam paper${P === 1 ? '' : 's'} done — nice work!` }
+      : { ok: false, text: `An exam paper shows what you've mastered — try one on ${topic || 'mixed topics'}.` });
   }
   return out;
 }
@@ -1546,7 +1546,7 @@ function todayBlock(today, redo, cps, todo, view, goals) {
     </div>`;
   if (cps.length) {
     // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
-    h += `<div class="today-papers"><p class="h3">Check papers</p><div class="list">${cps.map(p => {
+    h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => {
       const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
       const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
       const body = `<span class="t">${paperTag(p)} ${esc(pname(p))}</span>${side}<span class="meta"><span>set ${fmtDate(p.createdAt)}</span></span>`;
@@ -2225,7 +2225,7 @@ function renderDetail() {
   for (const g of groups) {
     const own = g.by === S.me;
     h += `<p class="small"><b>${esc(userName(g.by))}</b>${own ? ' (me)' : ''}</p><div class="tbl"><table><thead><tr><th>Date</th><th>Mode</th><th>Answer</th><th>Result</th><th>Judged</th></tr></thead><tbody>${g.items.map(({ a, i }) => `
-    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? 'Check paper' : 'Check paper (deleted)') : 'Daily redo'}</td><td>${esc(a.response || '—')}</td>
+    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? 'Exam paper' : 'Exam paper (deleted)') : 'Daily redo'}</td><td>${esc(a.response || '—')}</td>
     <td>${own ? `<select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].en}</option>`).join('')}</select>` : esc(RESULT[a.result] ? RESULT[a.result].en : '')}</td>
     <td>${JUDGE[a.judgedBy] || ''}</td></tr>`).join('')}</tbody></table></div>`;
   }
@@ -2241,16 +2241,16 @@ function paperPool() {
   return ownedBy(viewFor(S.exercises, owner), owner);
 }
 function renderPapers() {
-  // 两个子标签：Check papers（组卷与检验卷列表）、Daily papers（按天分组的每日卷）
+  // 两个子标签：Exam（组卷与检验卷列表）、Daily（按天分组的每日卷）
   const view0 = mine(), shown0 = visiblePapers(S.papers, view0, S.me), nD = shown0.filter(isDaily).length;
-  const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Check papers', shown0.length - nD], ['daily', 'Daily papers', nD]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
+  const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Exam', shown0.length - nD], ['daily', 'Daily', nD]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
   if (S.paperTab === 'daily') return tabs + renderDailyPapers(shown0, view0);
   const P = S.paperForm;
   const T = TAX[P.subject];
   const counts = {};
   for (const e of paperPool()) if (e.subject === P.subject) counts[e.topic] = (counts[e.topic] || 0) + 1;
   const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[3])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
-  let h = tabs + `<section class="panel"><p class="h2">Make a check paper</p>
+  let h = tabs + `<section class="panel"><p class="h2">Make an exam paper</p>
     <p class="small muted">Questions are drawn from the default owner's (${esc(userName(S.settings.defaultOwner))}) exercises; change it in Settings.</p>
     <div class="grid2">
       <label class="f"><span>Subject</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
@@ -2258,7 +2258,7 @@ function renderPapers() {
     </div>
     <div class="f small"><span class="muted">Topics (none ticked means all)</span><div class="checks">${topicChecks || '<span class="muted">No exercises in this subject yet.</span>'}</div></div>
     <p class="small muted">Draw order: most times wrong first; on a tie, mastered ones first; then the longest since last answered. Drawn questions from one set sit together on the paper.</p>
-    <div class="row"><button type="button" class="btn" data-act="paper-preview">Preview the draw</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>Create check paper (${plural(S.paperPreview.length, 'question')})</button>` : ''}</div>
+    <div class="row"><button type="button" class="btn" data-act="paper-preview">Preview the draw</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>Create exam paper (${plural(S.paperPreview.length, 'question')})</button>` : ''}</div>
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
@@ -2272,7 +2272,7 @@ function renderPapers() {
   const psel = (k, label, opts) => `<select id="pfl-${k}" class="compact${on(k)}" data-pfilter="${k}" aria-label="${label}">${opts}</select>`;
   const popt = (k, v, t) => `<option value="${v}" ${PF[k] === v ? 'selected' : ''}>${t}</option>`;
   const anyPF = ['subject', 'status'].some(k => PF[k]);
-  h += `<section class="panel list-tools"><p class="h3">Check papers</p>
+  h += `<section class="panel list-tools"><p class="h3">Exam papers</p>
     <div class="filters">
       ${psel('subject', 'Subject', popt('subject', '', 'All subjects') + SUBJECTS.map(x => popt('subject', x[0], x[1])).join(''))}
       ${psel('status', 'Status', popt('status', '', 'Any status') + popt('status', 'todo', 'Not done by me') + popt('status', 'done', 'Done by me'))}
@@ -2282,7 +2282,7 @@ function renderPapers() {
       <select id="paper-sort" class="compact" data-act-change="paper-sort" aria-label="Sort by">${[['created', 'Created'], ['done', 'Done'], ['score', 'Score'], ['questions', 'Questions']].map(k => `<option value="${k[0]}" ${S.paperSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
       <button type="button" class="btn ghost small" data-act="paper-dir" aria-label="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.paperSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>`;
-  if (!shown.length) h += `<p class="small muted">No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
+  if (!shown.length) h += `<p class="small muted">No exam papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
   else if (!sorted.length) h += `<p class="small muted">No papers match these filters.</p>`;
   else h += `<div class="list">${pg.items.map(p => {
     const done = handedInAt(p, view, S.me);
@@ -2355,16 +2355,16 @@ function renderSettings() {
   return `<section class="panel"><p class="h2">Settings</p>
     <div class="form-rows">
       <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
-      <p class="form-row"><span class="hint small muted">Today, new check papers and new exercises use this person.</span></p>
+      <p class="form-row"><span class="hint small muted">Today, new exam papers and new exercises use this person.</span></p>
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
       <label class="form-row"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
-      <label class="form-row"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
+      <label class="form-row"><span>Exam papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
       <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows at the bottom of the Today box.</span></p>
     </div>
     <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button>${S.settingsMsg ? `<span class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</span>` : ''}</div>
   </section>
   <details class="panel"><summary>How the review ladder works</summary>
-    <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
+    <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On an exam paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
   </details>
   <section class="panel">
     <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): the default owner\'s exercises (with all answers) and papers, every question set and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
@@ -2745,7 +2745,7 @@ document.addEventListener('click', async ev => {
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
         const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
         await S.db.collection('papers').doc().set(doc);
-        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Check paper created.' }; render(); break;
+        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
       }
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
@@ -2755,7 +2755,7 @@ document.addEventListener('click', async ev => {
       case 'save-settings': {
         const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
         await S.db.doc('settings/' + S.me).set(v);
-        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} per batch; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'check paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
+        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} per batch; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'exam paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
       }
     }
   } catch (err) {

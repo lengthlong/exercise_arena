@@ -274,11 +274,11 @@ assert.deepStrictEqual(Array.from(nm.newlyMastered, g => [g.kind, g.id, g.n]), [
 // This week 的目标句：达到；来得及（0 天、非 0 天）；来不及（0 天、非 0 天）；检验卷达到、没达到（没有专题时 mixed topics）；每周 0 张时没有检验卷一行
 const GL = (g, st, today, pt, topic) => Array.from(L.goalLines(g, st, today, '2026-10-25', pt, topic), x => [x.ok, x.text]);
 const st6 = { practiceDays: 6, papersPerWeek: 1 };
-assert.deepStrictEqual(GL({ days: 6, papers: 1 }, st6, '2026-10-24', true, 'en-prep'), [[true, '🎉 6 practice days — goal reached!'], [true, '✓ 1 check paper done — nice work!']]);
-assert.deepStrictEqual(GL({ days: 0, papers: 0 }, st6, '2026-10-20', false, 'en-prep'), [[false, 'New week, fresh start — practise on 6 days to reach your goal.'], [false, "A check paper shows what you've mastered — try one on en-prep."]]);
-assert.deepStrictEqual(GL({ days: 3, papers: 0 }, st6, '2026-10-22', true, ''), [[false, '3 days done — 3 more to reach 6. Keep going!'], [false, "A check paper shows what you've mastered — try one on mixed topics."]]);
+assert.deepStrictEqual(GL({ days: 6, papers: 1 }, st6, '2026-10-24', true, 'en-prep'), [[true, '🎉 6 practice days — goal reached!'], [true, '✓ 1 exam paper done — nice work!']]);
+assert.deepStrictEqual(GL({ days: 0, papers: 0 }, st6, '2026-10-20', false, 'en-prep'), [[false, 'New week, fresh start — practise on 6 days to reach your goal.'], [false, "An exam paper shows what you've mastered — try one on en-prep."]]);
+assert.deepStrictEqual(GL({ days: 3, papers: 0 }, st6, '2026-10-22', true, ''), [[false, '3 days done — 3 more to reach 6. Keep going!'], [false, "An exam paper shows what you've mastered — try one on mixed topics."]]);
 assert.deepStrictEqual(GL({ days: 3, papers: 2 }, { practiceDays: 6, papersPerWeek: 2 }, '2026-10-23', false, '')[0], [false, '3 days done — 3 more to reach 6. Keep going!']);   // 23 号没练：23、24、25 三天
-assert.deepStrictEqual(GL({ days: 3, papers: 2 }, { practiceDays: 6, papersPerWeek: 2 }, '2026-10-23', false, '')[1], [true, '✓ 2 check papers done — nice work!']);
+assert.deepStrictEqual(GL({ days: 3, papers: 2 }, { practiceDays: 6, papersPerWeek: 2 }, '2026-10-23', false, '')[1], [true, '✓ 2 exam papers done — nice work!']);
 assert.deepStrictEqual(GL({ days: 1, papers: 0 }, st6, '2026-10-24', true, '')[0], [false, '1 day done this week — every day counts!']);
 assert.deepStrictEqual(GL({ days: 0, papers: 0 }, st6, '2026-10-24', false, '')[0], [false, 'Every day counts — start today!']);
 assert.strictEqual(L.goalLines({ days: 2, papers: 0 }, { practiceDays: 3, papersPerWeek: 0 }, '2026-10-22', true, '').length, 1);
