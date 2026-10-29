@@ -4,13 +4,13 @@
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
-| Q1 照片在上传与识别前要不要先缩小 | 待裁 | 用户问「2000 像素够不够」；答：对 AI 够；推荐 A 但长边改 2400（见二·Q1 追问） | 二·Q1 |
+| Q1 照片在上传与识别前要不要先缩小 | 已裁 | 用户：用 2400。A：加图时客户端先缩到长边不超过 2400 像素的 JPEG，上传与识别都用缩后的图；只缩小不放大 | 二·Q1 |
 | Q2 先 OCR 再从文字读题 | 已裁 | 用户：OK，不做 OCR（采纳推荐）；保存原文的诉求另立 Q7 | 二·Q2 |
 | Q3 识别流程里不改设计就能做的提速（并行上传、显示进度、先量时间） | 已裁 | 用户：OK，a + b + c 全做（采纳推荐） | 二·Q3 |
 | Q4 识别用的模型档位 `complex` 要不要降到 `default` | 已裁 | 用户：OK，本轮维持 `complex`；Q3 的计时上线后用同一批照片对比，再另议（采纳推荐） | 二·Q4 |
 | Q5 数据变多：现在改加载方式，还是先不改 | 暂缓 → 另开讨论 | 用户：留在这里，另开一轮深入讨论并改进；本轮不动 | 二·Q5 |
 | Q6 每日卷无限增长要不要修剪 | 暂缓 → 另开讨论 | 同 Q5 | 二·Q6 |
-| Q7 保存识别出的原文，以后选它补录新题（用户追加） | 待裁 | 推荐 E：不存文字，按已存的照片补录 | 二·Q7 |
+| Q7 保存识别出的原文，以后选它补录新题（用户追加） | 已裁 | 用户：用 E。不存文字；Record 页除了题组，也能选「同一批照片、同科目的独立题」作补录来源，归组现算、不存 | 二·Q7 |
 
 ## 一、目的
 
@@ -68,6 +68,8 @@
 - 对人看够不够：存进 `assets` 的缩图是以后 Sophia 在作答页看的照片。A4 在 2000 像素下约 170 dpi，手机与平板上看得清；放大看小字会偏软。长边 2400（A4 约 200 dpi，JPEG 0.85 约 0.5–1 MB，估计值）更稳妥，多出的存储很小。
 - 只缩小不放大：原图长边不超过上限就原样用，不再压一遍。
 - 修订推荐：A，长边上限 2400 像素，写成页面里的一个常量，以后好调。
+
+**裁决：** 用户回「Q1 use 2400」，A，长边上限 2400。
 
 ### Q2 先 OCR，再从文字读题
 
@@ -187,9 +189,39 @@
 
 **推荐 E。** 不新增概念和字段；需要的材料（照片）已经存着；文字转写存下来也省不了读图。
 
+**裁决：** 用户回「Q7 use E」。
+
 ---
 
-## 三、尚未验证
+## 三、拟改内容（核销表，复审前草稿）
+
+目标网址：`app/arena.html` 文件头注释里的发布网址。未列出的文件不改。
+
+| # | 来自 | 目标文件 | 改动 |
+|---|---|---|---|
+| 1 | Q1 | `app/arena.html` 的 LOGIC 块 | 新纯函数 `fitSize(w, h, maxSide)`：长边超过 `maxSide` 时按比例缩到长边等于 `maxSide`（宽高取整、至少 1），不超过时原样返回，从不放大 |
+| 2 | Q1 | `app/arena.html` 的 `addPhotos` 及两个选照片入口 | 常量 `PHOTO_MAX_SIDE = 2400`。加图时先解码（按照片自带的方向画正），长边超过 2400 就按 `fitSize` 画到 canvas、白底（PNG 透明处不变黑）、`toBlob('image/jpeg', 0.85)`，包成同名 `.jpg` 的 File；长边不超过 2400 且文件大小不超过 `maxInputBytes` 的，原文件原样用；解码失败的，用原文件并照旧只按 `maxInputBytes` 检查。张数检查在前，大小检查改为对缩后的文件；缩后仍超过 `maxInputBytes` 才拒绝，提示去掉「shrink it first」的字样。缩图期间 `recMsg` 显示「Preparing photos…」，完成后清掉。之后的上传与识别用的都是缩后的文件。已经上传的旧照片不动、不迁移 |
+| 3 | Q3a | `app/arena.html` 的 `recognise()` | 上传与识别同时开始；多张照片之间的上传仍按顺序。识别完成后，如果有照片没传上，不生成草稿，提示「Photo "x" didn't upload; press Read with AI again.」，已传上的照片保留 `assetId`，再按时只传没传上的；再按时识别用的文字和照片字节不变，平台的五分钟答案缓存（`sample.d.ts` 的 `cache` 说明，未实测）会直接重放答案，不再花时间。上传全部成功后行为与现在相同 |
+| 4 | Q3b | `app/arena.html` 的 `recognise()`、`recogniseMore()`；LOGIC 块 | 调用 `sample.json` 时传 `onText` 与 `signal`。新纯函数 `countStems(text)`：数已收到的回复里 `"stem":` 出现的次数。等待首字时 `recMsg` 显示「Thinking… this usually takes about half a minute.」，首字到后显示「Reading… N question(s) found so far」。识别期间在 Read with AI 按钮旁出现 Stop 按钮；点了取消这次调用，`recMsg` 显示「Stopped. The photos and text are still here.」，不生成草稿，照片与文字保留 |
+| 5 | Q3c | `app/arena.html` 的 `recognise()`、`recogniseMore()` | 记三个时间点：开始后上传全部完成的秒数（`recogniseMore` 没有上传）、首字到达的秒数、整个调用结束的秒数。识别成功与失败的提示末尾都附一小段：「 (upload 3 s · first text 18 s · total 42 s)」；`recogniseMore` 没有 upload 项。用于 Q4 以后的对比，没有别的用途 |
+| 6 | Q7 | `app/arena.html` 的 LOGIC 块 | 新纯函数 `photoGroups(exercises)`：只看没有 `setId`、`images` 非空的错题；`images` 完全相同（同样的 id、同样的顺序）且 `subject` 相同的归为一组；每组返回 `{ key, images, subject, ids }`，`key` 是科目加照片 id 用逗号连成的字符串；按组内最近的录入时间新的在前。归组现算，不存 |
+| 7 | Q7 | `app/arena.html` 的 `renderRecord`、`rec-set` 的 change 处理、`recogniseMore()` | 选择框的标签由「From a saved question set」改为「From saved material」；选项除题组外，加上 `photoGroups` 的每一组，显示为「科目 · Photos · 来源（组内第一道题的 `source`，没有就取题干前 30 个字）· N recorded」。选中照片组时：科目跟该组；显示这批照片的缩略图；文字框是给 AI 的提示；`recogniseMore()` 用这批照片和已录题干起草，材料标题与材料文字按「没有」处理（沿用现有的「(no text; see the photos)」）；新草稿不属于任何题组，每道挂上这批照片（`images`），与最初识别时一样。选题组时行为不变。选中的照片组如果因组内题被删、照片被移除而不存在了，选择框回到「— New photos or text」 |
+| 8 | Q1、Q3、Q7 | `app/logic.test.js` | 加断言：`fitSize`（超限时按比例缩、不超限原样、竖拍与横拍、极端长宽比不出 0）；`countStems`（0 个、1 个、含空白的 `"stem" :`、半截的不算）；`photoGroups`（同照片同科目归一组、同照片不同科目分开、照片顺序不同分开、有 `setId` 的不算、`images` 为空的不算、排序） |
+| 9 | Q7 | `CONTEXT.md` 的 Exercise 与 Import 条目 | Exercise：「或从已录题组的材料里补录的」改为「或从已录题组的材料、已录独立题的照片里补录的」。Import：「也可以选一个已有题组，由 AI 按提示补录组里还没录的题」改为「也可以选一个已有题组，或一批已录独立题共用的照片，由 AI 按提示补录还没录的题」。`_Avoid_` 不变 |
+| 10 | Q1、Q7 | `DATA.md` | `images` 行（错题与题组）：加一句「新录入的照片先缩到长边不超过 2400 像素的 JPEG 再上传；此前上传的可能是原图」。`wrongAnswer` 行：「从已录题组补录」改为「从已录题组或已录照片补录」。写入规则的「照片先传后写」改为「照片先缩、再传、后写」。派生字段一节加一段：**照片组**不存，页面渲染时把没有 `setId`、`images` 相同且 `subject` 相同的错题现算成一组，可作补录来源（页面里的 `photoGroups`） |
+| 11 | Q4 | 不改 | 本轮维持 `modelTier: 'complex'`；第 5 行的计时上线后，用同一批照片对比 `default` 再另议 |
+| 12 | Q2 | 不改 | 不做 OCR；理由留在本讨论 Q2，不进 ADR |
+| 13 | Q5、Q6 | 不改 | 暂缓，另开讨论；新讨论把本文件二·Q5、Q6 作为输入 |
+| 14 | 全部 | 发布 | 实现与验证通过后，重新发布到文件头注释里的原网址（声明的能力不变，已含 `sample` 的 `images`），再读回线上页面核对。这是对外发布，用户确认核销表即授权 |
+
+### 验证计划
+
+- `./check.sh` 退出码 0；`node app/logic.test.js app/arena.html` 通过。
+- 用本机测试壳（脚本放在会话临时目录，不进仓库）模拟 `window.claude` 的 `db`、`assets`、`sample`、`user`，用 Playwright 在 375 宽下看 Record 页：缩图后的大小与方向；Preparing 提示；上传与识别同时开始；进度计数与 Stop；上传失败后再按；选照片组、缩略图、补录草稿带照片；没有横向滚动。
+- 列明不能在本环境验证的项并在核销时披露：真实 `sample` 的耗时与 `onText` 到达的节奏、真实 `assets.upload` 的行为、缩图后对识别质量的影响、五分钟缓存重放。
+- 对照原文：DATA.md 与 CONTEXT.md 改动逐句对照上面的行 9、10。
+
+## 四、尚未验证
 
 - 识别各段耗时（上传、等待首字、生成）：未量。
 - 缩图后对识别质量的影响：按平台会缩到约 1.2 百万像素推断为无损，未用真实照片对比。
