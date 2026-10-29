@@ -352,13 +352,6 @@ select.narrow { width: auto; }
 
 .chip.k-daily { color: var(--muted); border-color: var(--muted); background: none; }
 .chip.k-check { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 500; }
-/* Exercises：每科小卡 */
-.subj-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
-.subj-card { display: grid; gap: 4px; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; font-size: 12.5px; color: var(--muted); min-width: 0; }
-.subj-card:hover { border-color: var(--muted); }
-.subj-card[aria-pressed="true"] { border-color: var(--pen); background: var(--pen-soft); }
-.subj-card .sc-h { font-size: 14px; color: var(--ink); font-weight: 600; }
-.subj-card b { color: var(--ink); font-weight: 500; }
 /* Exercises：科目子标签与一科的小结 */
 .subtabs { margin: 0; }
 .subtabs button .num { font-weight: 400; font-size: 13px; }
@@ -2121,9 +2114,9 @@ function renderExercises() {
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
   const owned = mine();
-  // 科目子标签：只列有错题的科目，记住的科目已没有错题时按 All
+  // 科目子标签：只列有错题的科目；记住的科目已没有错题时改选第一个有错题的科目
   const subjN = SUBJECTS.map(([k]) => [k, owned.filter(e => e.subject === k).length]).filter(x => x[1]);
-  if (F.subject && !subjN.some(x => x[0] === F.subject)) { F.subject = ''; F.topic = ''; }
+  if (subjN.length && !subjN.some(x => x[0] === F.subject)) { F.subject = subjN[0][0]; F.topic = ''; }
   const list = owned.filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
     && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered))
     && matchesQuery(e, e.setId && setById(e.setId), F.q));
@@ -2136,7 +2129,7 @@ function renderExercises() {
   const sel = (k, label, opts, dis) => `<select id="flt-${k}" class="compact${on(k)}" data-filter="${k}" aria-label="${label}" ${dis ? 'disabled' : ''}>${opts}</select>`;
   const opt = (k, v, t) => `<option value="${v}" ${F[k] === v ? 'selected' : ''}>${t}</option>`;
   const anyF = ['topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
-  let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${[['', 'All', owned.length]].concat(subjN.map(([k, n]) => [k, SUBJ[k].en, n])).map(([k, t, n]) => `<button type="button" role="tab" data-act="ex-subj" data-v="${k}" aria-selected="${F.subject === k}">${esc(t)} <span class="num muted">${n}</span></button>`).join('')}</nav>
+  let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${subjN.map(([k, n]) => [k, SUBJ[k].en, n]).map(([k, t, n]) => `<button type="button" role="tab" data-act="ex-subj" data-v="${k}" aria-selected="${F.subject === k}">${esc(t)} <span class="num muted">${n}</span></button>`).join('')}</nav>
   <section class="panel list-tools">
     <div class="filters">
       <input type="search" id="flt-q" class="${F.q ? 'on' : ''}" data-search="1" value="${esc(F.q)}" placeholder="Search question text" aria-label="Search question text" autocomplete="off">
@@ -2150,7 +2143,7 @@ function renderExercises() {
       <button type="button" class="btn ghost small" data-act="list-dir" aria-label="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.listSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>
   </section>`;
-  h += F.subject ? subjectDetail(owned, F.subject, today, F.topic) : subjectCards(owned, today, F.subject);
+  if (F.subject) h += subjectDetail(owned, F.subject, today, F.topic);
   if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>No exercises yet</b><span>Go to Record and take a photo of a question that was wrong, or send the question to Claude in a Claude Code chat.</span></div></div>`;
   h += `<div class="list">${pg.items.length ? pg.items.map(e => `
     <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
@@ -2160,22 +2153,6 @@ function renderExercises() {
     </button>`).join('') : '<div class="empty">No exercises match these filters.</div>'}</div>`;
   if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="list-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="list-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h;
-}
-
-function subjectCards(exs, today, active) {
-  // All 子标签下每科一张小卡：只按 Owner 筛选后的错题算，不随其他筛选与搜索变；点卡切到这一科的子标签
-  const cards = subjectSummary(exs, today);
-  if (!cards.length) return '';
-  return `<div class="subj-cards">${cards.map(c => {
-    const segs = c.steps.map((n, i) => [n, LADDER_SEGS[i][2]]).concat([[c.mastered, LADDER_SEGS[4][2]]]).filter(x => x[0]);
-    return `<button type="button" class="subj-card" data-act="subj-card" data-v="${c.subject}" title="Show ${esc(SUBJ[c.subject].en)}">
-      <span class="sc-h">${esc(SUBJ[c.subject].en)} · <span class="num">${c.n}</span></span>
-      <span class="ladbar" role="img" aria-label="${c.steps.map((n, i) => `${n} at level ${i + 1}`).join(', ')}, ${c.mastered} mastered">${segs.map(([n, col]) => `<i style="flex:${n};background:${col}"></i>`).join('')}</span>
-      <span class="num"><b>${c.due}</b> due · <b>${c.mastered}</b> mastered · wrong ${c.wrongAvg.toFixed(1)}× on average</span>
-      <span>Top topics: ${c.topics.map(t => `${esc(topicLabel(c.subject, t.topic))} <b class="num">${t.n}</b>`).join(' · ')}</span>
-      <span>${c.causes.map(([k, n]) => `${esc(CAUSE[k] ? CAUSE[k].en : k)} <b class="num">${n}</b>`).join(' · ')}</span>
-    </button>`;
-  }).join('')}</div>`;
 }
 
 const CAUSE_COLOR = { concept: 'var(--pen)', misread: 'var(--amber)', careless: 'var(--c-wrong)', incomplete: 'var(--muted)' };
@@ -2627,7 +2604,7 @@ document.addEventListener('click', async ev => {
       case 'hist-skip': if (S.hist && S.hist.phase === 'anim') { S.hist.phase = 'shown'; render(); } break;
       case 'hist-done': clearTimeout(histTimer); if (S.hist) S.hist.phase = 'rest'; render(); break;
       case 'clear-filters': S.filters = { subject: S.filters.subject, topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
-      case 'subj-card': case 'ex-subj': S.filters.subject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.filters.topic = ''; S.listPage = 1; store.set('arena.exSubject', S.filters.subject); render(); window.scrollTo(0, 0); break;
+      case 'ex-subj': S.filters.subject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.filters.topic = ''; S.listPage = 1; store.set('arena.exSubject', S.filters.subject); render(); window.scrollTo(0, 0); break;
       case 'topic-row': S.filters.topic = S.filters.topic === b.dataset.v ? '' : b.dataset.v; S.listPage = 1; render(); break;
       case 'paper-clear': S.paperFilters = { subject: '', status: '' }; S.paperPage = 1; render(); break;
       case 'paper-tab': S.paperTab = b.dataset.v === 'daily' ? 'daily' : 'check'; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
