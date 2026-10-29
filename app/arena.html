@@ -4,6 +4,7 @@
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
   能力：db、assets、sample（images）、downloads、user（profile）。
   运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
+  加载：错题与卷子只订阅默认归属人的，错题视图按文档缓存（DATA.md「加载」）；已交每日卷满 30 天后由页面删除（discuss 0032）。
   照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
 -->
 <title>Exercise Arena</title>
@@ -505,12 +506,17 @@ function ladderInput(attempts) {
   // 推阶梯用的作答：每日重做的全部作答，加检验卷上做错的；检验卷上做对、部分对不改阶梯
   return (attempts || []).filter(a => a.mode !== 'paper' || a.result === 'wrong');
 }
+const VIEW_CACHE = new WeakMap();   // 错题对象 → { uid, v }；只在内存，平台换了文档对象（文档变了）就不命中、重算
 function viewFor(exs, uid) {
   // 一位用户的视图：作答只留 by 为该用户的，阶梯由其中的阶梯输入现算；原文档的全部作答留在 allAttempts
   return exs.map(e => {
+    const c = VIEW_CACHE.get(e);
+    if (c && c.uid === uid) return c.v;
     const all = e.attempts || [];
     const mine = all.filter(a => a.by === uid);
-    return Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, ladderInput(mine)));
+    const v = Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, ladderInput(mine)));
+    VIEW_CACHE.set(e, { uid, v });
+    return v;
   });
 }
 function sameOwner(a, b) { return (a || null) === (b || null); }
@@ -1060,6 +1066,12 @@ function dailyGroups(papers, from, all) {
   return { groups: Object.keys(g).sort().reverse().map(date => ({ date, papers: g[date].sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id))) })),
     older: daily.length - shown.length };
 }
+const DAILY_KEEP_DAYS = 30;
+function staleDailyPapers(papers, view, uid, today, days) {
+  // 该删的每日卷：给本人（for）、本人已交（handedInAt）、createdAt 早于今天往前 days 天；没交的、检验卷、别人的都不选
+  const from = addDays(today, -days);
+  return papers.filter(p => isDaily(p) && p.for === uid && String(p.createdAt || '') && String(p.createdAt) < from && handedInAt(p, view, uid));
+}
 function matchesQuery(e, set, q) {
   // Exercises 的搜索：题干与所属题组材料正文（去掉 [[ ]] 标记）忽略大小写包含搜索词；搜索词为空时都算
   const k = String(q || '').trim().toLowerCase();
@@ -1068,10 +1080,9 @@ function matchesQuery(e, set, q) {
   return (strip(e.stem) + '\n' + strip(set && set.text)).toLowerCase().includes(k);
 }
 function filterPapers(papers, f, view, uid) {
-  // 卷子列表的筛选：归属人、类型（daily / check）、科目、我交没交（todo / done，按 handedInAt）；空值不筛
+  // 卷子列表的筛选：类型（daily / check）、科目、我交没交（todo / done，按 handedInAt）；空值不筛
   f = f || {};
-  return papers.filter(p => (!f.owner || sameOwner(p.owner, f.owner))
-    && (!f.kind || (f.kind === 'daily') === isDaily(p))
+  return papers.filter(p => (!f.kind || (f.kind === 'daily') === isDaily(p))
     && (!f.subject || p.subject === f.subject)
     && (!f.status || (f.status === 'done') === !!handedInAt(p, view, uid)));
 }
@@ -1355,9 +1366,9 @@ const S = {
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recOwner: undefined, recSubject: '', recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
-  filters: { owner: '', subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
-  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { owner: '', subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
+  drafts: [], recSubject: '', recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
+  filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
+  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
@@ -1376,18 +1387,12 @@ function mine() {
 }
 function myEx(id) { return mine().find(e => e.id === id); }
 function userName(id) { return id ? (S.names[id] || 'Someone') : '—'; }
-function recOwner() { return S.recOwner === undefined ? S.settings.defaultOwner : (S.recOwner || null); }
+function recOwner() { return S.settings.defaultOwner; }
 function ownerOptions(sel) {
   const ids = S.userIds.slice();
   if (sel && !ids.includes(sel)) ids.push(sel);
   // 只列用户；没有归属人的旧错题不预选，必须选一位
   return (sel ? '' : `<option value="" selected disabled>Choose owner</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
-}
-function ownerFilterOptions(sel, docs, allLabel) {
-  // 筛选用：All 加每位用户与数据里出现过的归属人，本人标 (me)
-  const ids = S.userIds.slice();
-  for (const x of docs) if (x.owner && !ids.includes(x.owner)) ids.push(x.owner);
-  return `<option value="">${allLabel || 'All'}</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
 async function loadNames() {
   // 名字只在显示时向平台现取，只用名（first name）；取不到的显示 Someone
@@ -1936,7 +1941,7 @@ function renderRecord() {
     : `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>`;
   h += `<div class="rec-go">
       <label class="f"><span>Subject</span><select id="rec-subject" ${rs ? 'disabled' : ''}>${subjectOptions(rs ? rs.subject : S.recSubject, true)}</select></label>
-      <label class="f"><span>Owner</span><select id="rec-owner" data-bind="recOwner">${ownerOptions(recOwner())}</select></label>
+      <p class="small muted">Saved for ${esc(userName(recOwner()))} (the default owner; change it in Settings).</p>
       <div class="row"><button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button>${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}</div>
     </div>
     ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
@@ -2032,7 +2037,6 @@ function draftForm(d) {
       ${f('qtype', 'Question type', `<select id="d${k}-qtype" data-d="${k}" data-f="qtype"><option value="">(none)</option>${qtypes}</select>`)}
       ${f('format', 'Answer format', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
       ${f('cause', 'Error cause', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
-      ${d.editId ? f('owner', 'Owner', `<select id="d${k}-owner" data-d="${k}" data-f="owner">${ownerOptions(d.owner)}</select>`) : ''}
     </div>
     ${f('setRef', 'Question set', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">None (stand-alone question)</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>New in this batch: ${esc(sd.title || 'Untitled set')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || 'Untitled set')}</option>`).join('')}</select>`)}
     ${f('stem', (d.setRef ? 'Question text (for a question inside the material: the sentence that holds it)' : 'Question text') + '; [[ ]] shows as underlined', ta('stem', d.stem, 4))}`;
@@ -2116,8 +2120,8 @@ function renderExercises() {
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
-  const owned = mine().filter(e => !F.owner || sameOwner(e.owner, F.owner));
-  // 科目子标签：只列有错题的科目（按 Owner 筛选后），记住的科目已没有错题时按 All
+  const owned = mine();
+  // 科目子标签：只列有错题的科目，记住的科目已没有错题时按 All
   const subjN = SUBJECTS.map(([k]) => [k, owned.filter(e => e.subject === k).length]).filter(x => x[1]);
   if (F.subject && !subjN.some(x => x[0] === F.subject)) { F.subject = ''; F.topic = ''; }
   const list = owned.filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
@@ -2131,12 +2135,11 @@ function renderExercises() {
   const on = k => F[k] ? ' on' : '';
   const sel = (k, label, opts, dis) => `<select id="flt-${k}" class="compact${on(k)}" data-filter="${k}" aria-label="${label}" ${dis ? 'disabled' : ''}>${opts}</select>`;
   const opt = (k, v, t) => `<option value="${v}" ${F[k] === v ? 'selected' : ''}>${t}</option>`;
-  const anyF = ['owner', 'topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
+  const anyF = ['topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
   let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${[['', 'All', owned.length]].concat(subjN.map(([k, n]) => [k, SUBJ[k].en, n])).map(([k, t, n]) => `<button type="button" role="tab" data-act="ex-subj" data-v="${k}" aria-selected="${F.subject === k}">${esc(t)} <span class="num muted">${n}</span></button>`).join('')}</nav>
   <section class="panel list-tools">
     <div class="filters">
       <input type="search" id="flt-q" class="${F.q ? 'on' : ''}" data-search="1" value="${esc(F.q)}" placeholder="Search question text" aria-label="Search question text" autocomplete="off">
-      ${sel('owner', 'Owner', ownerFilterOptions(F.owner, S.exercises, 'All owners'))}
       ${sel('topic', 'Topic', opt('topic', '', 'All topics') + topicOpts, !F.subject)}
       ${sel('cause', 'Error cause', opt('cause', '', 'All error causes') + CAUSES.map(c => opt('cause', c[0], c[1])).join(''))}
       ${sel('state', 'Status', opt('state', '', 'Any status') + opt('state', 'learning', 'On the ladder') + opt('state', 'due', 'Due today') + opt('state', 'mastered', 'Mastered'))}
@@ -2291,10 +2294,9 @@ function renderPapers() {
   const on = k => PF[k] ? ' on' : '';
   const psel = (k, label, opts) => `<select id="pfl-${k}" class="compact${on(k)}" data-pfilter="${k}" aria-label="${label}">${opts}</select>`;
   const popt = (k, v, t) => `<option value="${v}" ${PF[k] === v ? 'selected' : ''}>${t}</option>`;
-  const anyPF = ['owner', 'subject', 'status'].some(k => PF[k]);
+  const anyPF = ['subject', 'status'].some(k => PF[k]);
   h += `<section class="panel list-tools"><p class="h3">Check papers</p>
     <div class="filters">
-      ${psel('owner', 'Owner', ownerFilterOptions(PF.owner, S.papers, 'All owners'))}
       ${psel('subject', 'Subject', popt('subject', '', 'All subjects') + SUBJECTS.map(x => popt('subject', x[0], x[1])).join(''))}
       ${psel('status', 'Status', popt('status', '', 'Any status') + popt('status', 'todo', 'Not done by me') + popt('status', 'done', 'Done by me'))}
     </div>
@@ -2388,7 +2390,7 @@ function renderSettings() {
     <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
   </details>
   <section class="panel">
-    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): every exercise with all answers, question set, paper and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
+    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): the default owner\'s exercises (with all answers) and papers, every question set and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
     ${S.exportMsg ? `<p class="note ${S.exportMsg.kind}">${esc(S.exportMsg.text)}</p>` : ''}
   </section>`;
 }
@@ -2624,10 +2626,10 @@ document.addEventListener('click', async ev => {
       case 'hist-start': if (S.hist) { S.hist.phase = 'anim'; render(); histPlay(); } break;
       case 'hist-skip': if (S.hist && S.hist.phase === 'anim') { S.hist.phase = 'shown'; render(); } break;
       case 'hist-done': clearTimeout(histTimer); if (S.hist) S.hist.phase = 'rest'; render(); break;
-      case 'clear-filters': S.filters = { owner: '', subject: S.filters.subject, topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
+      case 'clear-filters': S.filters = { subject: S.filters.subject, topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
       case 'subj-card': case 'ex-subj': S.filters.subject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.filters.topic = ''; S.listPage = 1; store.set('arena.exSubject', S.filters.subject); render(); window.scrollTo(0, 0); break;
       case 'topic-row': S.filters.topic = S.filters.topic === b.dataset.v ? '' : b.dataset.v; S.listPage = 1; render(); break;
-      case 'paper-clear': S.paperFilters = { owner: '', subject: '', status: '' }; S.paperPage = 1; render(); break;
+      case 'paper-clear': S.paperFilters = { subject: '', status: '' }; S.paperPage = 1; render(); break;
       case 'paper-tab': S.paperTab = b.dataset.v === 'daily' ? 'daily' : 'check'; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
       case 'daily-older': S.dailyAll = true; render(); break;
       case 'paper-dir': S.paperSort.dir = S.paperSort.dir === 'desc' ? 'asc' : 'desc'; S.paperPage = 1; render(); break;
@@ -3157,11 +3159,20 @@ async function exportAll() {
   const text = '# Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
   try {
     await S.downloads.save({ filename: `arena-export-${now.slice(0, 10)}.yaml.txt`, data: text });
-    S.exportMsg = { kind: 'ok', text: `Handed to the browser to save: ${plural(S.exercises.length, 'exercise')}, ${plural(S.sets.length, 'question set')}, ${plural(S.papers.length, 'paper')}.` };
+    S.exportMsg = { kind: 'ok', text: `Handed to the browser to save (default owner ${userName(S.settings.defaultOwner)} only): ${plural(S.exercises.length, 'exercise')}, ${plural(S.sets.length, 'question set')}, ${plural(S.papers.length, 'paper')}.` };
   } catch (err) {
     S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `Export failed (${err && err.code || 'unknown'}).` };
   }
   render();
+}
+
+/* ---------- 修剪每日卷 ---------- */
+let pruned = false;
+function pruneDailyPapers() {
+  // 错题与卷子都到了才判（旧卷的「已交」要靠作答）；每次订阅只做一次，删不掉的忽略
+  if (pruned || !S.db) return;
+  pruned = true;
+  for (const p of staleDailyPapers(S.papers, mine(), S.me, localToday(), DAILY_KEEP_DAYS)) S.db.doc('papers/' + p.id).delete().catch(() => {});
 }
 
 /* ---------- 启动 ---------- */
@@ -3177,20 +3188,40 @@ async function boot() {
   // 第一次打开时登记自己；名字不存
   try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}
   if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
-  let got = 0;
-  const ready = () => { if (++got >= 3 && S.status === 'loading') { S.status = 'ready'; render(); } else softRender(); };
+  // 就绪：设置、错题、卷子、题组各到一次快照；错题与卷子只订阅默认归属人的，默认归属人变了就重新订阅（DATA.md「加载」）
+  const got = { exercises: false, papers: false, sets: false };
   const fail = () => { S.status = 'nodb'; render(); };
-  db.collection('exercises').onSnapshot(snap => {
-    S.exercises = snap.docs.map(d => Object.assign({ id: d.id, attempts: [] }, d.data()));
-    ready(); loadNames();
-  }, fail);
-  db.collection('papers').onSnapshot(snap => {
-    S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
-    ready(); loadNames();
-  }, fail);
+  const ready = k => {
+    got[k] = true;
+    if (!(got.exercises && got.papers && got.sets)) { softRender(); return; }
+    if (S.status === 'loading') { S.status = 'ready'; render(); } else softRender();
+    pruneDailyPapers();
+  };
+  const rawCache = new WeakMap();   // 平台给的文档对象 → 页面用的错题对象；没变的文档是同一个对象，沿用它才能命中 viewFor 的缓存
+  let subs = [], subOwner;
+  const subscribeOwned = () => {
+    const owner = S.settings.defaultOwner;
+    if (subOwner !== undefined && owner === subOwner) return;
+    subOwner = owner; subs.forEach(u => u()); subs = [];
+    S.exercises = []; S.papers = []; got.exercises = got.papers = false; pruned = false;
+    if (S.status === 'ready') S.status = 'loading';
+    softRender();
+    subs.push(db.collection('exercises').where('owner', '==', owner).onSnapshot(snap => {
+      S.exercises = snap.docs.map(d => {
+        const raw = d.data(); let o = rawCache.get(raw);
+        if (!o || o.id !== d.id) { o = Object.assign({ id: d.id, attempts: [] }, raw); rawCache.set(raw, o); }
+        return o;
+      });
+      ready('exercises'); loadNames();
+    }, fail));
+    subs.push(db.collection('papers').where('owner', '==', owner).onSnapshot(snap => {
+      S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
+      ready('papers'); loadNames();
+    }, fail));
+  };
   db.collection('sets').onSnapshot(snap => {
     S.sets = snap.docs.map(d => Object.assign({ id: d.id, images: [] }, d.data()));
-    ready();
+    ready('sets');
   }, fail);
   db.collection('users').onSnapshot(snap => {
     S.userIds = snap.docs.map(d => d.id).sort((a, b) => (b === me) - (a === me) || a.localeCompare(b));
@@ -3207,6 +3238,7 @@ async function boot() {
   db.doc('settings/' + me).onSnapshot(snap => {
     const v = snap.exists ? snap.data() : null;
     S.settings = readSettings(v, me);
+    subscribeOwned();
     softRender();
   }, () => {});
 }

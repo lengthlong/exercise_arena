@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -454,9 +454,8 @@ const fp = f => ids(L.filterPapers(pps, f, pv, 'uA'));
 assert.deepStrictEqual(fp({}), ['D1', 'C1', 'C2', 'C3']);
 assert.deepStrictEqual(fp({ kind: 'daily' }), ['D1']);
 assert.deepStrictEqual(fp({ kind: 'check', subject: 'science' }), ['C2', 'C3']);
-assert.deepStrictEqual(fp({ owner: 'uB' }), ['C3']);
 assert.deepStrictEqual(fp({ status: 'done' }), ['D1', 'C1']);
-assert.deepStrictEqual(fp({ status: 'todo', owner: 'uS' }), ['C2']);
+assert.deepStrictEqual(fp({ status: 'todo' }), ['C2', 'C3']);
 const sp = (k, d) => ids(L.sortPapers(pps, k, d, pv, 'uA'));
 assert.deepStrictEqual(sp('created', 'desc'), ['C2', 'D1', 'C1', 'C3']);
 assert.deepStrictEqual(sp('created', 'asc'), ['C3', 'C1', 'D1', 'C2']);
@@ -672,4 +671,29 @@ const pgs = L.photoGroups([pg('a'), pg('b', { recordedAt: '2026-10-20T09:00' }),
 assert.deepStrictEqual(Array.from(pgs, g => [g.key, g.subject, g.ids.join(), g.images.join()]),
   [['math:p9', 'math', 'h', 'p9'], ['math:p1,p2', 'math', 'a,b', 'p1,p2'], ['math:p2,p1', 'math', 'd', 'p2,p1'], ['science:p1,p2', 'science', 'c', 'p1,p2']]);   // d、c 同刻录入，按 key 排
 assert.deepStrictEqual(Array.from(L.photoGroups([])), []);
+// 按文档缓存视图：同一批错题对象、同一用户连调两次返回同一个视图对象；某道错题换了对象（加了作答）只有它重算；换用户不串
+const cx1 = { id: 'k1', createdAt: '2026-10-01', attempts: [by('uA', '2026-10-02', 'right')] }, cx2 = { id: 'k2', createdAt: '2026-10-01', attempts: [] };
+const cv1 = L.viewFor([cx1, cx2], 'uA'), cv2 = L.viewFor([cx1, cx2], 'uA');
+assert.ok(cv1[0] === cv2[0] && cv1[1] === cv2[1]);
+const cx1b = Object.assign({}, cx1, { attempts: cx1.attempts.concat([by('uA', '2026-10-04', 'right')]) });
+const cv3 = L.viewFor([cx1b, cx2], 'uA');
+assert.ok(cv3[0] !== cv1[0] && cv3[1] === cv1[1]);
+assert.deepStrictEqual([cv1[0].step, cv3[0].step], [2, 3]);
+const cvB = L.viewFor([cx1, cx2], 'uB');
+assert.ok(cvB[0] !== cv1[0]);
+assert.deepStrictEqual([cvB[0].attempts.length, cvB[0].allAttempts.length, cvB[0].step], [0, 1, 1]);
+assert.deepStrictEqual([L.viewFor([cx1, cx2], 'uA')[0].step], [2]);   // 换过用户再换回来，结果仍对
+// 该删的每日卷：给本人、已交（含旧卷回退到作答）、createdAt 早于 30 天前；没交的、检验卷、别人的、30 天内的都不选
+const sdv = L.viewFor([{ id: 'x1', createdAt: '2026-08-01', attempts: [by('uA', '2026-08-20', 'right', { paperId: 'OLDLEG' })] }], 'uA');
+const sdp = [
+  { id: 'OLD', kind: 'daily', for: 'uA', createdAt: '2026-09-20', handedIn: { uA: '2026-09-20T18:00' } },
+  { id: 'OLDLEG', kind: 'daily', for: 'uA', createdAt: '2026-08-20', exerciseIds: ['x1'] },
+  { id: 'EDGE', kind: 'daily', for: 'uA', createdAt: '2026-09-29', handedIn: { uA: '2026-09-29T18:00' } },
+  { id: 'NEW', kind: 'daily', for: 'uA', createdAt: '2026-10-20', handedIn: { uA: '2026-10-20T18:00' } },
+  { id: 'OPEN', kind: 'daily', for: 'uA', createdAt: '2026-08-01', handedIn: {} },
+  { id: 'OTHER', kind: 'daily', for: 'uB', createdAt: '2026-08-01', handedIn: { uB: '2026-08-01T18:00' } },
+  { id: 'CHK', createdAt: '2026-08-01', handedIn: { uA: '2026-08-01T18:00' } }];
+assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-29', 30)), ['OLD', 'OLDLEG']);   // 2026-09-29 恰好 30 天，不删
+assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-30', 30)), ['OLD', 'OLDLEG', 'EDGE']);
+assert.deepStrictEqual(ids(L.staleDailyPapers([], sdv, 'uA', '2026-10-29', 30)), []);
 console.log('all logic tests passed');

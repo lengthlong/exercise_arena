@@ -1,6 +1,6 @@
 # 0032 数据加载与每日卷增长
 
-> 状态：**待落盘**
+> 状态：**✅ 已完成（2026-10-29）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
@@ -134,3 +134,35 @@
 - 旧错题若没有 `owner` 字段，`where(owner==…)` 查不到；`DATA.md` 说迁移后不应再有，线上是否确无未验证。
 - 30 天后删除不可逆；多设备同时删可能冲突，忽略失败。
 - 订阅/重订阅只用本机假 `db` 测过，线上第一次打开要人工确认。
+
+## 五、核销（2026-10-29）
+
+用户确认完整核销表后落盘。
+
+| # | 实际改动 | 验证 |
+|---|---|---|
+| 1 | `app/arena.html`：`LOGIC` 内加 `VIEW_CACHE`（`WeakMap`，错题对象 → `{uid, v}`），`viewFor` 命中则沿用；`boot()` 里 `rawCache` 按平台文档对象沿用页面错题对象 | 本机真实页面、假 `db`：3,000 道错题 Today 渲染 231→40 ms，8,000 道 489→205 ms；300 道 19→11 ms |
+| 2 | `app/logic.test.js`：加 `viewFor` 缓存断言（同对象同视图、换对象只重算该条、换用户不串、换回用户仍对） | `node app/logic.test.js app/arena.html` 通过 |
+| 3 | `DATA.md`「派生字段」补缓存一句 | 与实现对照 |
+| 4 | `app/arena.html`：`exercises`、`papers` 改 `where('owner','==',默认归属人)`，先等 `settings/<我>` 再订阅；默认归属人变了取消旧订阅重订阅；就绪改为 `exercises`、`papers`、`sets` 各到一次 | 假 `db` 冒烟：订阅为 `exercises:owner=uA`、`papers:owner=uA`，只显示 uA 的错题；把默认归属人改成 uB 后重订阅，显示 uB 的错题与卷子，状态回到 ready；无页面错误（仅字体加载被拦的控制台提示） |
+| 5 | `app/arena.html`：去掉 Record 与编辑里的 Owner 选择（Record 改显示「Saved for …」）、Exercises 与 Papers 的 Owner 筛选、`ownerFilterOptions`、`filterPapers` 的 owner 分支；导出文案与导出结果提示写明只含默认归属人的 | 冒烟里 `#rec-owner` 不存在、`#set-owner` 存在；各标签页渲染无错 |
+| 6 | `DATA.md` 新增「加载」一节；「留白」加整集合订阅的未知项 | 与实现对照 |
+| 7 | `app/logic.test.js`：删 `filterPapers` 的 owner 断言，`status: 'todo'` 那条改成 `['C2', 'C3']` | 测试通过 |
+| 8 | `adr/0002-…` 第 14 行改写 | 与 `CONTEXT.md`「Owner」一致 |
+| 9 | `CONTEXT.md`「Owner」改写；`DATA.md` `owner` 行补订阅查不到缺字段文档 | `./check.sh` 通过 |
+| 10 | `app/arena.html`：`DAILY_KEEP_DAYS = 30`、`staleDailyPapers`（在 `LOGIC` 内）、`pruneDailyPapers`（`exercises` 与 `papers` 都到之后每次订阅一次，失败忽略） | 冒烟：老于 30 天、已交、给本人的每日卷被删（`papers/old`）；30 天内的不删；换成 uB 后订阅到的 uB 名下满 30 天卷也被删（`papers/oldB`，符合「换回该归属人时才删」） |
+| 11 | `app/logic.test.js`：`staleDailyPapers` 断言（本人、已交含旧卷回退、早于 30 天；恰好 30 天不删、没交的、检验卷、别人的都不选） | 测试通过 |
+| 12 | `DATA.md`「`papers`」写 30 天规则 | 与实现对照 |
+| 13 | `CONTEXT.md`「Daily paper」补 30 天 | `./check.sh` 通过 |
+| 14 | 发布：读线上版本 1793246956-94ef，与上次提交的 `app/arena.html` 逐字一致，无别人改动；发布为版本 76（1793248759-e2a4），能力声明沿用 | 发布成功 |
+| 15 | 不做：线上实测、数量提示、防抖合并、「掌握」字段 | —— |
+
+**对照实际稿（保真）：** 核销表的条件、数字（30 天、`where` 的字段、订阅集合）与实际稿一致；导出范围、旧卷回退到作答、「恰好 30 天不删」按裁决落实。裁决之外没有新语义：`readSettings` 与星榜、比赛口径未动。
+
+**线上只读核对（披露）：** 落盘后用 `ArtifactData` 只读线上 `exercises`（380 份）与 `papers`（173 份）：全部带同一个 `owner`，没有缺 `owner` 的旧文档；没有满 30 天的已交每日卷，首次打开不会删任何卷。线上错题数 380，高于 0030 记录的 302，说明数据在增长；本轮没有往线上写任何东西。
+
+**未验证项（核销表「已知代价」已列出，用户确认表时接受）：**
+- 缓存收益依赖平台「没变的文档是同一个对象」，只有类型定义文字，未在线上验证；本机数字来自保持对象身份的假 `db`。不命中时只是慢，不会错。
+- 订阅/重订阅、首次打开与换默认归属人，只在本机假 `db` 测过，线上首次打开要人工确认。
+- 整集合与带 `where` 订阅在条数很多时的页大小、上限、第一批页是否不全就被当作就绪：未实测，写在 `DATA.md`「留白」。
+
