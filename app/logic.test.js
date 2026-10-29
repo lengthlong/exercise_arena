@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -651,4 +651,25 @@ const dg = L.dailyGroups(dgx, '2026-10-16', false);
 assert.deepStrictEqual([Array.from(dg.groups, g => [g.date, ids(g.papers).join()]), dg.older], [[['2026-10-22', 'b,a'], ['2026-10-20', 'c']], 1]);
 const dga = L.dailyGroups(dgx, '2026-10-16', true);
 assert.deepStrictEqual([dga.groups.length, dga.older], [3, 0]);
+// 照片缩放：长边超限时按比例缩到上限，不超限原样，从不放大，宽高至少 1
+assert.deepStrictEqual({ ...L.fitSize(4000, 3000, 2400) }, { w: 2400, h: 1800 });
+assert.deepStrictEqual({ ...L.fitSize(3000, 4000, 2400) }, { w: 1800, h: 2400 });
+assert.deepStrictEqual({ ...L.fitSize(2400, 1000, 2400) }, { w: 2400, h: 1000 });
+assert.deepStrictEqual({ ...L.fitSize(800, 600, 2400) }, { w: 800, h: 600 });
+assert.deepStrictEqual({ ...L.fitSize(10000, 1, 2400) }, { w: 2400, h: 1 });
+assert.deepStrictEqual({ ...L.fitSize(1, 10000, 2400) }, { w: 1, h: 2400 });
+// 流式回复里已收完整的题干个数：半截的不算，转义引号不提前闭合
+assert.strictEqual(L.countStems(''), 0);
+assert.strictEqual(L.countStems('{"sets": [], "drafts": [{"subject": "math"'), 0);
+assert.strictEqual(L.countStems('{"drafts": [{"stem": "What is 2+2?"'), 1);
+assert.strictEqual(L.countStems('{"drafts": [{"stem" : "A", "options": []}, {"stem":"B"}, {"stem": "C is cut'), 2);
+assert.strictEqual(L.countStems('{"stem": "He said \\"hi\\" to me."}'), 1);
+assert.strictEqual(L.countStems('{"stem": "He said \\"hi'), 0);
+// 补录来源之一：没有题组、带照片的错题，照片（id 与顺序）和科目都相同的归一批；单题也算；新的在前
+const pg = (id, o) => Object.assign({ id, subject: 'math', images: ['p1', 'p2'], createdAt: '2026-10-20' }, o || {});
+const pgs = L.photoGroups([pg('a'), pg('b', { recordedAt: '2026-10-20T09:00' }), pg('c', { subject: 'science' }), pg('d', { images: ['p2', 'p1'] }),
+  pg('e', { setId: 's1' }), pg('f', { images: [] }), pg('g', { images: undefined }), pg('h', { images: ['p9'], createdAt: '2026-10-25' })]);
+assert.deepStrictEqual(Array.from(pgs, g => [g.key, g.subject, g.ids.join(), g.images.join()]),
+  [['math:p9', 'math', 'h', 'p9'], ['math:p1,p2', 'math', 'a,b', 'p1,p2'], ['math:p2,p1', 'math', 'd', 'p2,p1'], ['science:p1,p2', 'science', 'c', 'p1,p2']]);   // d、c 同刻录入，按 key 排
+assert.deepStrictEqual(Array.from(L.photoGroups([])), []);
 console.log('all logic tests passed');

@@ -3,6 +3,8 @@
   数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
   能力：db、assets、sample（images）、downloads、user（profile）。
+  运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
+  照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
 -->
 <title>Exercise Arena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1271,6 +1273,34 @@ function podium(rows) {
   // 领奖台：星榜的前三名各站一级（星榜没有并列）
   return [0, 1, 2].map(i => rows[i] ? [rows[i].id] : []);
 }
+function fitSize(w, h, maxSide) {
+  // 照片缩放：长边超过上限时按比例缩到长边等于上限（宽高取整、至少 1）；不超过时原样，从不放大
+  if (!(Math.max(w, h) > maxSide)) return { w, h };
+  const k = maxSide / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+function countStems(text) {
+  // 流式回复里已收完整的 "stem" 字符串个数；没闭合引号的半截不算
+  const m = String(text || '').match(/"stem"\s*:\s*"(?:[^"\\]|\\.)*"/g);
+  return m ? m.length : 0;
+}
+function photoGroups(exs) {
+  // 补录来源之一：没有题组、带照片的错题里，照片（id 与顺序）和科目都相同的归成一批；单题也算一批。现算、不存
+  const map = new Map();
+  for (const e of exs) {
+    if (e.setId || !Array.isArray(e.images) || !e.images.length) continue;
+    const key = e.subject + ':' + e.images.join(',');
+    if (!map.has(key)) map.set(key, { key, images: e.images.slice(), subject: e.subject, items: [] });
+    map.get(key).items.push(e);
+  }
+  const byRec = (a, b) => String(recordedKey(a)).localeCompare(String(recordedKey(b))) || String(a.id).localeCompare(String(b.id));
+  const out = Array.from(map.values()).map(g => {
+    const items = g.items.slice().sort(byRec);
+    return { key: g.key, images: g.images, subject: g.subject, ids: items.map(e => e.id), last: recordedKey(items[items.length - 1]) };
+  });
+  out.sort((a, b) => String(b.last).localeCompare(String(a.last)) || a.key.localeCompare(b.key));
+  return out.map(g => ({ key: g.key, images: g.images, subject: g.subject, ids: g.ids }));
+}
 /* LOGIC:END */
 </script>
 
@@ -1325,7 +1355,7 @@ const S = {
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recOwner: undefined, recSubject: '', recSet: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
+  drafts: [], recOwner: undefined, recSubject: '', recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { owner: '', subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { owner: '', subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, confirmDel: null,
@@ -1373,6 +1403,16 @@ async function loadNames() {
 
 /* ---------- 题组 ---------- */
 function setById(id) { return S.sets.find(x => x.id === id); }
+function recSource() {
+  // 补录的来源：已录题组（值是题组 id），或一批共用照片的独立题（值以 photos: 开头）；找不到（组内题被删、照片被移除）就是 null
+  if (!S.recSet) return null;
+  if (S.recSet.startsWith('photos:')) {
+    const g = photoGroups(S.exercises).find(x => 'photos:' + x.key === S.recSet);
+    return g ? { kind: 'photos', id: S.recSet, subject: g.subject, title: '', text: '', images: g.images, wordBank: [], group: g } : null;
+  }
+  const s = setById(S.recSet);
+  return s ? { kind: 'set', id: s.id, subject: s.subject, title: s.title, text: s.text, images: s.images, wordBank: s.wordBank, set: s } : null;
+}
 function liveSets(subject) { return S.sets.filter(x => x.subject === subject && S.exercises.some(e => e.setId === x.id)); }
 function nextPos(setId) {
   let m = pendingPos[setId] || 0;
@@ -1867,17 +1907,22 @@ function subjectOptions(sel, withAuto) {
 
 function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
-  const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy;
+  const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
   let h = `<section class="panel">
     <p class="h2">Record exercises</p>
     <p class="small muted">Take a photo or paste the question text; AI splits it into drafts. Check each draft before saving, especially the answer.</p>`;
-  // 从已录的题组补录：选了题组时不拍照，文字框改为给 AI 的提示，科目跟题组
-  const rs = S.recSet && setById(S.recSet);
+  // 从已录的材料补录：题组，或一批共用照片的独立题。选了其中一个时不拍照，文字框改为给 AI 的提示，科目跟着它
+  const rs = recSource();
   if (S.recSet && !rs) S.recSet = '';
-  const recSets = S.sets.filter(x => (rs ? x.subject === rs.subject : !S.recSubject || x.subject === S.recSubject) && S.exercises.some(e => e.setId === x.id))
+  const subj = x => S.recSubject || rs ? '' : esc(SUBJ[x.subject] ? SUBJ[x.subject].en : x.subject) + ' · ';
+  const fits = x => rs ? x.subject === rs.subject : !S.recSubject || x.subject === S.recSubject;
+  const recSets = S.sets.filter(x => fits(x) && S.exercises.some(e => e.setId === x.id))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(a.title || '').localeCompare(String(b.title || '')));
-  h += `<label class="f"><span>From a saved question set</span><select id="rec-set" ${busy ? 'disabled' : ''}><option value="">— New photos or text</option>${recSets.map(x => `<option value="${esc(x.id)}" ${S.recSet === x.id ? 'selected' : ''}>${S.recSubject || rs ? '' : esc(SUBJ[x.subject] ? SUBJ[x.subject].en : x.subject) + ' · '}${esc(x.title || 'Untitled')} · ${S.exercises.filter(e => e.setId === x.id).length} recorded</option>`).join('')}</select></label>`;
-  if (rs) h += `<p class="small muted">AI reads this set's material and drafts the questions not recorded yet.</p>`;
+  const recGroups = photoGroups(S.exercises).filter(fits);
+  const groupLabel = g => { const e = S.exercises.find(x => x.id === g.ids[0]); return (e && (e.source || plain(e.stem).trim().slice(0, 30).trim())) || 'Untitled'; };
+  h += `<label class="f"><span>From saved material</span><select id="rec-set" ${busy ? 'disabled' : ''}><option value="">— New photos or text</option>${recSets.map(x => `<option value="${esc(x.id)}" ${S.recSet === x.id ? 'selected' : ''}>${subj(x)}${esc(x.title || 'Untitled')} · ${S.exercises.filter(e => e.setId === x.id).length} recorded</option>`).join('')}${recGroups.map(g => `<option value="photos:${esc(g.key)}" ${S.recSet === 'photos:' + g.key ? 'selected' : ''}>${subj(g)}Photos · ${esc(groupLabel(g))} · ${g.ids.length} recorded</option>`).join('')}</select></label>`;
+  if (rs && rs.kind === 'set') h += `<p class="small muted">AI reads this set's material and drafts the questions not recorded yet.</p>`;
+  if (rs && rs.kind === 'photos') h += `<p class="small muted">AI reads these photos and drafts the questions not recorded yet.</p><div class="imgs thumbs">${rs.images.map((id, i) => `<img src="${blobUrl(id)}" alt="Photo ${i + 1}">`).join('')}</div>`;
   if (canPhoto && !rs) {
     // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
     const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
@@ -1892,10 +1937,10 @@ function renderRecord() {
   h += `<div class="rec-go">
       <label class="f"><span>Subject</span><select id="rec-subject" ${rs ? 'disabled' : ''}>${subjectOptions(rs ? rs.subject : S.recSubject, true)}</select></label>
       <label class="f"><span>Owner</span><select id="rec-owner" data-bind="recOwner">${ownerOptions(recOwner())}</select></label>
-      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${busy ? 'Reading…' : 'Read with AI'}</button>
+      <div class="row"><button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button>${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}</div>
     </div>
     ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
-    ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
+    ${S.recMsg ? `<p class="note ${S.recMsg.kind}" id="rec-note">${esc(S.recMsg.text)}</p>` : ''}
   </section>`;
   const newDrafts = S.drafts.filter(d => !d.editId);
   const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
@@ -1915,14 +1960,36 @@ function clearPhotos() {
   for (const p of S.recPhotos) URL.revokeObjectURL(p.url);
   S.recPhotos = [];
 }
-function addPhotos(files) {
-  const L = S.imgLimits, skipped = [];
-  for (const f of files) {
-    if (S.recPhotos.length >= L.maxCount) skipped.push(`"${f.name}" is over the limit of ${L.maxCount} photos`);
-    else if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`"${f.name}" is too large (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo or shrink it first`);
-    else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null });
-  }
-  if (skipped.length) S.recMsg = { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' };
+// 新录入的照片先缩到长边不超过这么多像素的 JPEG，再上传与识别；平台自己送给 Claude 前还会缩到约 1.2 百万像素
+const PHOTO_MAX_SIDE = 2400;
+let photoSeq = 1;
+async function shrinkPhoto(file, L) {
+  // 长边不超过上限且没超过 maxInputBytes 的原样用；解码失败也原样用（照旧只按 maxInputBytes 检查）
+  let url = '';
+  try {
+    url = URL.createObjectURL(file);
+    const img = new Image(); img.src = url; await img.decode();   // 浏览器按照片自带的方向给出宽高并画正
+    const w = img.naturalWidth, h = img.naturalHeight, t = fitSize(w, h, PHOTO_MAX_SIDE);
+    if (t.w === w && t.h === h && !(L.maxInputBytes && file.size > L.maxInputBytes)) return file;
+    const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, t.w, t.h); g.drawImage(img, 0, 0, t.w, t.h);   // 白底：PNG 透明处不变黑
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+    return blob ? new File([blob], String(file.name || 'photo').replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch (e) { return file; }
+  finally { if (url) URL.revokeObjectURL(url); }
+}
+async function addPhotos(files) {
+  const L = S.imgLimits, skipped = [], before = S.recMsg;
+  S.recPrep = true; S.recMsg = { kind: '', text: 'Preparing photos…' }; render();
+  try {
+    for (const f0 of files) {
+      if (S.recPhotos.length >= L.maxCount) { skipped.push(`"${f0.name}" is over the limit of ${L.maxCount} photos`); continue; }
+      const f = await shrinkPhoto(f0, L);
+      if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`"${f0.name}" is too large even after shrinking (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo`);
+      else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null, uid: photoSeq++ });
+    }
+  } finally { S.recPrep = false; }
+  S.recMsg = skipped.length ? { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' } : before;
 }
 
 function setForm(sd, nMembers) {
@@ -2649,6 +2716,7 @@ document.addEventListener('click', async ev => {
       }
 
       case 'recognise': await recognise(); break;
+      case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
@@ -2744,9 +2812,9 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'rec-set') { S.recSet = t.value; const x = setById(t.value); if (x) S.recSubject = x.subject; render(); return; }
+  if (t.id === 'rec-set') { S.recSet = t.value; const x = recSource(); if (x) S.recSubject = x.subject; render(); return; }
   if (t.id === 'rec-subject') { S.recSubject = t.value; render(); return; }
-  if (t.dataset.photos) { addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
+  if (t.dataset.photos) { await addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
@@ -2885,33 +2953,85 @@ Reply with only a JSON object: {"sets": [...], "drafts": [...]}. Use "sets": [] 
 
 ${taxonomyText(subs)}`;
 }
+// 识别（Read with AI）的共用部分：失败原因、用时小段、进度提示、解析回复
+function readFail(err) {
+  const c = err && err.code;
+  return c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
+}
+function timingNote(tm) {
+  // 提示末尾的用时小段，用来看时间花在哪一段；没有的项不写
+  const s = ms => Math.round(ms / 1000) + ' s', parts = [];
+  if (tm.up != null) parts.push('upload ' + s(tm.up));
+  if (tm.first != null) parts.push('first text ' + s(tm.first));
+  if (tm.total != null) parts.push('total ' + s(tm.total));
+  return parts.length ? ` (${parts.join(' · ')})` : '';
+}
+function setRecMsg(kind, text) {
+  // 识别进行中只改提示这一行，不重画整页
+  S.recMsg = { kind, text };
+  const el = $('#rec-note');
+  if (el) { el.className = 'note ' + kind; el.textContent = text; } else render();
+}
+function readOptions(t0, tm) {
+  // 识别调用的选项：可中止（S.recCtl）；回复一边到达一边记首字时刻、数已读到的题
+  const ctl = new AbortController(); S.recCtl = ctl;
+  let shown = -1;
+  return {
+    modelTier: 'complex', signal: ctl.signal,
+    onText: ({ text }) => {
+      if (tm.first == null) tm.first = Date.now() - t0;
+      const n = countStems(text);
+      if (n !== shown) { shown = n; setRecMsg('', `Reading… ${plural(n, 'question')} found so far`); }
+    }
+  };
+}
+function parseReading(out) {
+  const objs = a => a.filter(x => x && typeof x === 'object');
+  if (Array.isArray(out)) return { drafts: objs(out), sets: [], fail: '' };
+  if (out && Array.isArray(out.drafts)) return { drafts: objs(out.drafts), sets: Array.isArray(out.sets) ? objs(out.sets) : [], fail: '' };
+  return { drafts: null, sets: [], fail: "Reading failed: the reply wasn't a list of questions." };
+}
 async function recognise() {
   if (S.recSet) return recogniseMore();
   const photos = S.recPhotos.slice();
   const text = S.recText.trim();
   if (!photos.length && !text) { S.recMsg = { kind: 'err', text: 'Add a photo or paste the question text first.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
-  // 先传还没有 asset id 的照片；有一张没传上就停下，不识别，重试只传没传上的
-  const todo = photos.filter(p => !p.assetId);
-  if (todo.length) { S.recMsg = { kind: '', text: 'Uploading photos…' }; render(); }
-  for (const p of todo) {
-    try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
-    catch (err) { S.recBusy = false; S.recMsg = { kind: 'err', text: `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.` }; render(); return; }
+  const t0 = Date.now(), tm = {}, files = photos.map(p => p.file);
+  // 上一次识别成功、只是有照片没传上时，留下了结果；照片、文字、科目都没变就只补传，不再识别
+  const sig = [S.recSubject, text, photos.map(p => p.uid).join(',')].join('\u0001');
+  const pend = S.recPending && S.recPending.sig === sig ? S.recPending : null;
+  S.recPending = null;
+  // 上传与识别同时开始（识别只要原文件，asset id 在生成草稿时才用）；多张照片之间的上传按顺序，有一张没传上也接着传别的
+  const uploading = (async () => {
+    let bad = '';
+    for (const p of photos.filter(x => !x.assetId)) {
+      try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
+      catch (err) { bad = bad || `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.`; }
+    }
+    tm.up = Date.now() - t0;
+    return bad;
+  })();
+  let out = pend ? pend.out : null, fail = '', stopped = false;
+  if (pend) { S.recMsg = { kind: '', text: 'Uploading photos…' }; render(); }
+  else {
+    const opts = readOptions(t0, tm);
+    if (files.length) opts.images = files;
+    S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+    try { out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), opts); }
+    catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
+    S.recCtl = null;
   }
-  S.recMsg = { kind: '', text: 'Reading… this usually takes about half a minute.' }; render();
-  const imageIds = photos.map(p => p.assetId), files = photos.map(p => p.file);
-  let drafts = null, sets = [], fail = '';
-  try {
-    const out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), files.length ? { images: files, modelTier: 'complex' } : { modelTier: 'complex' });
-    if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
-    else if (out && Array.isArray(out.drafts)) { drafts = out.drafts.filter(x => x && typeof x === 'object'); sets = Array.isArray(out.sets) ? out.sets.filter(x => x && typeof x === 'object') : []; }
-    else fail = "Reading failed: the reply wasn't a list of questions.";
-  } catch (err) {
-    const c = err && err.code;
-    fail = c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
-  }
+  if (stopped) { S.recBusy = false; S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  const r = fail ? { drafts: null, sets: [], fail } : parseReading(out);
+  let bad = '';
+  if (r.drafts && r.drafts.length) bad = await uploading;
+  tm.total = Date.now() - t0;
+  const note = pend ? '' : timingNote(tm);
   S.recBusy = false;
-  if (drafts && drafts.length) {
+  if (bad) { S.recPending = { sig, out }; S.recMsg = { kind: 'err', text: bad + note }; render(); return; }
+  if (r.drafts && r.drafts.length) {
+    const { drafts, sets } = r, imageIds = photos.map(p => p.assetId);
     const setKeys = sets.map((x, i) => {
       const member = drafts.find(dd => dd.set === i);
       const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || S.recSubject, images: imageIds }));
@@ -2920,14 +3040,15 @@ async function recognise() {
     });
     for (const x of drafts) {
       const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
-      S.drafts.push(newDraft(Object.assign({}, x, { images: setKeys.length ? [] : imageIds, setRef: si === null ? '' : 'new:' + setKeys[si] })));
+      // 题组的材料照片挂在题组上；独立题挂这批照片（以后可按这批照片补录）
+      S.drafts.push(newDraft(Object.assign({}, x, { images: si === null ? imageIds : [], setRef: si === null ? '' : 'new:' + setKeys[si] })));
     }
-    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` };
+    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` + note };
     S.recText = ''; clearPhotos();
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' };
+    S.recMsg = { kind: 'err', text: (r.fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' + note };
     render();
   }
 }
@@ -2978,11 +3099,13 @@ Reply with only a JSON object: {"drafts": [...]}.
 ${taxonomyText([set.subject])}`;
 }
 async function recogniseMore() {
-  // 题组的照片用 /_blob/<id> 取成 Blob，按照片限额取；取不到或超限的跳过并在提示里说
-  const set = setById(S.recSet);
-  if (!set) { S.recSet = ''; render(); return; }
-  S.recBusy = true; S.saveMsg = null; S.recMsg = { kind: '', text: 'Reading… this usually takes about half a minute.' }; render();
-  const L = S.imgLimits, ids = (set.images || []).slice(), blobs = [];
+  // 来源是题组：题组的文字和照片都交给 AI；来源是一批共用照片的独立题：只交照片。照片用 /_blob/<id> 取成 Blob，按照片限额取；取不到或超限的跳过并在提示里说
+  const src = recSource();
+  if (!src) { S.recSet = ''; render(); return; }
+  S.recBusy = true; S.saveMsg = null;
+  const t0 = Date.now(), tm = {}, opts = readOptions(t0, tm);
+  S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+  const L = S.imgLimits, ids = (src.images || []).slice(), blobs = [];
   let skipped = 0;
   if (L) {
     for (const id of ids) {
@@ -2995,27 +3118,34 @@ async function recogniseMore() {
       } catch (e) { skipped++; }
     }
   } else skipped = ids.length;
-  const recorded = S.exercises.filter(e => e.setId === set.id).sort(cmpSetPos).map(e => plain(e.stem) || '(photo only)');
+  const recordedEx = src.kind === 'set' ? S.exercises.filter(e => e.setId === src.id).sort(cmpSetPos) : src.group.ids.map(id => S.exercises.find(e => e.id === id)).filter(Boolean);
+  const recorded = recordedEx.map(e => plain(e.stem) || '(photo only)');
   const hint = S.recText.trim();
-  let drafts = null, fail = '';
-  try {
-    const out = await S.sample.json(morePrompt(set, recorded, hint), blobs.length ? { images: blobs, modelTier: 'complex' } : { modelTier: 'complex' });
-    const arr = Array.isArray(out) ? out : out && Array.isArray(out.drafts) ? out.drafts : null;
-    if (arr) drafts = arr.filter(x => x && typeof x === 'object'); else fail = "Reading failed: the reply wasn't a list of questions.";
-  } catch (err) {
-    const c = err && err.code;
-    fail = c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
+  let drafts = null, fail = '', stopped = false;
+  if (src.kind === 'photos' && !blobs.length) fail = "Couldn't load the photos of this group; nothing to read.";
+  else {
+    if (blobs.length) opts.images = blobs;
+    try {
+      const out = await S.sample.json(morePrompt(src, recorded, hint), opts);
+      const r = parseReading(out);
+      drafts = r.drafts; fail = r.fail;
+    } catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
   }
+  S.recCtl = null;
   S.recBusy = false;
-  const photoNote = skipped ? ` Couldn't use ${plural(skipped, 'photo')} of the set; ${skipped === ids.length ? 'used the text only' : 'used the rest'}.` : '';
+  if (stopped) { S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  tm.total = Date.now() - t0;
+  const note = timingNote(tm);
+  const photoNote = !skipped ? '' : src.kind === 'set' ? ` Couldn't use ${plural(skipped, 'photo')} of the set; ${skipped === ids.length ? 'used the text only' : 'used the rest'}.`
+    : blobs.length ? ` Couldn't use ${plural(skipped, 'photo')} of the group; used the rest.` : '';
   if (drafts && drafts.length) {
-    for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { subject: set.subject, images: [], setRef: set.id })));
-    S.recMsg = { kind: 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${set.title || 'Untitled'}". Check each one before saving; the answers were read or worked out by AI.${photoNote}` };
+    for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { subject: src.subject, images: src.kind === 'photos' ? src.images.slice() : [], setRef: src.kind === 'set' ? src.id : '' })));
+    S.recMsg = { kind: 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${src.kind === 'set' ? (src.title || 'Untitled') : 'these photos'}". Check each one before saving; the answers were read or worked out by AI.${photoNote}${note}` };
     S.recText = '';
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (fail || 'No more questions found.') + photoNote + ' Adjust the hint and press Read with AI again.' };
+    S.recMsg = { kind: 'err', text: (fail || 'No more questions found.') + photoNote + ' Adjust the hint and press Read with AI again.' + note };
     render();
   }
 }
