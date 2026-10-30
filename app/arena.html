@@ -1572,7 +1572,7 @@ function activityChart(days, opts) {
 /* 阶梯：1–4 级与掌握五项的名字与颜色（Today 的两架梯子、Exercises 的横条与专题图共用） */
 const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day 3', 'var(--lad2)'], [3, 'Level 3 · day 7', 'var(--lad3)'], [4, 'Level 4 · day 14', 'var(--lad4)'], ['mastered', '★ Mastered', 'var(--lad-m)']];
 // 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；各级题数写在梯子右边（NL、NR 起）；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
-const LAD = { W: 388, H: 222, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
+const LAD = { W: 388, H: 210, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
   curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
 // 梯子上的小人：两架梯子上有题的 1–4 级各站一个，姿势按级——1 级躺着、2 级坐着、3 级站着、4 级跳着；颜色是不随深浅色变的亮色；
 // 以那一级横档的上沿为原点；动画（playLadder）逐帧改 data-pose 对应的部位：躺着的打呼、坐着的晃腿、站着的挥手、跳着的上下跳
