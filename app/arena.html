@@ -1601,14 +1601,14 @@ function climberSvg(x, y, k) {
 }
 function ladderPair(wl, key) {
   // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级后写本周新录的题数「↑N」（绿）；
-  // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↓5」（红）；data-flows 给小人跑跳的动画（armLadders）
+  // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↑5」（红）；data-flows 给小人跑跳的动画（armLadders）
   const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
   // 木头：横档与扶手用木纹渐变，扶手上几道浅色木纹；横档先画、扶手压在上面，像榫进扶手里
   const top = y(5) - 18, bot = y(1) + 18;
   const ladder = cx => [1, 2, 3, 4, 5].map(k => `<rect class="wrung" x="${cx - LW - 2}" y="${y(k) - 3.5}" width="${2 * LW + 4}" height="7" rx="3.5" fill="url(#wh-${key})"/>`).join('')
     + [-1, 1].map(sd => { const x = cx + sd * LW - 4; return `<rect class="wrail" x="${x}" y="${top}" width="8" height="${bot - top}" rx="4" fill="url(#wv-${key})"/>`
       + `<path class="grain" d="M${x + 2.6} ${top + 8} L${x + 2.6} ${top + 46} M${x + 5.2} ${top + 70} L${x + 5.2} ${top + 120} M${x + 3} ${top + 140} L${x + 3} ${bot - 10}"/>`; }).join('');
-  const num = (x, k, n, up, down) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}${down ? `<tspan class="nd" dx="4">↓${down}</tspan>` : ''}</text>`;
+  const num = (x, k, n, up, down) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}${down ? `<tspan class="nd" dx="4">↑${down}</tspan>` : ''}</text>`;
   let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
     g += `<text class="lv v${k}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
