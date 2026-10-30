@@ -6,7 +6,7 @@
 
 ## 决定
 
-练习场是一个 claude.ai Artifact 页面。错题、作答和检验卷存在页面的 `db` 里，照片存在页面的 `assets` 里，照片识别用页面的 `sample`，导出文件用页面的 `downloads`，认出当前用户用页面的 `user`。
+练习场是一个 claude.ai Artifact 页面。错题、作答和检验卷存在页面的 `db` 里，照片存在页面的 `assets` 里，照片识别用页面的 `sample`，认出当前用户用页面的 `user`。
 
 ## 理由
 
@@ -18,6 +18,5 @@
 
 ## 代价
 
-- 数据存在 claude.ai 上，不在 Obsidian 库里。要在 Obsidian 里看，用设置页的导出（YAML 文本，不含照片）。
 - 页面经每位用户自己的 Claude 账号打开，见 [ADR 0002](./0002-each-user-opens-the-arena-with-their-own-claude-account.md)。
-- 运行时能力（`db`、`assets`、`sample`、`downloads`、`user`）的行为以平台为准，平台变化时页面要跟着改。
+- 运行时能力（`db`、`assets`、`sample`、`user`）的行为以平台为准，平台变化时页面要跟着改。

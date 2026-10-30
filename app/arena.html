@@ -2,7 +2,7 @@
   Exercise Arena — 练习场页面（实现）。
   数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
-  能力：db、assets、sample（images）、downloads、user（profile）。
+  能力：db、assets、sample（images）、user（profile）。
   运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
   加载：错题与卷子只订阅默认归属人的，错题视图按文档缓存（DATA.md「加载」）；已交每日卷满 30 天后由页面删除（discuss 0032）。
   照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
@@ -128,10 +128,12 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .today-h { grid-column: 1 / -1; }
 .today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
 .plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 8px; }
+.plan .ladpair, .review .ladpair, .run-ladder .ladpair { border-top: 1px solid var(--rule); padding-top: 8px; }
 /* 新掌握的列表 */
 .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
 .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.rv-head { display: flex; align-items: baseline; gap: 10px; }
+.rv-head { display: flex; align-items: center; gap: 10px; }
+.rv-txt { display: grid; gap: 2px; min-width: 0; }
 .rv-n { font: 400 40px/1 var(--font-hand); color: var(--red); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
 .stats b { color: var(--ink); font-weight: 600; }
@@ -139,10 +141,6 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 /* question sheet */
 .sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.sum-txt { display: grid; gap: 2px; }
-.sum-head { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; min-width: 0; }
-.sum-head .h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sum-head .btn, .sum-head .chip { flex: none; white-space: nowrap; }
 .qhead-r { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
 .stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -179,6 +177,10 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .progress { display: flex; align-items: center; gap: 8px; }
 .progress .btn, .progress > .small { white-space: nowrap; }
 .progress .ellip { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.progress.sheet-top { flex-wrap: wrap; }
+.progress .score { font-size: 32px; }
+.sum-name { display: grid; min-width: 0; flex: 1 1 100%; }
+.sum-name .ellip { white-space: nowrap; }
 .bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--pen); }
 .score { font: 400 48px/1 var(--font-hand); color: var(--red); }
@@ -233,9 +235,6 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .bars7-x { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
 /* This week 与 Last week 的组合图：左轴作答次数、右轴正确率，两轴共用三条横线；正确率是主角：蓝色粗线带底色描边、大点、点上写百分比，柱子淡下去作背景，次数在悬停时才出 */
 .combo { display: grid; grid-template-columns: 26px minmax(0, 1fr) 34px; column-gap: 6px; }
-.combo .ax-t { font-size: 11px; color: var(--muted); margin-bottom: 2px; white-space: nowrap; }
-.combo .ax-t.l { grid-column: 1 / 3; }
-.combo .ax-t.r { grid-column: 3; text-align: right; color: var(--pen); font-weight: 600; }
 .combo .ax { position: relative; height: 144px; font-size: 10.5px; color: var(--muted); }
 .combo .ax span { position: absolute; transform: translateY(-50%); line-height: 1; }
 .combo .ax.l span { right: 0; }
@@ -259,9 +258,6 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .bars7 .plan { width: 60%; max-width: 56px; display: flex; justify-content: center; align-items: flex-start; border: 1.5px dashed var(--pen); border-bottom: 0; border-radius: 3px 3px 0 0; background: var(--pen-soft); }
 .bars7 .plan b { font: 600 10.5px/1 var(--font-body); color: var(--pen); margin-top: 2px; }
 .bars7-x .is-today { color: var(--pen); font-weight: 600; }
-.goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; }
-.goals li.ok { color: var(--green); font-weight: 500; }
-.today-goals { grid-column: 1 / -1; border-top: 1px dashed var(--line); padding-top: 8px; }
 /* 两架梯子：左为周初、右为周末；中间一列级名；小圆点的爬升动画 */
 .ladpair { display: grid; gap: 4px; justify-items: center; }
 .ladpair svg { width: 100%; max-width: 420px; height: auto; display: block; overflow: visible; }
@@ -273,7 +269,6 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .lv.v1 { fill: var(--v1); } .ladpair .lv.v2 { fill: var(--v2); } .ladpair .lv.v3 { fill: var(--v3); } .ladpair .lv.v4 { fill: var(--v4); } .ladpair .lv.v5 { fill: var(--vm); }
 .ladpair .nm { font-size: 11.5px; }
 .ladpair .nn { font-weight: 600; fill: var(--ink); }
-.ladpair .np { fill: var(--muted); }
 .ladpair .runner circle { fill: currentColor; }
 .ladpair .climber .cs { fill: var(--cf); stroke: var(--cd); stroke-width: 1.2; }
 .ladpair .climber .ch { fill: #ffe0bd; stroke: var(--cd); stroke-width: 1.1; }
@@ -285,8 +280,8 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .climber .csh { fill: #000; opacity: .18; }
 .ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ladpair .nu { font-weight: 600; fill: var(--green); }
+.ladpair .nd { font-weight: 600; fill: var(--c-wrong); }
 .ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
-.lad-down { margin: 0; }
 /* 阶梯分段横条（Exercises 每科小卡） */
 .ladbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
 .ladbar i { display: block; height: 100%; }
@@ -314,8 +309,7 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .tray-item img { display: block; height: 84px; max-width: 140px; object-fit: cover; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
 .tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
 .tray-x:hover { border-color: var(--red); color: var(--red); }
-.rec-go { display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 10px 12px; align-items: end; }
-@media (max-width: 480px) { .rec-go { grid-template-columns: minmax(0, 1fr); } }
+.rec-go { display: flex; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .filters > * { min-width: 0; }
@@ -346,8 +340,6 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .item .t .chip { vertical-align: 1px; }
 /* 卷名前的类型标签；Daily papers 的日期小标题 */
 .day-h { margin-top: 4px; }
-.side.drow { display: flex; align-items: center; gap: 8px; }
-.side.drow .confirm { white-space: normal; }
 select.narrow { width: auto; }
 
 .chip.k-daily { color: var(--muted); border-color: var(--muted); background: none; }
@@ -374,6 +366,7 @@ button.trow[aria-pressed="true"] { border-color: var(--pen); background: var(--p
 .causebar { height: 10px; }
 /* Settings：左标签、右控件 */
 .form-rows { display: grid; gap: 6px; }
+.saved { margin: 0; text-align: right; color: var(--green); font-weight: 500; }
 p.form-row { margin: 0; }
 .form-row > select, .form-row > input { justify-self: start; }
 .row .fill { flex: 1 1 240px; min-width: 0; }
@@ -765,49 +758,6 @@ function pageSlice(list, page, size) {
   const p = Math.min(Math.max(1, page), pages);
   return { items: list.slice((p - 1) * size, p * size), page: p, pages };
 }
-function yamlScalar(v) {
-  if (v === null || v === undefined) return 'null';
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return JSON.stringify(String(v));
-}
-function yamlKey(k) { return /^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? k : JSON.stringify(k); }
-function toYaml(v, ind) {
-  ind = ind || 0;
-  const pad = ' '.repeat(ind);
-  const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
-  if (Array.isArray(v)) {
-    if (!v.length) return pad + '[]';
-    return v.map(x => {
-      if (isObj(x) && Object.keys(x).length) return pad + '- ' + toYaml(x, ind + 2).replace(/^\s+/, '');
-      if (Array.isArray(x)) return x.length ? pad + '-\n' + toYaml(x, ind + 2) : pad + '- []';
-      if (isObj(x)) return pad + '- {}';
-      return pad + '- ' + yamlScalar(x);
-    }).join('\n');
-  }
-  if (isObj(v)) {
-    const ks = Object.keys(v);
-    if (!ks.length) return pad + '{}';
-    return ks.map(k => {
-      const x = v[k], key = pad + yamlKey(k) + ':';
-      if (Array.isArray(x)) return x.length ? key + '\n' + toYaml(x, ind + 2) : key + ' []';
-      if (isObj(x)) return Object.keys(x).length ? key + '\n' + toYaml(x, ind + 2) : key + ' {}';
-      return key + ' ' + yamlScalar(x);
-    }).join('\n');
-  }
-  return pad + yamlScalar(v);
-}
-function exportData(exs, sets, papers, settings, exportedAt, userIds) {
-  // 导出：数据库原文档、带 id（含全部作答与 by）；images 换成张数；另带用户 id 与当前用户的设置
-  const imgs = o => Object.assign({}, o, { images: Array.isArray(o.images) ? o.images.length : 0 });
-  return {
-    exportedAt,
-    users: (userIds || []).slice(),
-    settings: Object.assign({}, settings),
-    exercises: exs.map(imgs),
-    sets: sets.map(imgs),
-    papers: papers.map(p => Object.assign({}, p))
-  };
-}
 function streakInfo(exs, today) {
   // 连续天数：按作答的 date 计天；今天还没有作答时从昨天往回数
   const days = new Set();
@@ -866,7 +816,7 @@ function helloStats(d, g) {
   return items;
 }
 /* ---------- 设置、计划与回顾 ---------- */
-const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
+const SETTINGS_DEFAULT = { dailyLimit: 10 };
 function readSettings(v, uid) {
   // 缺字段或不是数按默认值；超出范围收紧；0 照常保留；defaultOwner 不是非空字符串时为本人 uid
   v = v || {};
@@ -875,7 +825,7 @@ function readSettings(v, uid) {
     if (v[k] == null || v[k] === '' || typeof v[k] === 'boolean' || !Number.isFinite(n)) return SETTINGS_DEFAULT[k];
     return Math.max(lo, Math.min(hi, Math.round(n)));
   };
-  return { dailyLimit: num('dailyLimit', 1, 50), practiceDays: num('practiceDays', 1, 7), papersPerWeek: num('papersPerWeek', 0, 3),
+  return { dailyLimit: num('dailyLimit', 1, 50),
     defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
 function dueByDay(todo, today) {
@@ -903,20 +853,13 @@ function weekStart(today) {
   const dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
   return addDays(today, -((dow + 6) % 7));
 }
-function goalProgress(exs, papers, from, to, uid) {
-  // exs 是我的视图：区间内有作答的天数、我在区间内交过的检验卷张数（每日卷不算）
-  const days = new Set();
-  for (const e of exs) for (const a of e.attempts || []) if (a.date >= from && a.date <= to) days.add(a.date);
-  const done = papers.filter(p => { if (isDaily(p)) return false; const t = handedInAt(p, exs, uid); return t && t.slice(0, 10) >= from && t.slice(0, 10) <= to; }).length;
-  return { days: days.size, papers: done };
-}
-function weekReview(done, papers, from, to, uid) {
-  // from 到 to（含两端）的回顾，按 done（我的全部错题）：Last week 是上周一到上周日，This week 是本周一到本周日（今天以后各天为 0），Today 的提示用最近 7 天
+function weekReview(done, from, to) {
+  // from 到 to（含两端）的回顾，按 done（我的全部错题）：Last week 是上周一到上周日，This week 是本周一到本周日（今天以后各天为 0）
   const exs = done;
   const days = [];
   for (let d = from; d <= to; d = addDays(d, 1)) days.push({ date: d, right: 0, partial: 0, wrong: 0 });
   const idx = Object.fromEntries(days.map((d, i) => [d.date, i]));
-  const ans = { right: 0, partial: 0, wrong: 0 }, wrongBy = {};
+  const ans = { right: 0, partial: 0, wrong: 0 };
   let questions = 0;
   for (const e of exs) {
     let hit = false;
@@ -924,11 +867,9 @@ function weekReview(done, papers, from, to, uid) {
       if (!(a.date >= from && a.date <= to)) continue;
       hit = true;
       if (ans[a.result] != null) { ans[a.result]++; days[idx[a.date]][a.result]++; }
-      if (a.result === 'wrong') { const k = e.subject + '|' + e.topic; wrongBy[k] = (wrongBy[k] || 0) + 1; }
     }
     if (hit) questions++;
   }
-  const top = Object.entries(wrongBy).sort((a, b) => b[1] - a[1] || a[0].split('|')[1].localeCompare(b[0].split('|')[1]))[0];
   const groups = {};
   for (const e of exs) {
     const m = e.mastered && masteredOn(e);
@@ -937,11 +878,9 @@ function weekReview(done, papers, from, to, uid) {
     (groups[k] = groups[k] || { subject: e.subject, kind, id, n: 0 }).n++;
   }
   const newlyMastered = Object.values(groups).sort((a, b) => b.n - a.n || String(a.id).localeCompare(String(b.id)));
-  const g = goalProgress(exs, papers, from, to, uid);
   return {
     from, to, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
-    practised: g.days, papersDone: g.papers, days, newlyMastered,
-    topWrong: top ? { subject: top[0].split('|')[0], topic: top[0].split('|')[1], n: top[1] } : null
+    days, newlyMastered
   };
 }
 function dayRates(days) {
@@ -955,25 +894,8 @@ function axisMax(n) {
 }
 function reviewLine(week) {
   // Last week 的统计行
-  const parts = [`${week.right} right`, `${week.partial} partly`, `${week.wrong} wrong`, `practised on ${week.practised} of 7 days`];
+  const parts = [`${week.right} right`, `${week.partial} partly`, `${week.wrong} wrong`];
   return `${week.answers} answer${week.answers === 1 ? '' : 's'}: ${parts.join(' · ')}`;
-}
-function goalLines(g, st, today, weekEnd, practisedToday, topic) {
-  // This week 的目标句（每句自带图标）：天数一行；每周检验卷目标大于 0 时再一行，没达到时建议最近 7 天错得最多的专题
-  const N = st.practiceDays, D = g.days, days = n => `${n} day${n === 1 ? '' : 's'}`;
-  let left = 0;
-  for (let d = addDays(today, 1); d <= weekEnd; d = addDays(d, 1)) left++;
-  if (!practisedToday) left++;
-  const out = [];
-  if (D >= N) out.push({ ok: true, text: `🎉 ${D} practice days — goal reached!` });
-  else if (N - D <= left) out.push({ ok: false, text: D ? `${days(D)} done — ${N - D} more to reach ${N}. Keep going!` : `New week, fresh start — practise on ${N} days to reach your goal.` });
-  else out.push({ ok: false, text: D ? `${days(D)} done this week — every day counts!` : 'Every day counts — start today!' });
-  if (st.papersPerWeek > 0) {
-    const P = g.papers;
-    out.push(P >= st.papersPerWeek ? { ok: true, text: `✓ ${P} exam paper${P === 1 ? '' : 's'} done — nice work!` }
-      : { ok: false, text: `An exam paper shows what you've mastered — try one on ${topic || 'mixed topics'}.` });
-  }
-  return out;
 }
 function weekPlan(todo, today, from) {
   // This week 的计划柱：from 起 7 天每天的计划题数；今天以前 0，今天为此刻到期的题数，以后同 dueByDay
@@ -1047,16 +969,6 @@ function paperLadders(exs, uid, paperId, results, saved) {
   }
   const flows = Object.entries(flowMap).map(([k, n]) => { const [f, t] = k.split('>').map(Number); return { from: f, to: t, n }; }).sort((x, y) => x.from - y.from || x.to - y.to);
   return { left, right, fresh: 0, masteredBefore, up, down, flows, toMark };
-}
-function ladderShares(ladder) {
-  // 梯子各级的百分比：1–4 级与 mastered 五项的题数与百分比；百分比取整、按最大余数补足到 100；总数为 0 时全为 0
-  const keys = [1, 2, 3, 4, 'mastered'], ns = keys.map(k => (ladder && ladder[k]) || 0), tot = ns.reduce((a, b) => a + b, 0);
-  const pct = ns.map(n => tot ? Math.floor(n * 100 / tot) : 0);
-  if (tot) {
-    let left = 100 - pct.reduce((a, b) => a + b, 0);
-    ns.map((n, i) => [n * 100 / tot - pct[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (left > 0) { pct[i]++; left--; } });
-  }
-  return keys.map((key, i) => ({ key, n: ns[i], pct: pct[i] }));
 }
 function subjectSummary(exs, today) {
   // Exercises 的每科小结：按 SUBJECTS 顺序，有错题的科目才出；专题取前三、错因只含出现过的，都按多到少，并列按 id 字母序
@@ -1391,16 +1303,16 @@ const store = {
 const S = {
   status: 'loading',            // loading | ready | nodb
   tab: store.get('arena.tab') || 'today',   // today | record | exercises | papers | settings
-  db: null, assets: null, sample: null, downloads: null, imgLimits: null,
+  db: null, assets: null, sample: null, imgLimits: null,
   user: null, me: null, userIds: [], names: {},   // me：平台给当前用户的 id；names：显示时向平台现取的名字，不存
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recSubject: '', recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
+  drafts: [], recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, confirmDel: null,
-  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
+  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
@@ -1532,11 +1444,10 @@ function renderPractice() {
   const redo = redoButtons(sc.todo, today);
   const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
   const db = dashboardData(sc.todo, sc.done, today);
-  // 检验卷建议的专题用最近 7 天；This week 是本周一到本周日，Last week 是上周一到上周日
-  const recent = weekReview(sc.done, S.papers, addDays(today, -6), today, S.me);
+  // This week 是本周一到本周日，Last week 是上周一到上周日
   const ws = weekStart(today), lws = addDays(ws, -7);
   return helloBlock(dateLine, db)
-    + todayBlock(today, redo, cps, sc.todo, sc.done, weekGoals(today, ws, sc, recent, db))
+    + todayBlock(today, redo, cps, sc.todo, sc.done)
     + thisWeekBlock(today, ws, sc)
     + lastWeekBlock(lws, sc);
 }
@@ -1560,7 +1471,7 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, cps, todo, view, goals) {
+function todayBlock(today, redo, cps, todo, view) {
   // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
   const tc = todayCounts(todo, today, dueNowIds(todo, today));
@@ -1590,8 +1501,6 @@ function todayBlock(today, redo, cps, todo, view, goals) {
       return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
     }).join('')}</div></div>`;
   }
-  // 底部：本周目标的两句（weekGoals）
-  if (goals && goals.length) h += `<ul class="goals today-goals">${goals.map(x => `<li class="${x.ok ? 'ok' : ''}">${esc(x.text)}</li>`).join('')}</ul>`;
   return h + `</section>`;
 }
 
@@ -1605,34 +1514,27 @@ function masteredList(week) {
   };
   return `<div class="sub"><p class="h3">Newly mastered</p><ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul></div>`;
 }
-function weekGoals(today, ws, sc, recent, db) {
-  // 本周目标的两句（天数、检验卷），放在 Today 块底部；检验卷建议的专题取最近 7 天错得最多的
-  const we = addDays(ws, 6), g = goalProgress(sc.done, S.papers, ws, we, S.me);
-  return goalLines(g, S.settings, today, we, db.doneToday, recent.topWrong ? topicLabel(recent.topWrong.subject, recent.topWrong.topic) : '');
-}
 function thisWeekBlock(today, ws, sc) {
   // 同 Last week：本周到今天为止复习了几题与统计行，再是组合图（带计划柱）、两架梯子、新掌握
   const we = addDays(ws, 6);
-  const week = weekReview(sc.done, S.papers, ws, we, S.me);
+  const week = weekReview(sc.done, ws, we);
   const plan = weekPlan(sc.todo, today, ws);
   const days = week.days.map((d, i) => Object.assign({}, d, { planned: plan[i].planned }));
   return `<section class="panel plan" aria-label="This week">
     <div class="wk-head"><p class="h3">This week</p><span class="small muted num">${fmtRange(ws, we)}</span></div>
-    <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
-    <p class="small muted">${esc(reviewLine(week))}</p>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
     ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
-    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, ws, today), 'this')}</div>
+    ${ladderPair(weekLadders(sc.todo, ws, today), 'this')}
     ${masteredList(week)}
   </section>`;
 }
 function lastWeekBlock(lws, sc) {
-  const lwe = addDays(lws, 6), week = weekReview(sc.done, S.papers, lws, lwe, S.me);
+  const lwe = addDays(lws, 6), week = weekReview(sc.done, lws, lwe);
   return `<section class="panel review" aria-label="Last week">
     <div class="wk-head"><p class="h3">Last week</p><span class="small muted num">${fmtRange(lws, lwe)}</span></div>
-    <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
-    <p class="small muted">${esc(reviewLine(week))}</p>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
     ${activityChart(week.days, { todayIdx: -1 })}
-    <div class="sub"><p class="h3">Ladder</p>${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}</div>
+    ${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}
     ${masteredList(week)}
   </section>`;
 }
@@ -1662,7 +1564,7 @@ function activityChart(days, opts) {
   const axL = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${top * f}</span>`).join('');
   const axR = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${100 * f}%</span>`).join('');
   const label = `Answers (left axis, 0 to ${top}) and correct rate (right axis, 0 to 100%), ${fmtDate(days[0].date)} to ${fmtDate(days[n - 1].date)}: ${days.map((d, i) => `${xl(i)} ${tots[i]} answers${rates[i] == null ? '' : ', ' + rates[i] + '% right'}${plans[i] ? ', ' + plans[i] + ' planned' : ''}`).join('; ')}`;
-  return `<div class="combo" role="img" aria-label="${label}"><span class="ax-t l" aria-hidden="true">Answers</span><span class="ax-t r" aria-hidden="true">Correct</span>`
+  return `<div class="combo" role="img" aria-label="${label}">`
     + `<div class="ax l" aria-hidden="true">${axL}</div><div class="plot">${grid}<div class="bars7">${cols}</div><svg viewBox="0 0 100 ${PH}" preserveAspectRatio="none" aria-hidden="true"><path class="halo" d="${path.trim()}"/><path class="rate" d="${path.trim()}"/></svg>${dots}</div><div class="ax r" aria-hidden="true">${axR}</div>`
     + `<div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span${i === o.todayIdx ? ' class="is-today"' : ''}>${xl(i)}</span>`).join('')}</div></div>`;
 }
@@ -1698,22 +1600,20 @@ function climberSvg(x, y, k) {
     <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>${body}</g></g>`;
 }
 function ladderPair(wl, key) {
-  // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的「题数/百分比」写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
-  // 右梯各级题数后写本周升到这一级的题数「↑83」；下降的另起一行；data-flows 给小人跑跳的动画（armLadders）
+  // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
+  // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↓5」（红）；data-flows 给小人跑跳的动画（armLadders）
   const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
-  const share = n => ladderShares({ 1: n[0], 2: n[1], 3: n[2], 4: n[3], mastered: n[4] });
-  const shL = share(wl.left), shR = share(wl.right), col = k => LADDER_SEGS[k - 1][2];
   // 木头：横档与扶手用木纹渐变，扶手上几道浅色木纹；横档先画、扶手压在上面，像榫进扶手里
   const top = y(5) - 18, bot = y(1) + 18;
   const ladder = cx => [1, 2, 3, 4, 5].map(k => `<rect class="wrung" x="${cx - LW - 2}" y="${y(k) - 3.5}" width="${2 * LW + 4}" height="7" rx="3.5" fill="url(#wh-${key})"/>`).join('')
     + [-1, 1].map(sd => { const x = cx + sd * LW - 4; return `<rect class="wrail" x="${x}" y="${top}" width="8" height="${bot - top}" rx="4" fill="url(#wv-${key})"/>`
       + `<path class="grain" d="M${x + 2.6} ${top + 8} L${x + 2.6} ${top + 46} M${x + 5.2} ${top + 70} L${x + 5.2} ${top + 120} M${x + 3} ${top + 140} L${x + 3} ${bot - 10}"/>`; }).join('');
-  const num = (x, k, n, pct, up) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan><tspan class="np">/${pct}%</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}</text>`;
+  const num = (x, k, n, up, down) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}${down ? `<tspan class="nd" dx="4">↓${down}</tspan>` : ''}</text>`;
   let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
     g += `<text class="lv v${k}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
-    if (k < 5) g += num(NL, k, wl.left[k - 1], shL[k - 1].pct);
-    g += num(NR, k, wl.right[k - 1], shR[k - 1].pct, k > 1 ? wl.up[k] : 0);
+    if (k < 5) g += num(NL, k, wl.left[k - 1]);
+    g += num(NR, k, wl.right[k - 1], k > 1 ? wl.up[k] : 0, k === 1 ? wl.down : 0);
   }
   const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
     + `<linearGradient id="wh-${key}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9a76b"/><stop offset=".6" stop-color="#b27a43"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>`
@@ -1729,7 +1629,6 @@ function ladderPair(wl, key) {
   const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
   return `<div class="ladpair" data-key="${key}">
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-flows='${JSON.stringify(wl.flows)}'>${defs}${g}<g class="dots"></g></svg>
-    ${wl.down ? `<p class="small muted lad-down">↓ ${wl.down} moved down</p>` : ''}
   </div>`;
 }
 // 爬升动画：每股升级放 min(n, 6) 个小人，从左梯 from 级沿弧线跑到右梯 to 级，最后一段抬手爬上那一级；每个约 1.8 秒、依次错开，一直循环；
@@ -1895,14 +1794,10 @@ function renderPaperRun() {
   // 顶上一行：左上角 Back（每日卷先存好回答再走，检验卷没交的回答不留），右边作答阶段的 Hand in
   let h = `<div class="progress"><button type="button" class="btn ghost small back" data-act="exit-run">‹ Back</button>${paperTag(p)}<span class="small muted ellip">${esc(pname(p))}</span><div class="grow"></div>${R.phase === 'answer' ? `<button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button>` : ''}</div>`;
   if (R.phase === 'review') {
-    // 得分立即显示：客观题交卷即判，主观题自评存好后算进
+    // 得分立即显示，一行：客观题交卷即判，主观题自评存好后算进；对错分布看翻页条的颜色
     const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><div class="sum-head"><p class="h3 grow">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p></div>
-      <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
-      ${isDaily(p) ? runCoinsLine(p, exs) : ''}
-      ${isDaily(p) ? `<div class="run-ladder"><p class="h3">Ladder</p>${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}
-      <p class="muted small">${toMark ? 'Check your written answers against the model answers and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
+    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? '<span class="small muted">Mark your written answers</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
   }
   if (R.phase === 'answer' && R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
@@ -1937,21 +1832,20 @@ function renderManage() {
   return `<div style="display:grid;gap:12px">${h}</div>`;
 }
 
-function subjectOptions(sel, withAuto) {
-  return (withAuto ? `<option value="">Let AI decide</option>` : `<option value="">Choose subject</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
+function subjectOptions(sel) {
+  return `<option value="">Choose subject</option>` + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
 }
 
 function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
   const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
   let h = `<section class="panel">
-    <p class="h2">Record exercises</p>
-    <p class="small muted">Take a photo or paste the question text; AI splits it into drafts. Check each draft before saving, especially the answer.</p>`;
+    <p class="h2">Record exercises</p>`;
   // 从已录的材料补录：题组，或一批共用照片的独立题。选了其中一个时不拍照，文字框改为给 AI 的提示，科目跟着它
   const rs = recSource();
   if (S.recSet && !rs) S.recSet = '';
-  const subj = x => S.recSubject || rs ? '' : esc(SUBJ[x.subject] ? SUBJ[x.subject].en : x.subject) + ' · ';
-  const fits = x => rs ? x.subject === rs.subject : !S.recSubject || x.subject === S.recSubject;
+  const subj = x => rs ? '' : esc(SUBJ[x.subject] ? SUBJ[x.subject].en : x.subject) + ' · ';
+  const fits = x => !rs || x.subject === rs.subject;
   const recSets = S.sets.filter(x => fits(x) && S.exercises.some(e => e.setId === x.id))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(a.title || '').localeCompare(String(b.title || '')));
   const recGroups = photoGroups(S.exercises).filter(fits);
@@ -1971,8 +1865,6 @@ function renderRecord() {
   h += rs ? `<label class="f"><span>Hint for AI (optional)</span><textarea id="rec-text" data-bind="recText" rows="2" placeholder="e.g. Questions 5 to 8 only">${esc(S.recText)}</textarea></label>`
     : `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>`;
   h += `<div class="rec-go">
-      <label class="f"><span>Subject</span><select id="rec-subject" ${rs ? 'disabled' : ''}>${subjectOptions(rs ? rs.subject : S.recSubject, true)}</select></label>
-      <p class="small muted">Saved for ${esc(userName(recOwner()))} (the default owner; change it in Settings).</p>
       <div class="row"><button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button>${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}</div>
     </div>
     ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
@@ -2098,7 +1990,7 @@ function draftForm(d) {
 
 function newDraft(x) {
   x = x || {};
-  const subject = SUBJ[x.subject] ? x.subject : (S.recSubject || '');
+  const subject = SUBJ[x.subject] ? x.subject : '';
   const topic = subject && nameOf(subject, 'topic', x.topic) ? x.topic : '';
   const concept = topic && nameOf(subject, 'concept', x.concept) && IDX[subject].concept[x.concept].topic === topic ? x.concept : '';
   const qtype = subject && nameOf(subject, 'qtype', x.qtype) ? x.qtype : '';
@@ -2218,7 +2110,7 @@ function subjectDetail(exs, subject, today, activeTopic) {
   const list = (xs, wrong) => xs.length ? `<ol class="tlist">${xs.map(t => `<li><span>${esc(topicLabel(subject, t.topic))}</span><b class="num">${t.rate}%</b>${wrong ? `<span class="muted num">${t.wrong} wrong</span>` : ''}</li>`).join('')}</ol>` : '<p class="small muted">Not enough answers in the last 7 days yet.</p>';
   const causes = sum.causes, ctot = causes.reduce((t, c) => t + c[1], 0);
   return `<section class="panel subj-sum" aria-label="${esc(SUBJ[subject].en)} summary">
-    <p class="ss-nums"><b class="num">${sum.n}</b> exercises · <b class="num">${sum.due}</b> due · <b class="num">${sum.mastered}</b> mastered</p>
+    <p class="ss-nums"><b class="num">${sum.due}</b> due · <b class="num">${sum.mastered}</b> mastered</p>
     <div class="tchart">
       <div class="trow th" aria-hidden="true"><span>Topic</span><span>Ladder levels</span><span class="tr">Right · 7d</span></div>
       ${rows.map(row).join('')}
@@ -2289,7 +2181,6 @@ function renderPapers() {
   for (const e of paperPool()) if (e.subject === P.subject) counts[e.topic] = (counts[e.topic] || 0) + 1;
   const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[3])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
   let h = tabs + `<section class="panel"><p class="h2">Make an exam paper</p>
-    <p class="small muted">Questions are drawn from the default owner's (${esc(userName(S.settings.defaultOwner))}) exercises; change it in Settings.</p>
     <div class="grid2">
       <label class="f"><span>Subject</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
       <label class="f"><span>Questions</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
@@ -2310,13 +2201,13 @@ function renderPapers() {
   const psel = (k, label, opts) => `<select id="pfl-${k}" class="compact${on(k)}" data-pfilter="${k}" aria-label="${label}">${opts}</select>`;
   const popt = (k, v, t) => `<option value="${v}" ${PF[k] === v ? 'selected' : ''}>${t}</option>`;
   const anyPF = ['subject', 'status'].some(k => PF[k]);
-  h += `<section class="panel list-tools"><p class="h3">Exam papers</p>
+  h += `<section class="panel list-tools">
     <div class="filters">
       ${psel('subject', 'Subject', popt('subject', '', 'All subjects') + SUBJECTS.map(x => popt('subject', x[0], x[1])).join(''))}
       ${psel('status', 'Status', popt('status', '', 'Any status') + popt('status', 'todo', 'Not done by me') + popt('status', 'done', 'Done by me'))}
     </div>
     <div class="row list-bar">
-      <b>${plural(sorted.length, 'paper')}</b>${anyPF ? '<button type="button" class="btn ghost small" data-act="paper-clear">Clear filters</button>' : ''}<span class="sortbox">
+      ${anyPF ? `<b>${plural(sorted.length, 'paper')}</b><button type="button" class="btn ghost small" data-act="paper-clear">Clear filters</button>` : ''}<span class="sortbox">
       <select id="paper-sort" class="compact" data-act-change="paper-sort" aria-label="Sort by">${[['created', 'Created'], ['done', 'Done'], ['score', 'Score'], ['questions', 'Questions']].map(k => `<option value="${k[0]}" ${S.paperSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
       <button type="button" class="btn ghost small" data-act="paper-dir" aria-label="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.paperSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>`;
@@ -2329,7 +2220,6 @@ function renderPapers() {
       <span class="t">${p.subject ? subjChip(p.subject) : ''} ${esc(pname(p))}</span>
       <span class="side">${done ? (() => { const sc = paperScore(p, view); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
       <span class="meta"><span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${done ? `<span class="num">Done ${esc(fmtWhen(done))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
-        ${delBox(p)}
       </span></div>`;
   }).join('')}</div>`;
   if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="paper-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
@@ -2343,7 +2233,7 @@ function renderDailyPapers(shown, view) {
   const dg = dailyGroups(list, addDays(today, -6), S.dailyAll);
   const head = d => d === today ? 'Today' : d === addDays(today, -1) ? 'Yesterday' : (d ? `${wd(d)} ${fmtDate(d)}` : '—');
   const popt = (v, t) => `<option value="${v}" ${PF.subject === v ? 'selected' : ''}>${t}</option>`;
-  let h = `<section class="panel list-tools"><p class="h3">Daily papers</p>
+  let h = `<section class="panel list-tools">
     <div class="row"><select id="pfl-subject" class="compact narrow${PF.subject ? ' on' : ''}" data-pfilter="subject" aria-label="Subject">${popt('', 'All subjects') + SUBJECTS.map(x => popt(x[0], x[1])).join('')}</select></div>`;
   if (!list.length) h += `<p class="small muted">${shown.some(isDaily) ? 'No daily papers match this subject.' : 'No daily papers yet. Each one shows up here once it is handed in.'}</p>`;
   else if (!dg.groups.length) h += `<p class="small muted">No daily papers in the last 7 days.</p>`;
@@ -2352,26 +2242,23 @@ function renderDailyPapers(shown, view) {
       const sc = paperScore(p, view), done = handedInAt(p, view, S.me);
       return `<div class="item" role="button" tabindex="0" data-act="paper-view" data-id="${esc(p.id)}">
         <span class="t">${p.subject ? subjChip(p.subject) : ''} <span class="num">${sc.right}/${sc.total}</span>${p.test ? ' <span class="chip test">TEST</span>' : ''}</span>
-        <span class="side drow"><span class="num">Done ${esc(done ? done.slice(11, 16) || fmtWhen(done) : '—')}</span>${S.confirmDel === p.id ? '' : delBox(p)}</span>${S.confirmDel === p.id ? `<span class="meta">${delBox(p)}</span>` : ''}</div>`;
+        <span class="side"><span class="num">Done ${esc(done ? done.slice(11, 16) || fmtWhen(done) : '—')}</span></span></div>`;
     }).join('')}</div>`;
   }
   if (dg.older) h += `<div class="row"><button type="button" class="btn ghost small" data-act="daily-older">Show older (${dg.older})</button></div>`;
   return h + `</section>`;
 }
-const delBox = p => S.confirmDel === p.id ? `<span class="confirm" data-act="none">Delete this paper? Answers already given stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`;
 
 const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
 function renderPaperSheet(paperId) {
-  // 卷子详情（可改判）：一次一张卡，翻页条在卡片上方；题组材料同作答页
+  // 卷子详情（可改判）：顶上一行返回与摘要，下面一次一张卡，翻页条在卡片上方；题组材料同作答页
   const p = S.papers.find(x => x.id === paperId);
-  const back = `<div class="row"><button type="button" class="btn ghost small back" data-act="paper-view-close">‹ Back</button></div>`;
-  if (!p) return `${back}<p class="note">This paper has been deleted.</p>`;
+  const back = `<button type="button" class="btn ghost small back" data-act="paper-view-close">‹ Back</button>`;
+  if (!p) return `<div class="row">${back}</div><p class="note">This paper has been deleted.</p>`;
   const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
   const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
-  // 左上角返回；摘要卡：得分右侧上一行对错计数、下一行交卷时刻
-  let h = `${back}<section class="panel"><div class="sum-head">${paperTag(p)}<p class="h2 grow">${esc(pname(p))}</p></div>
-    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><div class="sum-txt"><span class="muted">Right ${sc.right} · Partly ${sc.partial} · Wrong ${sc.wrong}</span><span class="small muted">Handed in <b>${esc(when)}</b></span></div></div>
-  </section>`;
+  // 摘要：左上角返回、类型标签、分数一行，卷名与交卷时刻在下一行
+  let h = `<div class="progress sheet-top">${back}${paperTag(p)}<div class="grow"></div><span class="score num">${sc.right}/${sc.total}</span><div class="sum-name"><span class="h3 ellip">${esc(pname(p))}</span><span class="small muted ellip">Handed in ${esc(when)}</span></div></div>`;
   if (!rows.length) return h;
   const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
@@ -2389,25 +2276,18 @@ function renderPaperSheet(paperId) {
 }
 
 function renderSettings() {
-  // 一块四行（左标签、右控件），保存与结果同一行；阶梯说明默认收起；导出一行
-  return `<section class="panel"><p class="h2">Settings</p>
+  // 一块两行（左标签、右控件），改一项存一项，存好在块底出一个小 Saved；阶梯说明默认展开
+  return `<section class="panel">
     <div class="form-rows">
       <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
       <p class="form-row"><span class="hint small muted">Today, new exam papers and new exercises use this person.</span></p>
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
-      <label class="form-row"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
-      <label class="form-row"><span>Exam papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
-      <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows at the bottom of the Today box.</span></p>
     </div>
-    <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button>${S.settingsMsg ? `<span class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</span>` : ''}</div>
+    ${S.settingsMsg ? '<p class="small saved" role="status">Saved</p>' : ''}
   </section>
-  <details class="panel"><summary>How the review ladder works</summary>
+  <details class="panel" open><summary>How the review ladder works</summary>
     <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On an exam paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
-  </details>
-  <section class="panel">
-    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): the default owner\'s exercises (with all answers) and papers, every question set and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
-    ${S.exportMsg ? `<p class="note ${S.exportMsg.kind}">${esc(S.exportMsg.text)}</p>` : ''}
-  </section>`;
+  </details>`;
 }
 
 /* ---------- Games ---------- */
@@ -2630,7 +2510,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2651,7 +2531,6 @@ document.addEventListener('click', async ev => {
       case 'paper-page': S.paperPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'list-dir': S.listSort.dir = S.listSort.dir === 'desc' ? 'asc' : 'desc'; S.listPage = 1; render(); break;
       case 'list-page': S.listPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
-      case 'export': await exportAll(); break;
 
       case 'start-daily': {
         // 每次都按这一科此刻的一批（先没做过的、再最久没用的）新组一张；带上这一科最新那张没交的每日卷上、新卷也有的题的回答；写好新卷后删掉本人这一科所有没交的每日卷；没有到期题就不组卷
@@ -2673,8 +2552,8 @@ document.addEventListener('click', async ev => {
         render(); window.scrollTo(0, 0); break;
       }
       case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
-      case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); window.scrollTo(0, 0); break;
-      case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); window.scrollTo(0, 0); break;
+      case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); break;
+      case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); break;
       case 'exit-run': {
         // 每日卷：先把回答记进本地的卷子（快照还没回来时，马上再开始这一科也能带上），再把没写的写掉
         const run = S.run, rp = run && S.papers.find(x => x.id === run.paperId);
@@ -2788,13 +2667,7 @@ document.addEventListener('click', async ev => {
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
       case 'goto-ex': S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; S.drafts = S.drafts.filter(d => !d.editId); render(); window.scrollTo(0, 0); break;
-      case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
 
-      case 'save-settings': {
-        const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
-        await S.db.doc('settings/' + S.me).set(v);
-        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} per batch; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'exam paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
-      }
     }
   } catch (err) {
     const msg = dbErr(err);
@@ -2829,8 +2702,16 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'rec-set') { S.recSet = t.value; const x = recSource(); if (x) S.recSubject = x.subject; render(); return; }
-  if (t.id === 'rec-subject') { S.recSubject = t.value; render(); return; }
+  if (t.id === 'set-owner' || t.id === 'set-limit') {
+    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值
+    try {
+      const v = readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value }, S.me);
+      await S.db.doc('settings/' + S.me).set(v);
+      S.settings = v; S.settingsMsg = { kind: 'ok' }; S.errMsg = null;
+    } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
+    render(); return;
+  }
+  if (t.id === 'rec-set') { S.recSet = t.value; render(); return; }
   if (t.dataset.photos) { await addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
@@ -3015,8 +2896,8 @@ async function recognise() {
   if (!photos.length && !text) { S.recMsg = { kind: 'err', text: 'Add a photo or paste the question text first.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   const t0 = Date.now(), tm = {}, files = photos.map(p => p.file);
-  // 上一次识别成功、只是有照片没传上时，留下了结果；照片、文字、科目都没变就只补传，不再识别
-  const sig = [S.recSubject, text, photos.map(p => p.uid).join(',')].join('\u0001');
+  // 上一次识别成功、只是有照片没传上时，留下了结果；照片、文字都没变就只补传，不再识别
+  const sig = [text, photos.map(p => p.uid).join(',')].join('\u0001');
   const pend = S.recPending && S.recPending.sig === sig ? S.recPending : null;
   S.recPending = null;
   // 上传与识别同时开始（识别只要原文件，asset id 在生成草稿时才用）；多张照片之间的上传按顺序，有一张没传上也接着传别的
@@ -3035,7 +2916,7 @@ async function recognise() {
     const opts = readOptions(t0, tm);
     if (files.length) opts.images = files;
     S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
-    try { out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), opts); }
+    try { out = await S.sample.json(recognisePrompt('', text, files.length), opts); }
     catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
     S.recCtl = null;
   }
@@ -3051,7 +2932,7 @@ async function recognise() {
     const { drafts, sets } = r, imageIds = photos.map(p => p.assetId);
     const setKeys = sets.map((x, i) => {
       const member = drafts.find(dd => dd.set === i);
-      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || S.recSubject, images: imageIds }));
+      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || '', images: imageIds }));
       S.setDrafts.push(sd);
       return sd.key;
     });
@@ -3167,20 +3048,6 @@ async function recogniseMore() {
   }
 }
 
-/* ---------- 导出 ---------- */
-async function exportAll() {
-  const now = nowLocal();
-  const data = exportData(S.exercises, S.sets, S.papers, S.settings, now, S.userIds);
-  const text = '# Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
-  try {
-    await S.downloads.save({ filename: `arena-export-${now.slice(0, 10)}.yaml.txt`, data: text });
-    S.exportMsg = { kind: 'ok', text: `Handed to the browser to save (default owner ${userName(S.settings.defaultOwner)} only): ${plural(S.exercises.length, 'exercise')}, ${plural(S.sets.length, 'question set')}, ${plural(S.papers.length, 'paper')}.` };
-  } catch (err) {
-    S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `Export failed (${err && err.code || 'unknown'}).` };
-  }
-  render();
-}
-
 /* ---------- 修剪每日卷 ---------- */
 let pruned = false;
 function pruneDailyPapers() {
@@ -3195,10 +3062,10 @@ async function boot() {
   render();
   if (!window.claude || !window.claude.use) { S.status = 'nodb'; render(); return; }
   const use = n => window.claude.use(n).catch(() => null);
-  const [db, assets, sample, downloads, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('downloads'), use('user')]);
+  const [db, assets, sample, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('user')]);
   const me = user ? (await user.me()).id : null;
   if (!db || !me) { S.status = 'nodb'; render(); return; }
-  Object.assign(S, { db, assets, sample, downloads, user, me });
+  Object.assign(S, { db, assets, sample, user, me });
   S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
   try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}
