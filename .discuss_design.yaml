@@ -1,5 +1,5 @@
 # 工作区配置：内核检查与 agent 都读它。列表只用「键:」之下一行一个「  - 项」的写法；integrations 是「  集成名:」之下缩进的配置。
-toolkit: v0.8.0
+toolkit: v0.10.0
 template: software
 context: CONTEXT.md
 design:
@@ -11,13 +11,13 @@ design:
 terms:
 integrations:
 managed:
-  # toolkit: v0.8.0
+  # toolkit: v0.10.0
   - file 669ec304c1ab96eacd6b5018b2dbc6f3e374312ef6a326e24467cdbb4b93cf8b .agents/skills/design-discuss/DISCUSSION-FILE.md
-  - file 7c5f95276eb21188a8f6f3e6f5def1ac07599ceb2cb55e3ac130fc4bb8a09550 .agents/skills/design-discuss/KERNEL.md
-  - file b4b8a3427be86f653ed98643d4dd47a413c4394548a20c41566b80737775a50c .agents/skills/design-discuss/REVIEW-BRIEF.md
-  - file 937b6b3254319b5ed0351074bb96ebdd25914d86f5942c598bc0ffaae37eecf2 .agents/skills/design-discuss/SKILL.md
+  - file 9d9824530acf133801ae34f0a3a2c7fcbf854f15bbd9767de961116b914a9b91 .agents/skills/design-discuss/KERNEL.md
+  - file 8df415bea4f948e95271cfc9b5904109831372ebd32af5787b98082c03dbf17e .agents/skills/design-discuss/REVIEW-BRIEF.md
+  - file efaf6b1e949769bc89391dd1a78dbc16ea6d86d5d91320d0a76b644513cb2f31 .agents/skills/design-discuss/SKILL.md
   - file f3612142f9e3c32779fea1f45172d670e8d3b4bce76b035252a2b796d17bc95d .agents/skills/design-discuss/WRITING.md
-  - file 89898c18e98c80724ebb6f6110f441cf699f8b7138c51a685a3b173d28981e75 .agents/skills/design-discuss/check.sh
+  - file f8c46325285351345415a35cd8777cfcb7d84a69630440a9f5288fd156440c5e .agents/skills/design-discuss/check.sh
   - file 756ba4afd2fd31ef93f55b33152f4ccf68c868cc303376a94c1c7ff33e4cbb29 .agents/skills/design-discuss/visible-text.awk
   - link 9b4e02f409ec5eded3b31b2e34d4c54c70dbb038819eb962584bcdd9097db400 .claude/skills/design-discuss
   - file b29392c4f33700f75abbdb47e5cd9d24bdbf43b047694b526954d849a727f9a1 .agents/skills/design-research/BRIEF.md

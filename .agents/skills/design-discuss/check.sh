@@ -273,10 +273,10 @@ for l in .claude/skills/*; do
   fi
 done
 
-# ── 8. 本机有更新的 current 时提示（不报红） ────────────────────
-cur=$(cat "$HOME/.discuss-design/current/VERSION" 2>/dev/null || true)
+# ── 8. 本机装着其他版本时提示（不报红） ────────────────────
+cur=$(cat "$HOME/.agents/skills/design-init/VERSION" 2>/dev/null || true)
 if [ -n "$cur" ] && [ "$cur" != "$recorded" ]; then
-  echo "提示：本机 current 是 ${cur}，本工作区用的是 ${recorded}；要换版本就用 design-init 升级本工作区"
+  echo "提示：本机安装的是 ${cur}，本工作区用的是 ${recorded}；要换版本就用 design-init 升级本工作区"
 fi
 
 
