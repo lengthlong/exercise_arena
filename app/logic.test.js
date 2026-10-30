@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,dayRates,axisMax,reviewLine,goalLines,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -696,4 +696,37 @@ const sdp = [
 assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-29', 30)), ['OLD', 'OLDLEG']);   // 2026-09-29 恰好 30 天，不删
 assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-30', 30)), ['OLD', 'OLDLEG', 'EDGE']);
 assert.deepStrictEqual(ids(L.staleDailyPapers([], sdv, 'uA', '2026-10-29', 30)), []);
+// 一张卷交卷前后的两架梯子：在本人第一条带本卷 paperId 的作答处切开；本卷之后的、别人的、别的卷的作答不影响；未写入的取 results，主观题要 saved 才算
+const prl = (exs, results, saved) => L.paperLadders(exs, 'uS', 'P', results || {}, saved || {});
+const prx = (id, atts, format) => ({ id, format: format || 'mcq', createdAt: '2026-10-01', attempts: atts });
+const prP = (d, r, by) => ca(d, r, 'daily', by, 'P');
+let prw = prl([prx('a', [ca('2026-10-12', 'right'), prP('2026-10-14', 'right')])]);   // 2 → 3，已写入
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), { ...prw.up }, prw.down, prw.toMark], [[0, 1, 0, 0, 0], [0, 0, 1, 0, 0], { 2: 0, 3: 1, 4: 0, 5: 0 }, 0, 0]);
+assert.deepStrictEqual(Array.from(prw.flows, f => [f.from, f.to, f.n]), [[2, 3, 1]]);
+prw = prl([prx('a', [prP('2026-10-14', 'right')]), prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right'), prP('2026-10-14', 'wrong')]), prx('c', [prP('2026-10-14', 'partial')])]);
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.down], [[2, 0, 1, 0, 0], [2, 1, 0, 0, 0], 1]);   // a 1 → 2；b 3 → 1；c 部分对不动
+assert.deepStrictEqual(Array.from(prw.flows, f => [f.from, f.to, f.n]), [[1, 2, 1]]);
+// 第 4 级做对即掌握，落在第 5 项
+prw = prl([prx('a', ['2026-10-02', '2026-10-04', '2026-10-08'].map(d => ca(d, 'right')).concat([prP('2026-10-15', 'right')]))]);
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.up[5]], [[0, 0, 0, 1, 0], [0, 0, 0, 0, 1], 1]);
+// 别人的作答、别的卷的作答不算；本卷之后的作答不算
+prw = prl([prx('a', [prP('2026-10-14', 'right', 'uA'), ca('2026-10-13', 'right', 'daily', 'uS', 'Q')])], { a: 'right' });
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[0, 1, 0, 0, 0], [0, 0, 1, 0, 0]]);   // 别的卷 Q 的在先，算在交卷前；本卷还没写入，取 results；uA 的不算
+prw = prl([prx('a', [prP('2026-10-14', 'right'), ca('2026-10-14', 'right', 'daily', 'uS', 'Q')])]);
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[1, 0, 0, 0, 0], [0, 1, 0, 0, 0]]);   // 同日的另一张卷 Q 在 P 之后：不算进 P 的右梯
+// 还没写入：客观题取 results；主观题没 saved 留在原级并计入 toMark，有 saved 才算
+const pro = [prx('a', [ca('2026-10-12', 'right')]), prx('o', [ca('2026-10-12', 'right')], 'open')];
+prw = prl(pro, { a: 'right', o: 'right' }, {});
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.toMark], [[0, 2, 0, 0, 0], [0, 1, 1, 0, 0], 1]);
+prw = prl(pro, { a: 'right', o: 'right' }, { o: true });
+assert.deepStrictEqual([Array.from(prw.right), prw.toMark], [[0, 0, 2, 0, 0], 0]);
+prw = prl(pro, {}, {});
+assert.deepStrictEqual([Array.from(prw.right), prw.toMark, prw.flows.length], [[0, 2, 0, 0, 0], 1, 0]);
+// 交卷前已掌握：仍掌握的两架都不放；做错的左梯记 1 级并算下降
+const prm = ['2026-10-02', '2026-10-04', '2026-10-08', '2026-10-15'].map(d => ca(d, 'right'));
+prw = prl([prx('a', prm.concat([prP('2026-10-20', 'right')])), prx('b', prm.concat([prP('2026-10-20', 'wrong')]))]);
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.masteredBefore, prw.down], [[1, 0, 0, 0, 0], [1, 0, 0, 0, 0], 1, 1]);
+// 更早的检验卷作答被 ladderInput 过滤：做对不动、做错回第 1 级
+prw = prl([prx('a', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right', 'paper'), prP('2026-10-14', 'right')]), prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), prP('2026-10-14', 'right')])]);
+assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]);   // a 2 → 3；b 1 → 2
 console.log('all logic tests passed');

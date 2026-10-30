@@ -1011,6 +1011,43 @@ function weekLadders(todo, from, to) {
   const flows = Object.entries(flowMap).map(([k, n]) => { const [f, t] = k.split('>').map(Number); return { from: f, to: t, n }; }).sort((x, y) => x.from - y.from || x.to - y.to);
   return { left, right, fresh, masteredBefore, up, down, flows };
 }
+function levelOf(atts) {
+  // 一串阶梯输入作答推出的级：1–4，掌握为 5；规则同 ladderAt / deriveState
+  let step = 1, mastered = false;
+  for (const a of atts) {
+    if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
+    if (a.result === 'right') { if (step === 4) mastered = true; else step++; }
+    else if (a.result !== 'partial') step = 1;
+  }
+  return mastered ? 5 : step;
+}
+function paperLadders(exs, uid, paperId, results, saved) {
+  // 一张卷交卷前后的两架梯子，形状同 weekLadders：左为本卷作答之前（在本人第一条带本卷 paperId 的阶梯输入作答处切开，按数组位置，之后的不算），右为加上本卷作答之后
+  // 本卷作答已写入的取已有的；还没写入的取 results，主观题要 saved 才算；没有结果的留在原级。toMark 是还没自评的主观题数
+  // 交卷前已掌握：交卷后仍掌握的计 masteredBefore、两架都不放；不再掌握的左梯记 1 级并算 down
+  const left = [0, 0, 0, 0, 0], right = [0, 0, 0, 0, 0], up = { 2: 0, 3: 0, 4: 0, 5: 0 }, flowMap = {};
+  let masteredBefore = 0, down = 0, toMark = 0;
+  for (const e of exs) {
+    const input = ladderInput((e.attempts || []).filter(a => a.by === uid));
+    const i = input.findIndex(a => a.paperId === paperId);
+    let before, after;
+    if (i >= 0) { before = input.slice(0, i); after = input.slice(0, i + 1); }
+    else {
+      const r = (results || {})[e.id], ready = r && (e.format !== 'open' || (saved || {})[e.id]);
+      if (e.format === 'open' && !ready) toMark++;
+      before = input; after = ready ? input.concat([{ result: r }]) : input;
+    }
+    let a = levelOf(before);
+    const b = levelOf(after);
+    if (a === 5 && b === 5) { masteredBefore++; continue; }
+    if (a === 5) { a = 1; down++; }
+    else if (b < a) down++;
+    left[a - 1]++; right[b - 1]++;
+    if (b > a) { up[b]++; const k = a + '>' + b; flowMap[k] = (flowMap[k] || 0) + 1; }
+  }
+  const flows = Object.entries(flowMap).map(([k, n]) => { const [f, t] = k.split('>').map(Number); return { from: f, to: t, n }; }).sort((x, y) => x.from - y.from || x.to - y.to);
+  return { left, right, fresh: 0, masteredBefore, up, down, flows, toMark };
+}
 function ladderShares(ladder) {
   // 梯子各级的百分比：1–4 级与 mastered 五项的题数与百分比；百分比取整、按最大余数补足到 100；总数为 0 时全为 0
   const keys = [1, 2, 3, 4, 'mastered'], ns = keys.map(k => (ladder && ladder[k]) || 0), tot = ns.reduce((a, b) => a + b, 0);
@@ -1476,7 +1513,7 @@ function render() {
   if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
-  if (S.status === 'ready' && S.tab === 'today' && !S.run) armLadders();
+  if (S.status === 'ready' && ((S.tab === 'today' && !S.run) || (S.run && S.run.phase === 'review'))) armLadders();
 }
 
 /* ---------- Today ---------- */
@@ -1864,6 +1901,7 @@ function renderPaperRun() {
     h += `<section class="panel"><div class="sum-head"><p class="h3 grow">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p></div>
       <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
       ${isDaily(p) ? runCoinsLine(p, exs) : ''}
+      ${isDaily(p) ? `<div class="run-ladder"><p class="h3">Ladder</p>${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}
       <p class="muted small">${toMark ? 'Check your written answers against the model answers and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
   }
   if (R.phase === 'answer' && R.warn) {
