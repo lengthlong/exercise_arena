@@ -282,7 +282,6 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ladpair .nu { font-weight: 600; fill: var(--green); }
 .ladpair .nd { font-weight: 600; fill: var(--c-wrong); }
-.ladpair .new { text-anchor: middle; font-weight: 600; fill: var(--pen); }
 /* 阶梯分段横条（Exercises 每科小卡） */
 .ladbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
 .ladbar i { display: block; height: 100%; }
@@ -1601,7 +1600,7 @@ function climberSvg(x, y, k) {
     <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>${body}</g></g>`;
 }
 function ladderPair(wl, key) {
-  // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级下写「+N new」；
+  // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级后写本周新录的题数「↑N」（绿）；
   // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↓5」（红）；data-flows 给小人跑跳的动画（armLadders）
   const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
   // 木头：横档与扶手用木纹渐变，扶手上几道浅色木纹；横档先画、扶手压在上面，像榫进扶手里
@@ -1613,7 +1612,7 @@ function ladderPair(wl, key) {
   let g = ladder(LX) + ladder(RX);
   for (let k = 1; k <= 5; k++) {
     g += `<text class="lv v${k}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
-    if (k < 5) g += num(NL, k, wl.left[k - 1]);
+    if (k < 5) g += num(NL, k, wl.left[k - 1], k === 1 ? wl.fresh : 0);
     g += num(NR, k, wl.right[k - 1], k > 1 ? wl.up[k] : 0, k === 1 ? wl.down : 0);
   }
   const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
@@ -1624,7 +1623,6 @@ function ladderPair(wl, key) {
     if (wl.left[k - 1]) g += climberSvg(LX, y(k) - 3.5, k);
     if (wl.right[k - 1]) g += climberSvg(RX, y(k) - 3.5, k);
   }
-  if (wl.fresh) g += `<text class="new num" x="${LX}" y="${bot + 16}">+${wl.fresh} new</text>`;
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
   const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
