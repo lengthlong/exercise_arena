@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -635,6 +635,45 @@ const pgs = L.photoGroups([pg('a'), pg('b', { recordedAt: '2026-10-20T09:00' }),
 assert.deepStrictEqual(Array.from(pgs, g => [g.key, g.subject, g.ids.join(), g.images.join()]),
   [['math:p9', 'math', 'h', 'p9'], ['math:p1,p2', 'math', 'a,b', 'p1,p2'], ['math:p2,p1', 'math', 'd', 'p2,p1'], ['science:p1,p2', 'science', 'c', 'p1,p2']]);   // d、c 同刻录入，按 key 排
 assert.deepStrictEqual(Array.from(L.photoGroups([])), []);
+// 录入页「From saved material」的材料列表：题组与照片批次合成一个列表，按最近录入新到旧；label 依次取标题、出处、第一道已录题题干（去 [[ ]] 记号，前 40 个字）、Untitled
+const msx = (id, o) => Object.assign({ id, subject: 'english', createdAt: '2026-10-01', images: [] }, o || {});
+const mex = (id, o) => Object.assign({ id, subject: 'english', createdAt: '2026-10-01', stem: 'Q ' + id }, o || {});
+const mats = L.savedMaterials(
+  [msx('s1', { title: 'Flyer', text: 'Come to the [[carnival]] on Sunday', images: ['m1'] }), msx('s2', { source: '2026 SA2 Paper 2' }), msx('s3'), msx('s4', { title: 'Old', createdAt: '2026-01-01' }), msx('empty', { title: 'No questions' })],
+  [mex('a', { setId: 's1', setPos: 2, recordedAt: '2026-10-05T10:00' }), mex('b', { setId: 's1', setPos: 1, recordedAt: '2026-10-20T08:00', stem: 'I [[recieve]] it' }),
+   mex('c', { setId: 's2', recordedAt: '2026-10-10T09:00' }),
+   mex('d', { setId: 's3', stem: 'The [[quick]] brown fox jumps over the lazy dog and keeps running far away' }),
+   mex('e', { setId: 's4', createdAt: '2026-01-01' }),
+   mex('p1', { images: ['x1'], recordedAt: '2026-10-15T09:00', subject: 'math', source: 'Later source' }), mex('p2', { images: ['x1'], recordedAt: '2026-10-12T09:00', subject: 'math', source: 'Maths booklet Q3', stem: 'Earlier' }),
+   mex('p3', { images: ['y1'], recordedAt: '2026-10-18T09:00', subject: 'math', stem: 'Only [[stem]] here' }), mex('n', { stem: 'no photo no set' })]);
+assert.deepStrictEqual(Array.from(mats, m => [m.id, m.kind]), [['s1', 'set'], ['photos:math:y1', 'photos'], ['photos:math:x1', 'photos'], ['s2', 'set'], ['s3', 'set'], ['s4', 'set']]);   // 没有错题的题组、没题组没照片的错题都不进；s3 无 recordedAt 退回 createdAt（10-01）排在 s2 之后，s4 最后
+const mmat = Object.fromEntries(Array.from(mats, m => [m.id, m]));
+assert.strictEqual(mmat.s1.last, '2026-10-20T08:00');   // 取组内最大
+assert.strictEqual(mmat.s3.last, '2026-10-01T00:00');
+assert.deepStrictEqual([mmat.s1.title, mmat.s1.text, mmat.s1.images.join(), mmat.s1.ids.join()], ['Flyer', 'Come to the [[carnival]] on Sunday', 'm1', 'b,a']);   // 题组里的 ids 按组内顺序 setPos
+assert.deepStrictEqual(Array.from(mmat.s1.stems), ['I recieve it', 'Q a']);   // 题干去记号，顺序同 ids
+assert.deepStrictEqual([mmat.s2.label, mmat.s2.source], ['2026 SA2 Paper 2', '2026 SA2 Paper 2']);
+assert.strictEqual(mmat.s1.label, 'Flyer');
+assert.strictEqual(mmat.s3.label, 'The quick brown fox jumps over the lazy');   // 题干去记号后取前 40 个字（含空格）并去尾空白
+assert.strictEqual(mmat['photos:math:x1'].label, 'Maths booklet Q3');   // 照片批次取批里最早录入的 p2 的出处，不取后来的 p1
+assert.deepStrictEqual([mmat['photos:math:x1'].source, mmat['photos:math:x1'].text, mmat['photos:math:x1'].images.join(), mmat['photos:math:x1'].ids.join(), mmat['photos:math:x1'].last], ['Maths booklet Q3', '', 'x1', 'p2,p1', '2026-10-15T09:00']);
+assert.strictEqual(mmat['photos:math:y1'].label, 'Only stem here');
+assert.strictEqual(L.savedMaterials([msx('s9', { images: undefined })], [mex('z', { setId: 's9' })])[0].images.length, 0);
+assert.strictEqual(L.savedMaterials([msx('s9')], [mex('z', { setId: 's9', stem: '' })])[0].label, 'Untitled');
+assert.deepStrictEqual(Array.from(L.savedMaterials([], [])), []);
+// 搜索：科目为空是全部；搜索词去首尾空白，空即全部；不分大小写，在 label、出处、材料文字（去记号）、已录题干里找子串
+assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '', '')).length, 6);
+assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '   ', '')).length, 6);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '', 'math')).map(m => m.id), ['photos:math:y1', 'photos:math:x1']);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, ' flyer ', '')).map(m => m.id), ['s1']);   // label
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'sa2 paper', '')).map(m => m.id), ['s2']);   // 出处
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'booklet', '')).map(m => m.id), ['photos:math:x1']);   // 照片批次的出处（最早那道的）
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'earlier', '')).map(m => m.id), ['photos:math:x1']);   // 照片批次里的题干
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'the carnival on', '')).map(m => m.id), ['s1']);   // 材料文字去记号
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'recieve it', '')).map(m => m.id), ['s1']);   // 题干去记号
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'RECIEVE', 'english')).map(m => m.id), ['s1']);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'recieve', 'math')).map(m => m.id), []);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'zzz', '')).map(m => m.id), []);
 // 按文档缓存视图：同一批错题对象、同一用户连调两次返回同一个视图对象；某道错题换了对象（加了作答）只有它重算；换用户不串
 const cx1 = { id: 'k1', createdAt: '2026-10-01', attempts: [by('uA', '2026-10-02', 'right')] }, cx2 = { id: 'k2', createdAt: '2026-10-01', attempts: [] };
 const cv1 = L.viewFor([cx1, cx2], 'uA'), cv2 = L.viewFor([cx1, cx2], 'uA');

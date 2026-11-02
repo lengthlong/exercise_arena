@@ -7,6 +7,7 @@
   加载：错题与卷子只订阅默认归属人的，错题视图按文档缓存（DATA.md「加载」）；已交每日卷满 30 天后由页面删除（discuss 0032）。
   照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
+  录入：从已存材料补录改成两格切换里的搜索、筛选、分页卡片列表（discuss 0035）。
 -->
 <title>Exercise Arena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -310,6 +311,22 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
 .tray-x:hover { border-color: var(--red); color: var(--red); }
 .rec-go { display: flex; }
+.rec-seg { justify-self: start; max-width: 100%; }
+.rec-go .row { align-items: center; }
+.mat-sel { overflow-wrap: anywhere; }
+.mat-tools { display: grid; gap: 8px; }
+.mat-tools input[type="search"] { width: 100%; box-sizing: border-box; }
+.mats { display: grid; gap: 8px; }
+.mat { display: flex; gap: 10px; align-items: stretch; text-align: left; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.mat:hover:not(:disabled) { border-color: var(--pen); }
+.mat.picked { border: 2px solid var(--pen); background: var(--pen-soft); padding: 7px; }
+.mat:disabled { cursor: not-allowed; opacity: .7; }
+.mat-thumb { flex: none; width: 72px; height: 72px; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--rule); display: grid; }
+.mat-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mat-txt { font-size: 10.5px; line-height: 1.3; color: var(--muted); padding: 4px; overflow: hidden; }
+.mat-body { display: grid; gap: 3px; align-content: start; min-width: 0; }
+.mat-top { display: flex; gap: 6px; flex-wrap: wrap; }
+.mat-label { font-weight: 600; overflow-wrap: anywhere; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .filters > * { min-width: 0; }
@@ -1254,6 +1271,32 @@ function photoGroups(exs) {
   out.sort((a, b) => String(b.last).localeCompare(String(a.last)) || a.key.localeCompare(b.key));
   return out.map(g => ({ key: g.key, images: g.images, subject: g.subject, ids: g.ids }));
 }
+function savedMaterials(sets, exercises) {
+  // 录入页「From saved material」的列表：有错题指向的题组，加上 photoGroups 的照片批次，合成一个列表，按最近录入（组内错题 recordedKey 的最大值）新到旧排，相同按 id；现算、不存
+  const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
+  const labelOf = (title, source, stem) => String(title || '').trim() || String(source || '').trim() || strip(stem).trim().slice(0, 40).trim() || 'Untitled';
+  const lastOf = items => items.reduce((m, e) => (String(recordedKey(e)) > m ? String(recordedKey(e)) : m), '');
+  const out = [];
+  for (const x of sets) {
+    const items = exercises.filter(e => e.setId === x.id).sort(cmpSetPos);
+    if (!items.length) continue;
+    out.push({ id: x.id, kind: 'set', subject: x.subject, title: x.title || '', source: x.source || '', text: x.text || '', images: Array.isArray(x.images) ? x.images.slice() : [], ids: items.map(e => e.id), stems: items.map(e => strip(e.stem)), last: lastOf(items), label: labelOf(x.title, x.source, items[0].stem) });
+  }
+  const byId = new Map(exercises.map(e => [e.id, e]));
+  for (const g of photoGroups(exercises)) {
+    const items = g.ids.map(id => byId.get(id)).filter(Boolean);   // photoGroups 已按录入先后排，第一道是最早录入的
+    out.push({ id: 'photos:' + g.key, kind: 'photos', subject: g.subject, title: '', source: items[0].source || '', text: '', images: g.images.slice(), ids: g.ids.slice(), stems: items.map(e => strip(e.stem)), last: lastOf(items), label: labelOf('', items[0].source, items[0].stem) });
+  }
+  return out.sort((a, b) => b.last.localeCompare(a.last) || String(a.id).localeCompare(String(b.id)));
+}
+function matchMaterial(item, query, subject) {
+  // 材料列表的搜索与科目筛选：科目为空是全部；搜索词去首尾空白，空即全部；不分大小写，在 label、出处、材料文字（去 [[ ]] 记号）、已录题干里找子串
+  if (subject && item.subject !== subject) return false;
+  const k = String(query || '').trim().toLowerCase();
+  if (!k) return true;
+  const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
+  return [item.label, item.source, strip(item.text)].concat(item.stems || []).join('\n').toLowerCase().includes(k);
+}
 /* LOGIC:END */
 </script>
 
@@ -1308,7 +1351,7 @@ const S = {
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recSet: '', recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
+  drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matSubject: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, confirmDel: null,
@@ -1835,40 +1878,59 @@ function subjectOptions(sel) {
   return `<option value="">Choose subject</option>` + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
 }
 
+const MAT_PAGE = 5;
+function resetRecMode() {
+  // 每次进入 Record 页都停在 New photos or text；所选材料、给 AI 的提示与列表的搜索、筛选、页码都不保留
+  S.recMode = 'new'; S.recSet = ''; S.recHint = ''; S.matQuery = ''; S.matSubject = ''; S.matPage = 1;
+}
+function materialCard(m, picked, off) {
+  const thumb = m.images.length ? `<img src="${blobUrl(m.images[0])}" alt="" loading="lazy">` : `<span class="mat-txt">${esc(plain(m.text).trim().slice(0, 60))}</span>`;
+  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off ? 'disabled' : ''}>
+    <span class="mat-thumb">${thumb}</span>
+    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span></span>
+  </button>`;
+}
 function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
   const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
-  let h = `<section class="panel">
-    <p class="h2">Record exercises</p>`;
-  // 从已录的材料补录：题组，或一批共用照片的独立题。选了其中一个时不拍照，文字框改为给 AI 的提示，科目跟着它
+  const saved = S.recMode === 'saved';
   const rs = recSource();
   if (S.recSet && !rs) S.recSet = '';
-  const subj = x => rs ? '' : esc(SUBJ[x.subject] ? SUBJ[x.subject].en : x.subject) + ' · ';
-  const fits = x => !rs || x.subject === rs.subject;
-  const recSets = S.sets.filter(x => fits(x) && S.exercises.some(e => e.setId === x.id))
-    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || String(a.title || '').localeCompare(String(b.title || '')));
-  const recGroups = photoGroups(S.exercises).filter(fits);
-  const groupLabel = g => { const e = S.exercises.find(x => x.id === g.ids[0]); return (e && (e.source || plain(e.stem).trim().slice(0, 30).trim())) || 'Untitled'; };
-  h += `<label class="f"><span>From saved material</span><select id="rec-set" ${busy ? 'disabled' : ''}><option value="">— New photos or text</option>${recSets.map(x => `<option value="${esc(x.id)}" ${S.recSet === x.id ? 'selected' : ''}>${subj(x)}${esc(x.title || 'Untitled')} · ${S.exercises.filter(e => e.setId === x.id).length} recorded</option>`).join('')}${recGroups.map(g => `<option value="photos:${esc(g.key)}" ${S.recSet === 'photos:' + g.key ? 'selected' : ''}>${subj(g)}Photos · ${esc(groupLabel(g))} · ${g.ids.length} recorded</option>`).join('')}</select></label>`;
-  if (rs && rs.kind === 'set') h += `<p class="small muted">AI reads this set's material and drafts the questions not recorded yet.</p>`;
-  if (rs && rs.kind === 'photos') h += `<p class="small muted">AI reads these photos and drafts the questions not recorded yet.</p><div class="imgs thumbs">${rs.images.map((id, i) => `<img src="${blobUrl(id)}" alt="Photo ${i + 1}">`).join('')}</div>`;
-  if (canPhoto && !rs) {
-    // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
-    const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
-    h += `<div class="picks">
-      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-camera" data-photos="1" accept="${acc}" capture="environment" ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">📷</span><span class="pick-main">Take photo</span></label>
-      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-files" data-photos="1" accept="${acc}" multiple ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">🖼️</span><span class="pick-main">Choose photos</span></label>
-    </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
-    if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
-  } else if (canSample && !rs) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
-  h += rs ? `<label class="f"><span>Hint for AI (optional)</span><textarea id="rec-text" data-bind="recText" rows="2" placeholder="e.g. Questions 5 to 8 only">${esc(S.recText)}</textarea></label>`
-    : `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>`;
-  h += `<div class="rec-go">
-      <div class="row"><button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button>${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}</div>
+  let h = `<section class="panel">
+    <p class="h2">Record exercises</p>
+    <div class="seg rec-seg" role="group" aria-label="Where the questions come from"><button type="button" data-act="rec-mode" data-v="saved" aria-pressed="${saved}" ${busy ? 'disabled' : ''}>From saved material</button><button type="button" data-act="rec-mode" data-v="new" aria-pressed="${!saved}" ${busy ? 'disabled' : ''}>New photos or text</button></div>`;
+  const go = (label, can) => `<div class="rec-go">
+      <div class="row"><button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy || !can) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button>${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}${label}</div>
     </div>
     ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
-    ${S.recMsg ? `<p class="note ${S.recMsg.kind}" id="rec-note">${esc(S.recMsg.text)}</p>` : ''}
-  </section>`;
+    ${S.recMsg ? `<p class="note ${S.recMsg.kind}" id="rec-note">${esc(S.recMsg.text)}</p>` : ''}`;
+  if (saved) {
+    // 从已录的材料补录：题组，或一批共用照片的独立题。给 AI 的提示、按钮、再是搜索筛选与分页的列表；点一张卡选中，再点另一张就换
+    const all = savedMaterials(S.sets, S.exercises);
+    const shown = all.filter(m => matchMaterial(m, S.matQuery, S.matSubject));
+    const pg = pageSlice(shown, S.matPage, MAT_PAGE);
+    S.matPage = pg.page;
+    h += `<label class="f"><span>Hint for AI (optional)</span><textarea id="rec-hint" data-bind="recHint" rows="2" placeholder="e.g. Questions 5 to 8 only">${esc(S.recHint)}</textarea></label>`;
+    h += go(rs ? `<span class="small muted mat-sel">Selected: ${esc((all.find(m => m.id === rs.id) || { label: '' }).label)}</span>` : `<span class="small muted">Choose material below</span>`, !!rs);
+    h += `<div class="mat-tools"><input type="search" id="mat-q" data-matsearch="1" placeholder="Search title, source, text or questions" value="${esc(S.matQuery)}" aria-label="Search saved material" autocomplete="off">
+      <div class="seg" role="group" aria-label="Subject">${[['', 'All']].concat(SUBJECTS).map(x => `<button type="button" data-act="mat-subj" data-v="${x[0]}" aria-pressed="${S.matSubject === x[0]}">${x[1]}</button>`).join('')}</div></div>`;
+    if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="mat-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="mat-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="mat-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
+    h += !all.length ? `<p class="small muted">Nothing saved yet.</p>` : !shown.length ? `<p class="small muted">No match.</p>`
+      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy)).join('')}</div>`;
+    h += `</section>`;
+  } else {
+    if (canPhoto) {
+      // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
+      const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
+      h += `<div class="picks">
+        <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-camera" data-photos="1" accept="${acc}" capture="environment" ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">📷</span><span class="pick-main">Take photo</span></label>
+        <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-files" data-photos="1" accept="${acc}" multiple ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">🖼️</span><span class="pick-main">Choose photos</span></label>
+      </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
+      if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
+    } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
+    h += `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>`;
+    h += go('', true) + `</section>`;
+  }
   const newDrafts = S.drafts.filter(d => !d.editId);
   const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
   if (newDrafts.length || S.setDrafts.length) {
@@ -2509,7 +2571,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2611,6 +2673,10 @@ document.addEventListener('click', async ev => {
       }
 
       case 'recognise': await recognise(); break;
+      case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } render(); } break;
+      case 'mat-subj': S.matSubject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.matPage = 1; render(); break;
+      case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
+      case 'mat-pick': if (!(S.recBusy || S.recPrep)) { S.recSet = b.dataset.id; render(); } break;
       case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
@@ -2691,6 +2757,11 @@ document.addEventListener('input', ev => {
     const sd = setDraftByKey(t.dataset.s); if (sd && !t.dataset.rerender) sd[t.dataset.f] = t.value;
   } else if (t.dataset.bind) {
     S[t.dataset.bind] = t.value;
+  } else if (t.dataset.matsearch) {
+    // 材料搜索：整页重画（列表与页码随之更新），再把焦点与光标放回搜索框
+    const pos = t.selectionStart;
+    S.matQuery = t.value; S.matPage = 1; render();
+    const el = $('#mat-q'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
   } else if (t.dataset.search) {
     // 搜索：整页重画（题数、Clear filters、翻页随之更新），再把焦点与光标放回搜索框
     const pos = t.selectionStart;
@@ -2710,7 +2781,6 @@ document.addEventListener('change', async ev => {
     } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
     render(); return;
   }
-  if (t.id === 'rec-set') { S.recSet = t.value; render(); return; }
   if (t.dataset.photos) { await addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
@@ -3017,7 +3087,7 @@ async function recogniseMore() {
   } else skipped = ids.length;
   const recordedEx = src.kind === 'set' ? S.exercises.filter(e => e.setId === src.id).sort(cmpSetPos) : src.group.ids.map(id => S.exercises.find(e => e.id === id)).filter(Boolean);
   const recorded = recordedEx.map(e => plain(e.stem) || '(photo only)');
-  const hint = S.recText.trim();
+  const hint = S.recHint.trim();
   let drafts = null, fail = '', stopped = false;
   if (src.kind === 'photos' && !blobs.length) fail = "Couldn't load the photos of this group; nothing to read.";
   else {
@@ -3038,7 +3108,7 @@ async function recogniseMore() {
   if (drafts && drafts.length) {
     for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { subject: src.subject, images: src.kind === 'photos' ? src.images.slice() : [], setRef: src.kind === 'set' ? src.id : '' })));
     S.recMsg = { kind: 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${src.kind === 'set' ? (src.title || 'Untitled') : 'these photos'}". Check each one before saving; the answers were read or worked out by AI.${photoNote}${note}` };
-    S.recText = '';
+    S.recHint = '';
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
