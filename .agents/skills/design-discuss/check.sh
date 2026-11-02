@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 内核检查：在工作区根目录运行（工作区的 ./check.sh 调用本工作区所用版本里的这份脚本）。
 # 读 .discuss_design.yaml；退出码 0 表示通过。最后若有 ./check.local.sh，接着跑它并合并退出码。
-# 只依赖 bash 3.2、find、grep、awk、shasum —— macOS 自带的版本即可。
+# 只依赖 bash 3.2、git、find、grep、awk、shasum —— macOS 自带的版本即可。
 
 set -euo pipefail
 KERNEL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -39,20 +39,63 @@ yaml_list() {
   ' "$CONFIG"
 }
 
-# 按配置的 glob 列出设计文件（find 的 -path 里 * 可跨目录，故 skills/**/*.md 也成立）
+# 工作区实体文件与顶层目录枚举：在 git 仓库里用 git ls-files（跳过忽略目录、子模块内部与嵌套工作树），
+# 并补入 .agents/skills 下的实体文件（覆盖被 .gitignore 中 /.agents/skills/design-* 忽略的用户自有 skill）；
+# 不在 git 仓库里才退回 find。全部文件路径统一为 ./<path> 格式。
+: > "$tmp.files"
+: > "$tmp.tops"
+if [ -e .git ]; then
+  git -c core.quotePath=false ls-files -z --cached --others --exclude-standard > "$tmp.paths" ||
+    die "无法枚举 git 路径，未报告通过"
+  while IFS= read -r -d '' p; do
+    case "$p" in
+      */*) d=${p%%/*} ;;
+      *) d=$p ;;
+    esac
+    [ -d "$d" ] && printf '%s\n' "$d" >> "$tmp.tops"
+    [ -f "$p" ] && [ ! -L "$p" ] && printf './%s\n' "$p" >> "$tmp.files"
+  done < "$tmp.paths"
+  if [ -d .agents/skills ]; then
+    find .agents/skills -type f | sed 's#^\./##; s#^#./#' >> "$tmp.files"
+  fi
+  sort -u "$tmp.files" > "$tmp.all-files"
+  sort -u "$tmp.tops" > "$tmp.tops-sorted"
+else
+  find . -type f -not -path './.git/*' | sort -u > "$tmp.all-files"
+  : > "$tmp.tops-sorted"
+fi
+
+# 按配置的 glob 列出设计文件（* 可跨目录，故 skills/**/*.md 也成立）
 design_files() {
   yaml_list design > "$tmp.patterns" || return
   : > "$tmp.found"
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    find . -type f -path "./$p" -not -path './.git/*' >> "$tmp.found" || return
-  done < "$tmp.patterns"
+  local f rel p p_flat
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel=${f#./}
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      p=${p#./}
+      p_flat=${p//\/\*\*\//\/*}
+      # shellcheck disable=SC2254
+      case "$rel" in
+        $p|$p_flat) printf '%s\n' "$f" >> "$tmp.found"; break ;;
+      esac
+    done < "$tmp.patterns"
+  done < "$tmp.all-files"
   sort -u "$tmp.found"
 }
 
-# 工作区里所有 md 实体文件（不跟符号链接），可再排除若干顶层目录
+# 工作区里所有纳入枚举的 md 实体文件（不跟符号链接），可再按参数排除若干顶层目录
 md_files() {
-  find . -type f -name '*.md' -not -path './.git/*' "$@" | sort
+  local f d
+  while IFS= read -r f; do
+    case "$f" in *.md) ;; *) continue ;; esac
+    for d in "$@"; do
+      case "$f" in "./$d/"*) continue 2 ;; esac
+    done
+    printf '%s\n' "$f"
+  done < "$tmp.all-files"
 }
 
 # ── 0. AGENTS.md 是指向 CLAUDE.md 的符号链接 ───────────────────
@@ -118,9 +161,7 @@ fi
 # 讨论文件只被讨论文件引用；研究文件只被讨论与研究文件引用；publish/ 下的文件不被设计文件与 skill 引用。
 refs() { # $1 = 正则；其余 = 允许引用它的顶层目录
   local re="$1"; shift
-  local args=() d
-  for d in "$@"; do args+=(-not -path "./$d/*"); done
-  md_files "${args[@]}" > "$tmp.refs" || return
+  md_files "$@" > "$tmp.refs" || return
   while IFS= read -r f; do
     grep_maybe -nHE "$re" "$f" || return
   done < "$tmp.refs"
@@ -133,8 +174,20 @@ r=$(refs '(^|[^A-Za-z0-9_-])publish/[A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z]+' discu
 [ -n "$r" ] && { echo "引用了 publish/ 下的文件（发布物非权威）："; echo "$r" | sed 's/^/  /'; fail=1; }
 
 # ── 4. 死链 ─────────────────────────────────────────────────────
-# 跳过 discuss/、research/（冻结的记录，链接过时不算缺陷）与 publish/（正文多为他人所写）。
-md_files -not -path './discuss/*' -not -path './research/*' -not -path './publish/*' > "$tmp.dead-files"
+# 只查配置 design 范围内的 md 与 .agents/skills/ 下的 md；跳过 discuss/、research/ 与 publish/。
+design_files > "$tmp.dead-design"
+{
+  grep_maybe '\.md$' "$tmp.dead-design"
+  while IFS= read -r f; do
+    case "$f" in ./.agents/skills/*.md) printf '%s\n' "$f" ;; esac
+  done < "$tmp.all-files"
+} | sort -u > "$tmp.dead-candidates"
+: > "$tmp.dead-files"
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$f" in ./discuss/*|./research/*|./publish/*) continue ;; esac
+  printf '%s\n' "$f" >> "$tmp.dead-files"
+done < "$tmp.dead-candidates"
 while IFS= read -r f; do
   d=$(dirname "$f")
   grep_maybe -oE '\]\([^)[:space:]]+\)' "$f" | sed -E 's/^\]\((.*)\)$/\1/' > "$tmp.targets"
@@ -273,7 +326,24 @@ for l in .claude/skills/*; do
   fi
 done
 
-# ── 8. 本机装着其他版本时提示（不报红） ────────────────────
+# ── 8. 地图列全顶层目录 ─────────────────────────────────────────
+# 地图取 CLAUDE.md 托管块结束标记之后的表格行（以 | 开头）；每个顶层目录 D 要以 `D/ 或 `D` 的写法出现在里面。
+# 略去点号开头的目录与内核已知的 adr、discuss、research、publish。托管块标记有问题时第 1 项已报，这里不重复。
+if [ ! -e .git ]; then
+  echo "提示：不在 git 仓库里，跳过地图列全顶层目录的检查"
+elif [ -f CLAUDE.md ] && [ "$(grep_maybe -cxF "$begin" CLAUDE.md)" -eq 1 ] && [ "$(grep_maybe -cxF "$end" CLAUDE.md)" -eq 1 ]; then
+  awk -v e="$end" 'on && /^[[:space:]]*\|/ { print } $0 == e { on = 1 }' CLAUDE.md > "$tmp.map"
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    case "$d" in .*|adr|discuss|research|publish) continue ;; esac
+    if ! grep_match -qF -e "\`$d/" "$tmp.map" && ! grep_match -qF -e "\`$d\`" "$tmp.map"; then
+      echo "地图没列出顶层目录 \`$d/\` —— 在 CLAUDE.md 托管块之后的地图表里补一行，写明它回答什么、权威是谁（实现目录写明落实哪些设计文件、冲突时以谁为准）"
+      fail=1
+    fi
+  done < "$tmp.tops-sorted"
+fi
+
+# ── 9. 本机装着其他版本时提示（不报红） ────────────────────
 cur=$(cat "$HOME/.agents/skills/design-init/VERSION" 2>/dev/null || true)
 if [ -n "$cur" ] && [ "$cur" != "$recorded" ]; then
   echo "提示：本机安装的是 ${cur}，本工作区用的是 ${recorded}；要换版本就用 design-init 升级本工作区"
