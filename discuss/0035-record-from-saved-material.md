@@ -4,9 +4,10 @@
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
-| M1 怎样挑已存材料：改成带缩略图、搜索、科目筛选、最近优先的卡片列表，还是只改下拉框 | 已裁 | 用户：A 卡片列表；列表与搜索框不放在 Record 页上，点「From saved material」才在新的对话框里显示 | 二·M1 |
-| M2 Record 页上「From saved material」放哪、选中后页面怎样变 | 已裁 | 用户：B 两格切换「From saved material」|「New photos or text」；为合并用户另一句「点 From saved material 才显示列表」，点中第一格且还没选材料时直接打开对话框（见 M2 正文，核销表里请用户确认） | 二·M2 |
+| M1 怎样挑已存材料：改成带缩略图、搜索、科目筛选、最近优先的卡片列表，还是只改下拉框 | 已裁 | 用户：A 卡片列表；原追加「列表在点 From saved material 后的对话框里」已被 M4 取代，列表直接显示在页面的第一格里 | 二·M1 |
+| M2 Record 页上「From saved material」放哪、选中后页面怎样变 | 已裁 | 用户：B 两格切换「From saved material」|「New photos or text」；列表仍在对话框里；点第一格后怎样打开对话框另立 M4 | 二·M2 |
 | M3 打开 Record 页默认停在哪一格 | 已裁 | 用户：C 始终停在「New photos or text」（推翻推荐 A） | 二·M3 |
+| M4 有了两格切换，选材料还要不要对话框（复审 F3 引出，用户改问） | 已裁 | 用户：不要对话框，列表直接显示在页面里（取代 M1 追加的对话框）；点第一格即在页面上看到搜索框、科目筛选与卡片列表 | 五·M4 |
 
 ## 一、目的
 
@@ -60,14 +61,14 @@
   - 列表上方一个搜索框（匹配标题、出处、材料文字、已录各题题干）与科目筛选（All / English / Math / Science，默认 All）。
   - 列表默认只露出最近几张，「Show all」展开全部（具体个数留给实现定，按手机一屏）；搜索或筛选时直接列出匹配的。
   - 点一张卡就选中；选中后列表收成这一张卡加「Change」，下面是给 AI 的提示框与「Read with AI」。
-  - 用户追加：列表与搜索框不常驻在 Record 页上，点「From saved material」时才在一个新的对话框（或新页面）里显示；选中后对话框关闭，回到 Record 页。
+  - 用户追加（已被 M4 取代）：列表与搜索框不常驻在 Record 页上，点「From saved material」时才在一个新的对话框（或新页面）里显示。
   - 代价：多一块界面与几个纯函数（排序、搜索匹配），Record 页在手机上更长一些。
 - B：保留下拉框，只改项目文字与排序：两类合并、按最近录入排、每项写成「科目 · 标题或出处 · n recorded · 15 Oct」。
   - 代价：仍没有缩略图、没有搜索；材料很多时下拉框依旧长，认不出样子的问题没解决。改动最小。
 
 推荐 A：用户的两条诉求都落在「认出那份材料」上，缩略图与搜索直接解决；B 只能缓解。
 
-裁决：A，并追加「列表与搜索框在点『From saved material』后的对话框里显示」（用户，2026-11-02）。
+裁决：A（用户，2026-11-02）。同时追加过「列表与搜索框在点『From saved material』后的对话框里显示」，当时页面上还没有两格切换；后被 M4 取代：列表直接显示在第一格里。
 
 ## M2 Record 页上「From saved material」放哪、选中后页面怎样变
 
@@ -82,7 +83,7 @@ M1 已定：材料列表在点「From saved material」后的对话框里。现�
 
 推荐 A：已存材料最常用，一次点击就进选择；沿用现在「选了材料就不拍照」的行为，不加新模式。
 
-裁决：B（用户，2026-11-02）。落实时的一处合并（推断，待核销表确认）：用户另说「点 From saved material 才显示列表」，所以点中第一格、且还没选材料时，对话框直接打开，不再要额外的「Choose material」按钮；已选材料时第一格下显示那张卡加「Change」（再开对话框）。选了材料后第二格仍可点，点了就清掉所选材料。
+裁决：B（用户，2026-11-02）。对话框怎么打开不在这一裁决里，见 M4。
 
 ## M3 打开 Record 页默认停在哪一格
 
@@ -97,11 +98,41 @@ M1 已定：材料列表在点「From saved material」后的对话框里。现�
 
 ## 三、核销表
 
+（复审后就地改写；M4 已改为不用对话框，第 2、3 行按它重写。）
+
 | # | 裁决 | 目标文件 | 改动 |
 |---|---|---|---|
-| 1 | M1、M2、M3 | `app/logic.test.js`（先写断言）与 `app/arena.html` 的 `LOGIC:BEGIN…END` | 新增纯函数 `savedMaterials(sets, exercises)`：把有错题指向的题组与 `photoGroups` 合成一个列表，每项含 `id`（题组 id，或 `photos:`＋批 key，与现在 `S.recSet` 的取值相同）、`kind`（`set` 或 `photos`）、`subject`、`title`、`source`、`text`、`images`、`ids`（已录错题 id）、`last`（组内错题 `recordedKey` 的最大值）、`label`（标题，没有用出处，再没有用第一道已录题题干的前 40 个字，都没有写 Untitled）；按 `last` 新到旧排，相同按 `id`。新增 `matchMaterial(item, query, subject)`：科目为空表示全部；`query` 去首尾空白后为空表示全部匹配，否则不分大小写，在 `label`、`source`、`text`、各已录题题干里找子串。两函数加进 `app/logic.test.js` 第 5 行导出列表并写断言（合并与排序、题组与照片批次交叉、`last` 取组内最大、`label` 的退路、搜索命中各字段、科目筛选、空列表）。`photoGroups` 与其断言不动 |
-| 2 | M1 | `app/arena.html` | 新增对话框（`<dialog>`，`showModal`；手机上占满宽、内容可滚、有「Close」）：顶部搜索框与科目筛选（All / English / Math / Science，默认 All）；列表是卡片，每张含首张材料照片缩略图（没有照片用材料文字开头约 60 个字）、科目标签、`label`、「n recorded · 最近录入 15 Oct」，照片批次另有「Photos」小标签；无搜索无筛选时只列前 5 张，下面「Show all (n)」展开全部，有搜索或筛选时列出全部匹配；没有已存材料写「Nothing saved yet」，匹配为空写「No match」。点一张卡：设 `S.recSet` 为该项 `id`、清空 `recText`、关闭对话框。搜索词、科目筛选、展开状态只在对话框内存在，每次打开重置，不存库、不存本地 |
-| 3 | M2、M3 | `app/arena.html` | Record 页最上方两格切换「From saved material」\|「New photos or text」，新状态 `S.recMode`（`'new'` 或 `'saved'`），每次进入页面为 `'new'`，不记上次。点第二格：`recMode='new'`，清掉 `S.recSet`。点第一格：`recMode='saved'`；还没选材料就直接打开对话框，对话框被关掉没选时页面停在第一格，显示「Choose material」按钮。第一格下选了材料后，拍照区与文字框收起，显示那张卡（同对话框里的卡，不含搜索）加「Change」（再开对话框）与现有的「Hint for AI (optional)」文本框与「Read with AI」；`recognise` 仍按 `S.recSet` 是否非空选 `recogniseMore`。识别中（`recBusy` 或 `recPrep`）两格与「Change」都禁用。去掉下拉框 `rec-set` 及其 `change` 分支；`recSource` 里「找不到就清掉 `S.recSet`」的行为保留 |
+| 1 | M1、M2、M3 | `app/logic.test.js`（先写断言）与 `app/arena.html` 的 `LOGIC:BEGIN…END` | 新增纯函数 `savedMaterials(sets, exercises)`：把有错题指向的题组与 `photoGroups` 合成一个列表，每项含 `id`（题组 id，或 `photos:`＋批 key，与现在 `S.recSet` 的取值相同）、`kind`（`set` 或 `photos`）、`subject`、`title`、`source`（题组取自身；照片批次取批里最早录入那道错题的 `source`，与现在的 `groupLabel` 一致）、`text`（材料文字，照片批次为空）、`images`、`ids`（已录错题 id）、`stems`（各已录题题干，去掉 `[[ ]]` 记号）、`last`（组内错题 `recordedKey` 的最大值）、`label`（标题，没有用出处，再没有用第一道已录题题干（去记号）的前 40 个字，都没有写 Untitled；原来是 30 个字，放宽是因为卡片比下拉项宽）；按 `last` 新到旧排，相同按 `id`。新增 `matchMaterial(item, query, subject)`：科目为空表示全部；`query` 去首尾空白后为空表示全部匹配，否则不分大小写，在 `label`、`source`、`text`（去记号）、`stems` 里找子串。两函数加进 `app/logic.test.js` 第 5 行导出列表并写断言（合并与排序、题组与照片批次交叉、`last` 取组内最大、`label` 的各级退路、搜索命中各字段、搜 `recieve it` 能命中 `I [[recieve]] it`、科目筛选、空列表）。`photoGroups` 与其断言不动 |
+| 2 | M1、M4 | `app/arena.html` | 选材料的列表直接显示在页面第一格里，不用对话框：顶部搜索框与科目筛选（All / English / Math / Science，默认 All）；列表是卡片，每张含首张材料照片缩略图（`loading="lazy"`；没有照片用材料文字开头约 60 个字）、科目标签、`label`、「n recorded · 最近录入 15 Oct」；题组卡带「Set」小标签，照片批次卡带「Photos」小标签（同一批照片识别出题组又有独立题时，会出缩略图相同的两张卡，靠这两个标签分辨）；无搜索无筛选时只列前 5 张，下面「Show all (n)」展开全部，有搜索或筛选时列出全部匹配；没有已存材料写「Nothing saved yet」，匹配为空写「No match」。点一张卡：设 `S.recSet` 为该项 `id`，列表收起，换成第 3 行的已选状态。搜索词、科目筛选、展开状态存在 `S` 里（不存库、不存本地），离开 Record 页时重置；搜索输入沿用 Exercises 搜索框的做法：整页重画后把焦点与光标放回搜索框 |
+| 3 | M2、M3、M4 | `app/arena.html` | Record 页最上方两格切换「From saved material」\|「New photos or text」，新状态 `S.recMode`（`'new'` 或 `'saved'`）。每次从别的标签进入 Record 页，`recMode` 设为 `'new'`，同时清掉 `S.recSet` 与给 AI 的提示 `S.recHint`，不记上次（后果：离开 Record 页再回来，已选的材料不保留）。点第二格：`recMode='new'`，清掉 `S.recSet`、`S.recHint`，显示现有的拍照区与文字框。点第一格：`recMode='saved'`，显示第 2 行的列表。选了材料后：列表收成那张已选卡（同列表里的卡）加「Change」（点了清掉 `S.recSet`，列表重新展开）、「Hint for AI (optional)」文本框（新字段 `S.recHint`，与第二格的题目文字 `S.recText` 互不覆盖，两边切换都不丢字）与「Read with AI」；`recognise` 仍按 `S.recSet` 是否非空选 `recogniseMore`，其提示取 `S.recHint`；没选材料时第一格里不显示「Read with AI」。识别中（`recBusy` 或 `recPrep`）两格与「Change」都禁用。去掉下拉框 `rec-set` 及其 `change` 分支、选中后列表只列同科目的限制、选中后的两句说明与照片批次的全部缩略图（卡上只显示首张）；`recSource` 里「找不到就清掉 `S.recSet`」的行为保留 |
 | 4 | M1、M2 | `CONTEXT.md` | 不改：「录入」词条已写「也可以选一个已有题组，或一批已录独立题共用的照片，由 AI 按提示补录还没录的题」，不涉及挑选的界面 |
 | 5 | M1 | `DATA.md` | 不改：列表现算、不存；`last` 取已有字段 `recordedAt`（旧错题退回 `createdAt`），没有新字段 |
-| 6 | —— | 验证（不改文件） | `./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；本地测试壳（Playwright 的 Chromium，模拟 `window.claude`、内存 `db`，造 12 份以上材料：题组与照片批次、三个科目、有与没有标题）走通：默认停在第二格；点第一格弹出对话框且最近录入的在最前、题组与照片批次交叉；搜索（标题、出处、材料文字、题干各命中一例）与科目筛选；「Show all」；点卡后对话框关闭、拍照区收起、卡与「Change」出现；「Change」换一份；点第二格清掉所选；对话框关掉没选时的「Choose material」按钮；没有材料时的「Nothing saved yet」；识别中控件禁用；375 宽对话框与页面无横向滚动。真实 `sample` 的补录、真机触屏、重新发布：不在本轮，重新发布另问用户 |
+| 6 | —— | 验证（不改文件） | `./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；本地测试壳（Playwright 的 Chromium，模拟 `window.claude`、内存 `db`，造 12 份以上材料：题组与照片批次、三个科目、有与没有标题，其中一批照片既有题组又有独立题）走通：默认停在第二格；点第一格看到列表，最近录入的在最前、题组与照片批次交叉；搜索（标题、出处、材料文字、题干各命中一例，输入时焦点不丢）与科目筛选；「Show all」；点卡后列表收起、拍照区不显示、已选卡与「Change」出现；「Change」换一份；点第二格清掉所选；先在第二格贴字、切第一格再切回，文字还在；离开 Record 再回来停在第二格且 `recSet` 已清；没有材料时的「Nothing saved yet」；识别中控件禁用；375 宽页面无横向滚动，缩略图懒加载。真实 `sample` 的补录、真机触屏、重新发布：不在本轮，重新发布另问用户 |
+| 7 | —— | 不改（留白） | 同一批照片识别出题组又有独立题时，补录只给 AI 所选那一项的「已录」清单，选错一项可能重复起草另一项里已录的题。本轮靠「Set」「Photos」标签让用户分清；合成一张卡并带上全部已录题要改 `recogniseMore` 与 `morePrompt`，超出本轮，另开讨论 |
+
+
+## 四、复审
+
+独立复审（新上下文 subagent，2026-11-02）交回主报告与 F1–F8，主 agent 对照源码核验：
+
+- F1（`render()` 整页重画会销毁对话框；`softRender` 只在 `locked()` 时跳过，对话框开着时没有草稿，不受保护）：成立；M4 去掉对话框后此项消失，第 2 行改为沿用 Exercises 搜索框的焦点恢复做法。
+- F2（`recognise` 按 `recSet` 决定补录，进入页面时 `recSet` 不清会与 `recMode` 对不上）：成立，落进第 3 行，并写明后果（离开再回来不保留所选材料）。
+- F3（点第一格自动开对话框不是合并两句话所必需，是新选择）：成立，新题 M4；用户答 M4 时改问「还要不要对话框」，裁为不要，F3 随之不再适用。
+- F4（选卡时清空 `recText` 会丢字、两格互相串）：成立，改为两个字段 `recText` 与 `recHint`，落进第 3 行（机械修补，不改已裁行为）。
+- F5（`savedMaterials` 缺 `stems`；搜索与 `label` 没写去记号；照片批次 `source` 取哪道题；40 字与原 30 字的差异）：成立，落进第 1 行；另 `plain` 在 LOGIC 块之外，新函数里自带去记号的写法。
+- F6（隐含去掉的现有行为）：成立，第 3 行逐项写明。
+- F7（同一批照片可出两张卡）：核对源码属实（`recognise` 里题组的 `images` 与独立题的 `images` 都写这批照片 id）。第 2 行加标签，第 7 行记为留白，合成一张卡另开讨论。
+- F8（缩略图取原图）：落进第 2、6 行，`loading="lazy"` 并在 375 宽验证。
+
+复审关于 M2 合并前提的判断我也同意，因此把 M2 的裁决改回只写 B，M4 单独问用户。主报告里的点击次数估算（现在 2 下、自动打开 2 下、B 原文 3 下）是复审者的推断，不是实测。
+
+## 五、M4 有了两格切换，选材料还要不要对话框
+
+M1 追加对话框时页面上还没有两格切换，列表怕挤占录入页；有了切换后，列表只在第一格里出现，不再与拍照区同屏。
+
+- A（用户提出，推荐）：不要对话框，列表直接显示在第一格里。点第一格就看到搜索框与卡片，点卡即选中，共 2 下，和现在的下拉框一样快。代价：第一格比较长（搜索框、筛选、5 张卡），选中后收成一张卡。
+- B：保留对话框。代价：多一层界面；整页重画会销毁它，要专门处理焦点与保持打开。
+
+推荐 A：概念更少，不需要对话框的开关与焦点处理，也去掉了复审的 F1、F3。
+
+裁决：A（用户，2026-11-02，用户先问「还需要对话框吗」，主 agent 核对源码后给出推荐，落进核销表待用户确认）。取代 M1 追加的对话框，列表直接显示在页面第一格里。
