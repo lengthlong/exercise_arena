@@ -1879,7 +1879,7 @@ function subjectOptions(sel) {
   return `<option value="">Choose subject</option>` + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
 }
 
-const MAT_PAGE = 5;
+const MAT_PAGE = 10;
 function resetRecMode() {
   // 每次进入 Record 页都停在 New photos or text；所选材料、给 AI 的提示与列表的搜索、筛选、页码都不保留
   S.recMode = 'new'; S.recSet = ''; S.recHint = ''; S.matQuery = ''; S.matPage = 1;
