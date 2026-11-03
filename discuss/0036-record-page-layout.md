@@ -78,7 +78,7 @@
 
 推荐 A：用户这次明确要求统一；翻页到下面后点完页码不必滚回去，只需要滚到列表顶（5 张一页，一屏内）。
 
-裁决：用户选了第三种，原话「refer to the pagination of the 'paper detail' page」。读源码：Papers 卷子详情页的翻页是 `cardPager`（卡片上方一行紧凑页码，放不下时用 `pagerSlots` 加省略号，当前页 `aria-pressed`）加 `cardNav`（卡片下方，左「← Previous」、右「Next →」；第一张的左边换成「‹ Back」，最后一张的 Next 变灰）。落实：材料列表上方一行紧凑页码，下方左 Previous、右 Next；只有一页时两者都不显示。材料列表没有「Back」，第 1 页的 Previous 与最后一页的 Next 变灰。「page-count」按这页的做法理解为这一行页码，不再加「N materials」；子标签后的数字（Exercises 与 Papers 的子标签都有）加在 From saved material 后，作材料份数（落实时的小细节，核销表请用户确认）。
+裁决：用户选了第三种，原话「refer to the pagination of the 'paper detail' page」。读源码：Papers 卷子详情页的翻页是 `cardPager`（卡片上方一行紧凑页码，放不下时用 `pagerSlots` 加省略号，当前页 `aria-pressed`）加 `cardNav`（卡片下方，左「← Previous」、右「Next →」；第一张的左边换成「‹ Back」，最后一张的 Next 变灰）。落实：材料列表上方一行紧凑页码，下方左 Previous、右 Next；只有一页时两者都不显示。材料列表没有「Back」，第 1 页的 Previous 与最后一页的 Next 变灰。「page-count」按这页的做法理解为这一行页码，不再加「N materials」；子标签后面也不加数字（用户 2026-11-03 否决了加材料份数的提议）。
 
 ## L4 草稿区要不要分组加分隔线，按钮左右怎么排
 
@@ -97,7 +97,7 @@
 | # | 裁决 | 目标文件 | 改动 |
 |---|---|---|---|
 | 1 | L2 | `app/logic.test.js`（先改断言）与 `app/arena.html` 的 `LOGIC:BEGIN…END` | `matchMaterial(item, query)` 去掉第三个参数（科目筛选）与相关断言（`matchMaterial(m, q, 'math')` 一类）；搜索规则不变（label、出处、材料文字去记号、题干，不分大小写）；`savedMaterials` 不动 |
-| 2 | L1 | `app/arena.html` | 去掉页顶的「Record exercises」标题。两个子标签改成与 Exercises、Papers 同款的下划线式 `<nav class="gtabs subtabs" role="tablist">`（`aria-selected`），放在面板上方，顺序：「New photos or text」（第一个、默认，`recMode` 默认值与进入 Record 页时重置为 `'new'` 不变）、「From saved material」；后者名字后带灰色的材料份数（`<span class="num muted">`，取 `savedMaterials` 的长度）。识别中两个子标签禁用。药丸形切换及样式 `.rec-seg` 去掉 |
+| 2 | L1 | `app/arena.html` | 去掉页顶的「Record exercises」标题。两个子标签改成与 Exercises、Papers 同款的下划线式 `<nav class="gtabs subtabs" role="tablist">`（`aria-selected`），放在面板上方，顺序：「New photos or text」（第一个、默认，`recMode` 默认值与进入 Record 页时重置为 `'new'` 不变）、「From saved material」；子标签后面不带数字（用户 2026-11-03 否决了「材料份数」）。识别中两个子标签禁用。药丸形切换及样式 `.rec-seg` 去掉 |
 | 3 | L2、L3 | `app/arena.html` | From saved material 子标签里：去掉科目按钮与「All」（`mat-subj` 动作、`S.matSubject`、`resetRecMode` 里对应一项）；搜索框保留；去掉「Choose material below」提示（没选材料时按钮灰着即可）；列表翻页参照 Papers 卷子详情页：另写一个小函数（不改 `cardPager`、`cardNav`，免得波及作答页与详情页），沿用它们的样式 class：列表上方一行紧凑页码（`cardpager`、`pg-n`，当前页 `aria-pressed`，`title` 写「Page n」，页码从 1 起），位置数 `max` 按 `pagerSlots` 在窄屏用省略号，估算时在 `cardPager` 的可用宽度上再减去面板的内边距与边框 26 px，免得 375 宽下页码条越出面板；列表下方 `card-nav`：左「← Previous」、右「Next →」，第 1 页的 Previous 与最后一页的 Next 变灰；只有一页时页码与 `card-nav` 都不显示；原来的 `pager` 翻页条去掉；每页仍 5 张，点翻页不滚回顶部 |
 | 4 | L4、「分组、分隔线、左返回右确认」 | `app/arena.html` | 动作区（两个子标签通用）：一行，左边是状态文字（From saved material 选了材料时写「Selected: 标题」，其余为空），右边依次是「Stop」（只在识别中出现）与主按钮「Read with AI」，即 Stop 在左、Read with AI 在右；识别提示条在这一行下面。New photos or text：照片组（两个大按钮、说明、缩略图）、分隔线、文字组（文字框）、分隔线、动作区，同在一个面板里。From saved material：提示框与动作区为一组，分隔线，搜索框、页码、列表、`card-nav` 为一组，同在一个面板里；识别提示条仍在动作区下面（0035 定的「提示框、按钮、列表」顺序不变） |
 | 5 | L4 | `app/arena.html` | 草稿区：标题行「To check: …」单独一行；其下一行：左「Discard all」（ghost）、右「Save all」（primary）。草稿卡（`draftForm`）：新草稿去掉「Draft」小标题与右上角的「Discard this one」（编辑已有错题时仍有「Edit exercise」标题，改用 `.h2` 样式，与组标题 `.h3` 分出层次）；字段按四组排，组间一条细分隔线，每组一个 `.h3` 小标题：Classify（科目、专题、概念、题型、错因）、Question（所属题组、作答形式、题干、题目照片、选择题的选项与「Add an option」「Remove the last one」）、Answer（答案，含选择题的正确选项与当时选的、选词题的正确词与当时填的及缺词表时的红字提示、短答题的其他可接受答案与当时的回答、主观题的参考答案、当时的回答与必用词）、Explain（讲解、出处）；错误提示 `d.error` 放在底部按钮行之上；底部一行：新草稿左「Discard this one」、右「Save this one」，编辑时左「Cancel」、右「Save changes」。题组卡（`setForm`）：新题组去掉「Question set draft」小标题与右上角的「Discard set」；已部分保存的题组仍写「Question set (saved)」，编辑时仍写「Edit question set」（`.h2`）；分 Basics（科目、标题、出处）与 Material（材料文字、词表、照片）两组，组间分隔线加 `.h3` 小标题；「No questions belong to this set yet…」提示与 `sd.error` 在底部按钮行之上；底部一行：新题组与已部分保存的题组左「Discard set」（行为不变，仍可放弃），编辑时左「Cancel」、右「Save set」。字段、校验、保存规则不变。影响面：`draftForm` 与 `setForm` 的编辑态也在 Exercises 的详情页里用，所以那里的编辑页也随之改成左 Cancel、右 Save；Exercises 与 Papers 其余页面的按钮不动（Papers 组卷表单的「Preview the draw」「Create exam paper」仍在左，另开一轮再统一）。「动作区」「Stop 在左、Read with AI 在右」见第 4 行 |
@@ -118,8 +118,10 @@
 
 ## 待确认清单（请用户在确认核销表时一并看）
 
-1. 「page-count」理解为那一行页码，不再加「N materials」；From saved material 后面带材料份数。
+1. 「page-count」理解为那一行页码，不再加「N materials」；子标签后面不加数字（用户否决了材料份数）。
 2. Stop 在左、Read with AI 在右。
 3. 只有一页时不显示页码与上一页 / 下一页；第 1 页的 Previous 变灰（不是「Back」）。
 4. 去掉「Choose material below」。
 5. Exercises 的编辑页随之改成左 Cancel、右 Save；Papers 的按钮不动，另开一轮。
+
+**用户确认（2026-11-03）**：核销表确认，唯一更正：From saved material 子标签后面不加材料份数；待确认清单其余四点（Stop 在左 Read with AI 在右、一页时不显示翻页并且第 1 页 Previous 变灰、去掉「Choose material below」、Exercises 编辑页随之改成左 Cancel 右 Save）已确认。授权落盘；外部不可逆操作：无；重新发布另问。
