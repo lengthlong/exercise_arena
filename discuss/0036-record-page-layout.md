@@ -1,6 +1,6 @@
 # 0036 Record 页版面整理：去冗余、与别的页统一、控件分组
 
-> 状态：**待落盘**
+> 状态：**✅ 已完成（2026-11-03）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
@@ -125,3 +125,15 @@
 5. Exercises 的编辑页随之改成左 Cancel、右 Save；Papers 的按钮不动，另开一轮。
 
 **用户确认（2026-11-03）**：核销表确认，唯一更正：From saved material 子标签后面不加材料份数；待确认清单其余四点（Stop 在左 Read with AI 在右、一页时不显示翻页并且第 1 页 Previous 变灰、去掉「Choose material below」、Exercises 编辑页随之改成左 Cancel 右 Save）已确认。授权落盘；外部不可逆操作：无；重新发布另问。
+
+## 五、核销（2026-11-03）
+
+| # | 实际改动 | 验证 |
+|---|---|---|
+| 1 | `matchMaterial(item, query)` 去掉科目参数；`app/logic.test.js` 删去科目筛选的两条断言，其余断言去掉第三个参数 | `node app/logic.test.js app/arena.html` 输出 all logic tests passed |
+| 2 | 去掉「Record exercises」；两个子标签改成 `gtabs subtabs`（`role="tablist"`、`aria-selected`），放在面板外，「New photos or text」第一并默认，「From saved material」第二，都不带数字（用户确认时否决了材料份数）；识别中禁用；药丸形切换与 `.rec-seg` 去掉 | 测试壳（桌面 900 与 375）：子标签文字与顺序、默认第一个、不在面板内、识别中禁用 |
+| 3 | 材料列表去掉 All 与科目按钮（`mat-subj`、`S.matSubject`、`resetRecMode` 里一项）；去掉「Choose material below」；新函数 `matPager`（不改 `cardPager`、`cardNav`）：列表上方一行紧凑页码（`cardpager`、`pg-n`、省略号，`max` 在可用宽度上再减 26 px），下方 `card-nav` 左「← Previous」右「Next →」，第 1 页 Previous 变灰，最后一页 Next 变灰，只有一页时都不显示；原 `pager` 不再用于材料列表 | 测试壳：80 份材料 16 页，375 宽页码条 10 个位置且在面板内（右边缘 ≤ 面板右边缘），桌面 900 宽 16 个；两个宽度都无横向滚动；翻页、第 1 页 Previous 变灰、Next 可点；没有科目按钮与「Choose material below」 |
+| 4 | 动作区 `rec-act`：左边状态（选了材料时「Selected: 标题」），右边 Stop（识别中）在左、Read with AI 在右，提示条在下面；New photos or text 是照片组、分隔线、文字组、分隔线、动作区；From saved material 是提示框与动作区一组、分隔线、搜索框与页码与列表与上下页一组 | 测试壳：空闲时只有 Read with AI；0035 定的顺序（提示框、按钮、搜索、页码、列表、上下页）经断言；截图看过两个子标签。识别进行中 Stop 在左的顺序由源码保证（Stop 先于主按钮渲染），未在测试壳里模拟进行中的识别 |
+| 5 | 草稿区标题行单独一行，下一行左「Discard all」右「Save all」；草稿卡去掉「Draft」与右上角的放弃键，分 Classify / Question / Answer / Explain 四组（含选项与增删按钮在 Question，答案类字段与缺词表提示在 Answer，`d.error` 在底部按钮行之上），底部左「Discard this one」右「Save this one」，编辑时左「Cancel」右「Save changes」，标题「Edit exercise」改 `.h2`；题组卡分 Basics / Material，底部左「Discard set」（已部分保存的题组同样保留），编辑时左「Cancel」右「Save set」，标题改 `.h2`，「Question set (saved)」保留；新增 `.grp`、`.lr`、`.foot`、`.rec-act` 样式。字段、校验、保存规则未动 | 测试壳：Discard all 在左、Save all 在右；两张草稿底部都是「Discard this one、Save this one」；题组底部只有「Discard set」；四组小标题与 Basics / Material 小标题；组间分隔线；没有「Draft」「Question set draft」标题；放弃单张可用、保存单张可用；Exercises 里编辑一道错题：底部 Cancel 在左、Save changes 在右，标题「Edit exercise」；截图看过桌面与 375 宽 |
+| 6 | `CONTEXT.md`、`DATA.md` 未动 | 对照：只改版面，没有新概念与新字段 |
+| 7 | —— | `./check.sh` 退出码 0；`node app/logic.test.js app/arena.html` 通过；测试壳先后两套脚本全部通过。**未验证：** 识别进行中 Stop 与 Read with AI 的实际左右、真实 `sample`、真机触屏、Exercises 里题组编辑态（`save-set` / `cancel-set`）的保存与取消实际点击（只看了页面上的按钮顺序）；页面未重新发布（线上仍是 0035 的版本）。Papers 的主按钮仍在左，另开一轮 |

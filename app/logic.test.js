@@ -661,19 +661,17 @@ assert.strictEqual(mmat['photos:math:y1'].label, 'Only stem here');
 assert.strictEqual(L.savedMaterials([msx('s9', { images: undefined })], [mex('z', { setId: 's9' })])[0].images.length, 0);
 assert.strictEqual(L.savedMaterials([msx('s9')], [mex('z', { setId: 's9', stem: '' })])[0].label, 'Untitled');
 assert.deepStrictEqual(Array.from(L.savedMaterials([], [])), []);
-// 搜索：科目为空是全部；搜索词去首尾空白，空即全部；不分大小写，在 label、出处、材料文字（去记号）、已录题干里找子串
-assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '', '')).length, 6);
-assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '   ', '')).length, 6);
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '', 'math')).map(m => m.id), ['photos:math:y1', 'photos:math:x1']);
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, ' flyer ', '')).map(m => m.id), ['s1']);   // label
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'sa2 paper', '')).map(m => m.id), ['s2']);   // 出处
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'booklet', '')).map(m => m.id), ['photos:math:x1']);   // 照片批次的出处（最早那道的）
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'earlier', '')).map(m => m.id), ['photos:math:x1']);   // 照片批次里的题干
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'the carnival on', '')).map(m => m.id), ['s1']);   // 材料文字去记号
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'recieve it', '')).map(m => m.id), ['s1']);   // 题干去记号
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'RECIEVE', 'english')).map(m => m.id), ['s1']);
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'recieve', 'math')).map(m => m.id), []);
-assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'zzz', '')).map(m => m.id), []);
+// 搜索：搜索词去首尾空白，空即全部；不分大小写，在 label、出处、材料文字（去记号）、已录题干里找子串
+assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '')).length, 6);
+assert.strictEqual(Array.from(mats).filter(m => L.matchMaterial(m, '   ')).length, 6);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, ' flyer ')).map(m => m.id), ['s1']);   // label
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'sa2 paper')).map(m => m.id), ['s2']);   // 出处
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'booklet')).map(m => m.id), ['photos:math:x1']);   // 照片批次的出处（最早那道的）
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'earlier')).map(m => m.id), ['photos:math:x1']);   // 照片批次里的题干
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'the carnival on')).map(m => m.id), ['s1']);   // 材料文字去记号
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'recieve it')).map(m => m.id), ['s1']);   // 题干去记号
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'RECIEVE')).map(m => m.id), ['s1']);
+assert.deepStrictEqual(Array.from(mats).filter(m => L.matchMaterial(m, 'zzz')).map(m => m.id), []);
 // 按文档缓存视图：同一批错题对象、同一用户连调两次返回同一个视图对象；某道错题换了对象（加了作答）只有它重算；换用户不串
 const cx1 = { id: 'k1', createdAt: '2026-10-01', attempts: [by('uA', '2026-10-02', 'right')] }, cx2 = { id: 'k2', createdAt: '2026-10-01', attempts: [] };
 const cv1 = L.viewFor([cx1, cx2], 'uA'), cv2 = L.viewFor([cx1, cx2], 'uA');
