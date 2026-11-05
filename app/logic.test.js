@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -730,4 +730,29 @@ assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.mastere
 // 更早的检验卷作答被 ladderInput 过滤：做对不动、做错回第 1 级
 prw = prl([prx('a', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right', 'paper'), prP('2026-10-14', 'right')]), prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), prP('2026-10-14', 'right')])]);
 assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]);   // a 2 → 3；b 1 → 2
+// 保存前的重复提示：规范化后相同才算；数字里的点、逗号与括号不能丢
+const dupDraft = (o) => Object.assign({ subject: 'science', format: 'mcq', stem: 'Which of the following is a non-flowering plant?', options: ['hibiscus', 'fern', 'rice', 'mango'], editId: null }, o || {});
+assert.strictEqual(L.dupKey('science', 'Which is a [[fern]]?', []), L.dupKey('science', '  which is a  FERN ', []));   // 大小写、空白、[[ ]]、句末标点不算不同
+assert.strictEqual(L.dupKey('math', 'Find 3.5 + 1,000.', []), L.dupKey('math', 'find 3.5+1,000', []));
+assert.notStrictEqual(L.dupKey('math', 'Find 3.5', []), L.dupKey('math', 'Find 35', []));
+assert.notStrictEqual(L.dupKey('math', 'Find 1,000', []), L.dupKey('math', 'Find 1000', []));
+assert.notStrictEqual(L.dupKey('math', 'Find (a+b)×c', []), L.dupKey('math', 'Find a+b×c', []));
+assert.notStrictEqual(L.dupKey('math', 'Find 3 + 4', []), L.dupKey('math', 'Find 3 + 5', []));
+assert.strictEqual(L.dupKey('math', '  ', []), null);          // 题干为空不判
+assert.strictEqual(L.dupKey('', 'abc', []), null);             // 没选科目不判
+assert.notStrictEqual(L.dupKey('math', 'abc', []), L.dupKey('science', 'abc', []));   // 科目不同
+assert.strictEqual(L.dupKey('science', 'abc', ['a', '', ' ']), L.dupKey('science', 'abc', ['A']));   // 选项去掉空项、逐项规范化
+assert.notStrictEqual(L.dupKey('science', 'abc', ['a', 'b']), L.dupKey('science', 'abc', ['a', 'c']));   // 选项不同不是同一道
+const dupSv = dupDraft({ id: 's1', source: 'Q7' }), dupSv2 = dupDraft({ id: 's2', format: 'short', options: [], stem: 'Name a fern.' });
+let dupHit = L.findDuplicate(dupDraft({ stem: 'which of the following is a non-flowering plant', options: ['Hibiscus', 'Fern', 'Rice', 'Mango', ''] }), [dupSv2, dupSv], []);
+assert.deepStrictEqual([dupHit.kind, dupHit.ex.id], ['saved', 's1']);
+assert.strictEqual(L.findDuplicate(dupDraft({ options: ['hibiscus', 'fern', 'rice', 'lemon'] }), [dupSv], []), null);   // 选项不同
+assert.strictEqual(L.findDuplicate(dupDraft({ format: 'short', options: ['', '', '', ''] }), [dupSv], []), null);       // 同题干但一个是选择题、一个不是
+assert.strictEqual(L.findDuplicate(dupDraft({ editId: 's1' }), [dupSv], []), null);                                    // 编辑已录错题的草稿不判
+assert.strictEqual(L.findDuplicate(dupDraft({ stem: '' }), [dupDraft({ stem: '' })], [dupDraft({ stem: '' })]), null);          // 只有照片
+const dupE1 = dupDraft({ stem: 'Name a fern.', format: 'short', options: ['', '', '', ''] });
+assert.strictEqual(L.findDuplicate(dupDraft({ stem: 'name a fern', format: 'short', options: ['', '', '', ''] }), [], [dupE1]).kind, 'draft');
+assert.strictEqual(L.findDuplicate(dupE1, [], []), null);                                                         // 前面没有同样的：不标
+assert.strictEqual(L.findDuplicate(dupE1, [], [dupDraft({ stem: 'Name a fern.', format: 'short', editId: 's9' })]), null);   // 编辑草稿不当作「前面的草稿」
+assert.strictEqual(L.findDuplicate(dupDraft(), [dupSv], [dupDraft()]).kind, 'saved');                                        // 已录与草稿都命中：报已录的
 console.log('all logic tests passed');

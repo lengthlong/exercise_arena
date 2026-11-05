@@ -8,6 +8,7 @@
   照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
   照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
   拍照后缩略图：照片一选就先显示原图，缩小在后台做，decode() 10 秒超时（用户直接指示，未开讨论）。
+  重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
 -->
@@ -107,6 +108,7 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .note { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
 .note.err { background: var(--red-soft); color: var(--red); }
 .note.ok { background: var(--green-soft); color: var(--green); }
+.note.warn { background: var(--amber-soft); color: var(--amber); }
 label.f { display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); min-width: 0; }
 input[type=text], input[type=number], input[type=date], input[type=search], select, textarea {
   width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 14px;
@@ -548,6 +550,25 @@ function todayScope(exs, uid, defaultOwner) {
 }
 function normAnswer(s) {
   return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ').replace(/\.$/, '').trim();
+}
+// 保存前的重复提示（DATA.md「派生字段」·可能重复）：规范化后的比对键；题干为空时没有键
+function dupKey(subject, stem, options) {
+  // 转小写、去掉 [[ ]]、引号与空白、去掉 . , ; : ! ?（夹在两个数字之间的 . 与 , 保留：3.5、1,000）；括号与运算符号保留
+  const norm = t => String(t == null ? '' : t).toLowerCase().replace(/\[\[|\]\]/g, '').replace(/[‘’“”'"]/g, '').replace(/\s+/g, '')
+    .replace(/[.,;:!?]/g, (c, i, all) => (/\d/.test(all[i - 1] || '') && /\d/.test(all[i + 1] || '')) ? c : '');
+  const st = norm(stem);
+  if (!subject || !st) return null;
+  return [subject, st].concat((options || []).filter(o => String(o).trim()).map(norm)).join('\u0001');
+}
+function dupOf(x) { return dupKey(x.subject, x.stem, x.format === 'mcq' ? x.options : []); }
+function findDuplicate(d, saved, earlier) {
+  // d：一张新草稿；saved：已录错题；earlier：同批排在它前面的新草稿。先报已录的；编辑已录错题的草稿不判
+  if (d.editId) return null;
+  const k = dupOf(d);
+  if (!k) return null;
+  const ex = saved.find(x => dupOf(x) === k);
+  if (ex) return { kind: 'saved', ex };
+  return earlier.some(x => !x.editId && dupOf(x) === k) ? { kind: 'draft' } : null;
 }
 function asNumber(t) {
   const u = t.replace(/(\d),(?=\d{3}(\D|$))/g, '$1').replace(/\s/g, '');
@@ -1469,6 +1490,12 @@ function draftsInOrder() {
   for (const sd of S.setDrafts) out.push(...fresh.filter(d => d.setRef === 'new:' + sd.key));
   return out.concat(fresh.filter(d => !out.includes(d)));
 }
+// 带「可能重复」提示的新草稿：草稿 → findDuplicate 的结果；现算，不存
+function dupFlags() {
+  const order = draftsInOrder(), out = new Map();
+  order.forEach((d, i) => { const f = findDuplicate(d, S.exercises, order.slice(0, i)); if (f) out.set(d, f); });
+  return out;
+}
 
 /* ---------- 渲染 ---------- */
 function matchLive() { return !!(S.lift && (S.lift.phase === 'saving' || S.lift.phase === 'anim')); }
@@ -2099,6 +2126,8 @@ function draftForm(d) {
   h += `</div><div class="grp"><p class="h3">Explain</p>`;
   h += f('solution', 'Explanation (three parts: Key idea: … / Steps: 1. … / Watch out: …; key words in [[ ]])', ta('solution', d.solution, 5, 'Key idea: …\nSteps:\n1. …\n2. …\nWatch out: …'));
   h += `<div class="grid2">${f('source', 'Source', inp('source', d.source, 'e.g. 2026 P5 SA2 Paper 2 Q7'))}</div></div>`;
+  const dup = dupFlags().get(d);
+  if (dup) h += `<p class="note warn">Possible duplicate of ${dup.kind === 'saved' ? `a saved exercise: “${esc(plain(dup.ex.stem).trim().slice(0, 40))}”${dup.ex.source ? ' · ' + esc(dup.ex.source) : ''} · ${esc(fmtDate(dup.ex.createdAt))} <button type="button" class="linkbtn" data-act="goto-ex" data-id="${esc(dup.ex.id)}">View</button>` : 'another draft above'}.</p>`;
   if (d.error) h += `<p class="note err">${esc(d.error)}</p>`;
   h += d.editId ? `<div class="foot lr"><button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">Cancel</button><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">Save changes</button></div></section>`
     : `<div class="foot lr"><button type="button" class="btn ghost" data-act="drop-draft" data-k="${k}">Discard this one</button><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">Save this one</button></div></section>`;
@@ -2757,11 +2786,13 @@ document.addEventListener('click', async ev => {
       case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
       case 'save-draft': if (await saveDraft(draftByKey(b.dataset.k))) { S.recMsg = null; S.saveMsg = null; } render(); break;
       case 'save-all': {
-        let n = 0;
-        for (const d of draftsInOrder()) { if (await saveDraft(d)) n++; }
-        const left = S.drafts.filter(x => !x.editId).length;
+        // 带「可能重复」提示的草稿不存，留在页面上；提示在点击时一次算好
+        let n = 0, dups = 0;
+        const flags = dupFlags();
+        for (const d of draftsInOrder()) { if (flags.has(d)) { dups++; continue; } if (await saveDraft(d)) n++; }
+        const left = S.drafts.filter(x => !x.editId).length - dups;
         S.recMsg = null;
-        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (left ? ` ${left} still incomplete; see the notes below.` : '') };
+        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (dups ? ` ${plural(dups, 'possible duplicate')} left for you to check.` : '') + (left ? ` ${left} still incomplete; see the notes below.` : '') };
         render(); break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
