@@ -1965,7 +1965,9 @@ async function shrinkPhoto(file, L) {
   let url = '';
   try {
     url = URL.createObjectURL(file);
-    const img = new Image(); img.src = url; await img.decode();   // 浏览器按照片自带的方向给出宽高并画正
+    const img = new Image(); img.src = url;
+    // 浏览器按照片自带的方向给出宽高并画正；个别手机浏览器 decode() 迟迟不返回，超时就当解码失败、原样用
+    await Promise.race([img.decode(), new Promise((_, no) => setTimeout(() => no(new Error('decode timeout')), 10000))]);
     const w = img.naturalWidth, h = img.naturalHeight, t = fitSize(w, h, PHOTO_MAX_SIDE);
     if (t.w === w && t.h === h && !(L.maxInputBytes && file.size > L.maxInputBytes)) return file;
     const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
@@ -1981,9 +1983,15 @@ async function addPhotos(files) {
   try {
     for (const f0 of files) {
       if (S.recPhotos.length >= L.maxCount) { skipped.push(`"${f0.name}" is over the limit of ${L.maxCount} photos`); continue; }
+      // 先把原照片放进缩略图列表，缩小在后面做完再换成缩小后的；缩小慢（或手机上卡住）时也看得到刚拍的照片
+      const item = { file: f0, url: URL.createObjectURL(f0), assetId: null, uid: photoSeq++ };
+      S.recPhotos.push(item); render();
       const f = await shrinkPhoto(f0, L);
-      if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`"${f0.name}" is too large even after shrinking (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo`);
-      else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null, uid: photoSeq++ });
+      if (L.maxInputBytes && f.size > L.maxInputBytes) {
+        skipped.push(`"${f0.name}" is too large even after shrinking (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo`);
+        const i = S.recPhotos.indexOf(item); if (i >= 0) S.recPhotos.splice(i, 1);
+        URL.revokeObjectURL(item.url);
+      } else if (f !== f0) { URL.revokeObjectURL(item.url); item.file = f; item.url = URL.createObjectURL(f); }
     }
   } finally { S.recPrep = false; }
   S.recMsg = skipped.length ? { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' } : before;
