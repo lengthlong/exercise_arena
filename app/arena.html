@@ -6,6 +6,7 @@
   运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
   加载：错题与卷子只订阅默认归属人的，错题视图按文档缓存（DATA.md「加载」）；已交每日卷满 30 天后由页面删除（discuss 0032）。
   照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
+  照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
 -->
@@ -210,6 +211,9 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .checks input { margin: 0; }
 .draft { border-left: 3px solid var(--pen); }
 .bank { display: flex; flex-wrap: wrap; gap: 6px; }
+details.plog { font-size: 13px; }
+details.plog > summary { cursor: pointer; color: var(--muted); width: fit-content; }
+details.plog > textarea { width: 100%; margin: 6px 0; font: 12px/1.4 ui-monospace, monospace; white-space: pre; overflow: auto; }
 details.photos > summary { cursor: pointer; font-size: 13px; color: var(--pen); width: fit-content; }
 details.photos[open] > summary { margin-bottom: 6px; }
 .why { display: grid; gap: 8px; }
@@ -1343,6 +1347,22 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 无本地存储时忽略 */ } }
 };
 
+/* ---------- 照片日志 ----------
+   只记「拍照或选照片 → 缩略图出现」这一段发生了什么，留在本机（localStorage，最多 80 条，不进 db），
+   Record 页的「Photo log」里能看到、复制。页面中途被系统重载时，下一次启动的 "page load" 行会紧跟在没写完的记录后面。 */
+const PLOG_KEY = 'arena.photoLog';
+function plogRead() { try { const a = JSON.parse(store.get(PLOG_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function plog(msg) { try { const a = plogRead(); a.push(new Date().toISOString().slice(11, 23) + ' ' + String(msg).slice(0, 300)); store.set(PLOG_KEY, JSON.stringify(a.slice(-80))); } catch (e) { /* 日志本身不能出错 */ } }
+const fdesc = f => f ? `"${f.name}" ${f.type || 'no-type'} ${f.size}B` : 'none';
+plog(`page load; vis=${document.visibilityState}; ua=${navigator.userAgent}`);
+document.addEventListener('visibilitychange', () => plog('visibility ' + document.visibilityState));
+window.addEventListener('pagehide', ev => plog('pagehide persisted=' + ev.persisted));
+window.addEventListener('pageshow', ev => plog('pageshow persisted=' + ev.persisted));
+window.addEventListener('error', ev => plog('window error: ' + (ev.message || '') + ' @' + (ev.lineno || '?')));
+window.addEventListener('unhandledrejection', ev => plog('unhandled rejection: ' + (ev.reason && (ev.reason.message || ev.reason)) ));
+// 缩略图的 <img> 加载成功或失败（error、load 不冒泡，用捕获）
+for (const ev of ['load', 'error']) document.addEventListener(ev, e => { const i = e.target; if (i && i.tagName === 'IMG' && i.closest && i.closest('.tray-item')) plog(`tray img ${ev} ${i.alt} ${ev === 'load' ? i.naturalWidth + 'x' + i.naturalHeight : ''}`); }, true);
+
 /* ---------- 状态 ---------- */
 const S = {
   status: 'loading',            // loading | ready | nodb
@@ -1936,6 +1956,8 @@ function renderRecord() {
       </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
       if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
     } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
+    const pl = plogRead();
+    if (pl.length) h += `<details class="plog" ${S.plogOpen ? 'open' : ''}><summary>Photo log (${pl.length})</summary><textarea readonly rows="8" aria-label="Photo log">${esc(pl.join('\n'))}</textarea><button type="button" class="btn ghost small" data-act="plog-clear">Clear log</button></details>`;
     h += `</div><div class="grp"><label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label></div>`;
     h += `<div class="grp">${act('', true)}</div></section>`;
   }
@@ -1963,37 +1985,45 @@ let photoSeq = 1;
 async function shrinkPhoto(file, L) {
   // 长边不超过上限且没超过 maxInputBytes 的原样用；解码失败也原样用（照旧只按 maxInputBytes 检查）
   let url = '';
+  const t0 = Date.now();
   try {
     url = URL.createObjectURL(file);
     const img = new Image(); img.src = url;
     // 浏览器按照片自带的方向给出宽高并画正；个别手机浏览器 decode() 迟迟不返回，超时就当解码失败、原样用
     await Promise.race([img.decode(), new Promise((_, no) => setTimeout(() => no(new Error('decode timeout')), 10000))]);
     const w = img.naturalWidth, h = img.naturalHeight, t = fitSize(w, h, PHOTO_MAX_SIDE);
-    if (t.w === w && t.h === h && !(L.maxInputBytes && file.size > L.maxInputBytes)) return file;
+    plog(`shrink: decoded ${w}x${h} in ${Date.now() - t0}ms; target ${t.w}x${t.h}`);
+    if (t.w === w && t.h === h && !(L.maxInputBytes && file.size > L.maxInputBytes)) { plog('shrink: kept as is'); return file; }
     const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
     const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, t.w, t.h); g.drawImage(img, 0, 0, t.w, t.h);   // 白底：PNG 透明处不变黑
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+    plog(`shrink: toBlob ${blob ? blob.size + 'B' : 'null'} in ${Date.now() - t0}ms total`);
     return blob ? new File([blob], String(file.name || 'photo').replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
-  } catch (e) { return file; }
+  } catch (e) { plog(`shrink: failed after ${Date.now() - t0}ms, using the original: ${e && e.name}: ${e && e.message}`); return file; }
   finally { if (url) URL.revokeObjectURL(url); }
 }
 async function addPhotos(files) {
   const L = S.imgLimits, skipped = [], before = S.recMsg;
+  plog(`addPhotos: ${files.length} file(s), tray has ${S.recPhotos.length}, limits=${JSON.stringify(L)}`);
   S.recPrep = true; S.recMsg = { kind: '', text: 'Preparing photos…' }; render();
   try {
     for (const f0 of files) {
-      if (S.recPhotos.length >= L.maxCount) { skipped.push(`"${f0.name}" is over the limit of ${L.maxCount} photos`); continue; }
+      plog('file: ' + fdesc(f0));
+      if (S.recPhotos.length >= L.maxCount) { skipped.push(`"${f0.name}" is over the limit of ${L.maxCount} photos`); plog('skipped: over the count limit'); continue; }
       // 先把原照片放进缩略图列表，缩小在后面做完再换成缩小后的；缩小慢（或手机上卡住）时也看得到刚拍的照片
       const item = { file: f0, url: URL.createObjectURL(f0), assetId: null, uid: photoSeq++ };
       S.recPhotos.push(item); render();
+      plog(`tray: pushed uid=${item.uid}; ${S.recPhotos.length} in S.recPhotos, ${document.querySelectorAll('.tray-item').length} in the DOM`);
       const f = await shrinkPhoto(f0, L);
       if (L.maxInputBytes && f.size > L.maxInputBytes) {
         skipped.push(`"${f0.name}" is too large even after shrinking (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo`);
         const i = S.recPhotos.indexOf(item); if (i >= 0) S.recPhotos.splice(i, 1);
         URL.revokeObjectURL(item.url);
-      } else if (f !== f0) { URL.revokeObjectURL(item.url); item.file = f; item.url = URL.createObjectURL(f); }
+        plog(`skipped: ${f.size}B is over maxInputBytes ${L.maxInputBytes}`);
+      } else if (f !== f0) { URL.revokeObjectURL(item.url); item.file = f; item.url = URL.createObjectURL(f); plog(`tray: uid=${item.uid} now the shrunk file ${fdesc(f)}`); }
     }
-  } finally { S.recPrep = false; }
+  } catch (e) { plog(`addPhotos: threw ${e && e.name}: ${e && e.message}`); throw e; }
+  finally { S.recPrep = false; plog(`addPhotos: done; ${S.recPhotos.length} in S.recPhotos; skipped=${skipped.length}`); }
   S.recMsg = skipped.length ? { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' } : before;
 }
 
@@ -2702,6 +2732,7 @@ document.addEventListener('click', async ev => {
       case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
       case 'mat-pick': if (!(S.recBusy || S.recPrep)) { S.recSet = b.dataset.id; render(); } break;
       case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
+      case 'plog-clear': store.set(PLOG_KEY, '[]'); render(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
@@ -2805,7 +2836,13 @@ document.addEventListener('change', async ev => {
     } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
     render(); return;
   }
-  if (t.dataset.photos) { await addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
+  if (t.dataset.photos) {
+    const fl = Array.from(t.files || []);
+    plog(`change on #${t.id}: ${fl.length} file(s)${fl.length ? ' ' + fl.map(fdesc).join(', ') : ''}`);
+    await addPhotos(fl); t.value = ''; render();
+    plog(`after render: ${document.querySelectorAll('.tray-item').length} thumbnail(s) in the DOM`);
+    return;
+  }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
@@ -2839,6 +2876,7 @@ document.addEventListener('change', async ev => {
 // 题组材料与照片展开或收起时记下（材料：作答页记在 S.run.openSets，卷子详情页记在 S.paperOpenSets，都默认展开、收起记 false；照片按组记在 photoStore()，默认收起），重画与翻到同组或同一组照片的其他卡时沿用
 document.addEventListener('toggle', ev => {
   const d = ev.target;
+  if (d.classList && d.classList.contains('plog')) { S.plogOpen = d.open; return; }
   if (d.classList && d.classList.contains('photos') && d.dataset.pkey) { const st = photoStore(); if (st) { if (d.open) st[d.dataset.pkey] = true; else delete st[d.dataset.pkey]; } return; }
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
   const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;
