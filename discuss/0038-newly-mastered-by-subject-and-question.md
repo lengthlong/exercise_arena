@@ -1,6 +1,6 @@
 # 0038 Newly mastered：按科目分组，按 Key idea 列出，不列专题
 
-> 状态：**待落盘（2026-11-08）**
+> 状态：**✅ 已完成（2026-11-08）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
@@ -113,6 +113,8 @@ M1 的原题已被 M1a 取代，第 3 点「其他」由 agent 提议的三项�
 | 5 | 完成标准 | 验证（不改文件） | `./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；落盘者对照本表逐行核对实际稿；本地测试壳造多科新掌握（含 Key idea 相同、没有 Key idea、照片题、题组题、某科超过 3 行）看 This week 与 Last week：切科目子标签（两块各自记住、只有一科时也出），点「+N more」、点行、点题干打开详情，「← Back to Today」回到 Today 且展开仍在；先在 Exercises 开着一份未保存的编辑再从 Today 点题干，回来后编辑仍在；375 宽与深色主题下可读、无横向滚动 |
 | 6 | 发布 | 线上 Artifact（外部操作） | 重新发布到 `app/arena.html` 文件头写的原网址，并更新文件头注释；**执行前单独问用户**，核销表确认不代表授权发布 |
 
+用户确认（2026-11-08）：「Confirmed and proceed please」—— 确认完整核销表（M2′ 改写后的版本），即行 1–5 的落盘授权；行 6 重新发布仍须执行前单独问用户。
+
 ## 四、复审（2026-11-08）
 
 派一个新上下文的 subagent（与主 agent 同一模型，没有更强的可选），只给讨论文件与仓库。主 agent 逐条核验：
@@ -143,3 +145,14 @@ M1 的原题已被 M1a 取代，第 3 点「其他」由 agent 提议的三项�
 重写后自查（核销行 1、2、3、5）：行 1 补了 `top` / `more` 与排序的最后一键、去掉 `photo`；行 2 补了展开状态保留与 I1 的返回去向、不丢草稿的做法；行 3 补了切分与口径的断言；行 5 补了返回与草稿的实测。逐行对照登记表，没有登记表之外的新决定；「不丢草稿」的做法（从 Today 来时详情优先于编辑表单显示，点 Edit 时显示最新的那份编辑草稿）是 I1 的机械落实。改动不大，不再派复审。
 
 M2′ 改裁后重写核销行 1、2、3、5 的引用与行 2 的分组写法，主 agent 自查：行 1 的数据结构（每科 `top` / `more`）不变，子标签直接用科目组；行 2 只把「每科小标题」换成子标签，展开、点题干、返回 Today 不变；行 3 断言不变（选中哪科是渲染状态，不进纯逻辑）；行 5 加了切子标签的实测。没有登记表之外的新决定，改动不大，不再派复审。
+
+## 五、核销（2026-11-08）
+
+| 行 | 结果 | 实际改动与验证 |
+|---|---|---|
+| 1 | ✅ | `weekReview` 的 `newlyMastered` 改为 `[{ subject, n, top, more }]`：按 `parseExplanation(e.solution).keyIdea` 合并同科一字不差的行，没有 Key idea 的各自一行；`items` 为 `{ id, stem, setId }`，按掌握日期新到旧再按 id；行按道数、最近掌握日期、文字、首道题 id；科目按 `SUBJECTS` 顺序。掌握条件未改 |
+| 2 | ✅ | `masteredList(week, blk)`：标题「Newly mastered · 总数」，科目子标签沿用 `gtabs subtabs`；选中科与三层展开记在 `S.nmSubj`、`S.nmOpen`（`toggle` 监听写入）；Key idea 行可展开列题干，没有 Key idea 的行直接是题干按钮（前加「•」）；题干一行截断、`title` 带全文，占位文字照 Exercises 列表。`goto-ex` 带 `data-from="today"` 时记 `S.detailFrom` 与滚动位置、不丢编辑草稿；`renderExercises` 此时详情优先，编辑表单改取最新一份；返回按钮写「← Back to Today」，回 Today 并恢复滚动位置；点标签栏与 Edit 清掉来源。其他地方的 `goto-ex` 与「← Back to the list」不变。概念链接与专题名从这一块去掉 |
+| 3 | ✅ | 断言改写：English 6 题 5 行（×2 一行、无 Key idea 一行）→ `top` 3、`more` 2、`n` 6；Math、Science 各 1；行序与行内题序；无 Key idea 行的 `items` 字段；窗口外与掌握后又做错的不算；同日同道数按文字。原空列表断言保留 |
+| 4 | ✅ | 不改 `CONTEXT.md`、`DATA.md`、`adr/` |
+| 5 | ✅ | `./check.sh` 退出码 0；`node app/logic.test.js app/arena.html`「all logic tests passed」。落盘者逐行对照本表核对实际稿，未出现裁决之外的新语义；补了一处显示细节：没有 Key idea 的行前加「•」，与可展开行的「▸」对齐（实现细节）。本地测试壳（Playwright，模拟 `window.claude` 与内存 `db`，今天 2026-11-08）造 9 道题：This week English 6（含 Key idea 相同 ×2、讲解无标记、照片题、题组题）与 Math 1，Last week Math 1 与 Science 1。1000 宽浅色与 375 宽深色：子标签、前 3 行与「+2 more」正确；展开后切 Math 再切回 English，展开仍在；先在 Exercises 开一份未保存的编辑再回 Today，点题干进详情，按钮为「← Back to Today」，点了回到 Today、展开仍在、编辑草稿仍在，再进 Exercises 显示编辑表单；`scrollWidth` 等于视口宽，无页面错误。截图人工看过 |
+| 6 | 待问 | 重新发布另问用户；`app/arena.html` 文件头注释等发布时一并更新 |

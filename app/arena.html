@@ -136,8 +136,18 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 8px; }
 .plan .ladpair, .review .ladpair, .run-ladder .ladpair { border-top: 1px solid var(--rule); padding-top: 8px; }
 /* 新掌握的列表 */
-.mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
-.mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; min-width: 0; }
+.mastered li { min-width: 0; }
+.nm summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; list-style: none; }
+.nm summary::-webkit-details-marker { display: none; }
+.nm summary::before { content: '▸'; color: var(--muted); flex: none; width: 10px; }
+.nm[open] > summary::before { content: '▾'; }
+.nm-qs { display: grid; gap: 2px; padding: 4px 0 4px 18px; }
+.nm-q { display: block; width: 100%; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 13.5px; color: var(--pen); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm-q:hover { text-decoration: underline; }
+.mastered > li > .nm-q::before { content: '•'; display: inline-block; width: 18px; color: var(--muted); }
+.nm-more > summary { font-size: 13.5px; color: var(--muted); }
+.nm-more > .mastered { padding-top: 4px; }
 .rv-head { display: flex; align-items: center; gap: 10px; }
 .rv-txt { display: grid; gap: 2px; min-width: 0; }
 .rv-n { font: 400 40px/1 var(--font-hand); color: var(--red); }
@@ -915,14 +925,30 @@ function weekReview(done, from, to) {
     }
     if (hit) questions++;
   }
-  const groups = {};
+  // 新掌握：区间内变成掌握、现在仍掌握的题，按科目（SUBJECTS 的顺序）分组；同科 Key idea 一字不差的并成一行，没有 Key idea 的题各自一行；
+  // 行按道数降序、最近掌握日期新到旧、文字、首道题 id；每科 top 是前 3 行、more 是其余，n 是题数
+  const bySubj = {};
   for (const e of exs) {
     const m = e.mastered && masteredOn(e);
     if (!m || m < from || m > to) continue;
-    const kind = e.concept ? 'concept' : 'topic', id = e.concept || e.topic, k = e.subject + '|' + kind + '|' + id;
-    (groups[k] = groups[k] || { subject: e.subject, kind, id, n: 0 }).n++;
+    const key = parseExplanation(e.solution).keyIdea.trim();
+    const g = bySubj[e.subject] = bySubj[e.subject] || { subject: e.subject, n: 0, rows: {} };
+    g.n++;
+    const rk = key ? 'k|' + key : 'q|' + e.id;
+    const r = g.rows[rk] = g.rows[rk] || { key, n: 0, items: [], last: '' };
+    r.n++; r.items.push({ id: e.id, stem: e.stem || '', setId: e.setId || null, on: m });
+    if (m > r.last) r.last = m;
   }
-  const newlyMastered = Object.values(groups).sort((a, b) => b.n - a.n || String(a.id).localeCompare(String(b.id)));
+  const byOn = (a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0) || String(a.id).localeCompare(String(b.id));
+  const order = SUBJECTS.map(x => x[0]);
+  const newlyMastered = Object.values(bySubj)
+    .sort((a, b) => ((order.indexOf(a.subject) + 1 || 99) - (order.indexOf(b.subject) + 1 || 99)) || String(a.subject).localeCompare(String(b.subject)))
+    .map(g => {
+      const rows = Object.values(g.rows).map(r => { r.items.sort(byOn); r.items = r.items.map(x => ({ id: x.id, stem: x.stem, setId: x.setId })); return r; })
+        .sort((a, b) => b.n - a.n || (a.last < b.last ? 1 : a.last > b.last ? -1 : 0)
+          || String(a.key || a.items[0].stem).localeCompare(String(b.key || b.items[0].stem)) || String(a.items[0].id).localeCompare(String(b.items[0].id)));
+      return { subject: g.subject, n: g.n, top: rows.slice(0, 3), more: rows.slice(3) };
+    });
   return {
     from, to, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
     days, newlyMastered
@@ -1397,7 +1423,7 @@ const S = {
   drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
-  detailId: null, confirmDel: null,
+  detailId: null, detailFrom: null, todayScroll: 0, nmSubj: {}, nmOpen: {}, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
@@ -1598,13 +1624,25 @@ function todayBlock(today, redo, cps, todo, view) {
 
 /* 本周与上周：组合图、目标句、两架梯子、新掌握 */
 const fmtRange = (a, b) => { const x = fmtDate(a).split(' '), y = fmtDate(b).split(' '); return x[1] === y[1] ? `${x[0]}–${y[0]} ${y[1]}` : `${fmtDate(a)} – ${fmtDate(b)}`; };
-function masteredList(week) {
-  if (!week.newlyMastered.length) return '';
-  const label = g => {
-    if (g.kind === 'concept') { const c = nameOf(g.subject, 'concept', g.id); return mapLink(g.subject, g.id, c ? c.en : g.id); }
-    return esc(topicLabel(g.subject, g.id, 'en'));
+function masteredList(week, blk) {
+  // 新掌握：一排科目子标签（科目 · 题数），一次看一科；选中的科先列 3 行，其余在「+N more」里；Key idea 行展开后列这几道题的题干，题干点开详情（从 Today 来）；
+  // 没有 Key idea 的行直接是题干；选中科与展开状态记在页面状态里，重画后保留
+  const gs = week.newlyMastered;
+  if (!gs.length) return '';
+  const cur = gs.find(g => g.subject === S.nmSubj[blk]) || gs[0];
+  const total = gs.reduce((t, g) => t + g.n, 0);
+  const open = k => S.nmOpen[k] ? ' open' : '';
+  const q = x => { const t = plain(x.stem).trim() || (x.setId ? '(see the set material)' : '(photo only)'); return `<button type="button" class="nm-q" data-act="goto-ex" data-from="today" data-id="${esc(x.id)}" title="${esc(t)}">${esc(t)}</button>`; };
+  const row = r => {
+    if (!r.key) return `<li>${q(r.items[0])}</li>`;
+    const k = `${blk}|${cur.subject}|r|${r.items[0].id}`;
+    return `<li><details class="nm" data-nkey="${esc(k)}"${open(k)}><summary><span>${hl(r.key)}</span>${r.n > 1 ? `<span class="muted num">×${r.n}</span>` : ''}</summary><div class="nm-qs">${r.items.map(q).join('')}</div></details></li>`;
   };
-  return `<div class="sub"><p class="h3">Newly mastered</p><ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul></div>`;
+  const mk = `${blk}|${cur.subject}|more`;
+  return `<div class="sub nm-block"><p class="h3">Newly mastered · <span class="num">${total}</span></p>
+    <nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${gs.map(g => `<button type="button" role="tab" data-act="nm-subj" data-blk="${blk}" data-v="${esc(g.subject)}" aria-selected="${g === cur}">${esc(SUBJ[g.subject] ? SUBJ[g.subject].en : g.subject)} <span class="num muted">${g.n}</span></button>`).join('')}</nav>
+    <ul class="mastered">${cur.top.map(row).join('')}</ul>
+    ${cur.more.length ? `<details class="nm nm-more" data-nkey="${esc(mk)}"${open(mk)}><summary>+${cur.more.length} more</summary><ul class="mastered">${cur.more.map(row).join('')}</ul></details>` : ''}</div>`;
 }
 function thisWeekBlock(today, ws, sc) {
   // 同 Last week：本周到今天为止复习了几题与统计行，再是组合图（带计划柱）、两架梯子、新掌握
@@ -1617,7 +1655,7 @@ function thisWeekBlock(today, ws, sc) {
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
     ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
     ${ladderPair(weekLadders(sc.todo, ws, today), 'this')}
-    ${masteredList(week)}
+    ${masteredList(week, 'this')}
   </section>`;
 }
 function lastWeekBlock(lws, sc) {
@@ -1627,7 +1665,7 @@ function lastWeekBlock(lws, sc) {
     <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
     ${activityChart(week.days, { todayIdx: -1 })}
     ${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}
-    ${masteredList(week)}
+    ${masteredList(week, 'last')}
   </section>`;
 }
 
@@ -2185,7 +2223,9 @@ function draftToDoc(d) {
 }
 
 function renderExercises() {
-  const editing = S.drafts.find(d => d.editId);
+  // 从 Today 打开的详情优先于编辑表单（不丢未保存的修改）；有几份编辑草稿时显示最新的
+  const editing = S.drafts.slice().reverse().find(d => d.editId);
+  if (S.detailId && S.detailFrom === 'today') return renderDetail();
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
@@ -2275,7 +2315,7 @@ function renderDetail() {
   const e = myEx(S.detailId);
   if (!e) { S.detailId = null; return renderExercises(); }
   const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
-  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← Back to the list</button></div>`;
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">${S.detailFrom === 'today' ? '← Back to Today' : '← Back to the list'}</button></div>`;
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
@@ -2656,7 +2696,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2798,8 +2838,13 @@ document.addEventListener('click', async ev => {
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
 
       case 'detail': S.detailId = b.dataset.id; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
-      case 'back-list': S.detailId = null; S.confirmDel = null; render(); break;
-      case 'edit': { const e = exById(b.dataset.id); S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
+      case 'back-list': {
+        const back = S.detailFrom === 'today';
+        S.detailId = null; S.confirmDel = null; S.detailFrom = null;
+        if (back) { S.tab = 'today'; store.set('arena.tab', S.tab); render(); window.scrollTo(0, S.todayScroll); } else render();
+        break;
+      }
+      case 'edit': { const e = exById(b.dataset.id); S.detailFrom = null; S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
       case 'ask-del': S.confirmDel = b.dataset.id; render(); break;
       case 'cancel-del': S.confirmDel = null; render(); break;
       case 'delete-ex': { const e = exById(b.dataset.id); await S.db.doc('exercises/' + b.dataset.id).delete(); if (e && e.setId) await cleanupSet(e.setId, e.id); S.detailId = null; S.confirmDel = null; render(); break; }
@@ -2818,7 +2863,11 @@ document.addEventListener('click', async ev => {
       }
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
-      case 'goto-ex': S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; S.drafts = S.drafts.filter(d => !d.editId); render(); window.scrollTo(0, 0); break;
+      case 'goto-ex':
+        // 从 Today 的新掌握来：记下来源与滚动位置，不丢编辑草稿；其他地方照旧丢掉编辑草稿
+        if (b.dataset.from === 'today') { S.detailFrom = 'today'; S.todayScroll = window.scrollY; } else { S.detailFrom = null; S.drafts = S.drafts.filter(d => !d.editId); }
+        S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; render(); window.scrollTo(0, 0); break;
+      case 'nm-subj': S.nmSubj[b.dataset.blk] = b.dataset.v; render(); break;
 
     }
   } catch (err) {
@@ -2909,6 +2958,7 @@ document.addEventListener('change', async ev => {
 document.addEventListener('toggle', ev => {
   const d = ev.target;
   if (d.classList && d.classList.contains('plog')) { S.plogOpen = d.open; return; }
+  if (d.classList && d.classList.contains('nm') && d.dataset.nkey) { if (d.open) S.nmOpen[d.dataset.nkey] = true; else delete S.nmOpen[d.dataset.nkey]; return; }
   if (d.classList && d.classList.contains('photos') && d.dataset.pkey) { const st = photoStore(); if (st) { if (d.open) st[d.dataset.pkey] = true; else delete st[d.dataset.pkey]; } return; }
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
   const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;

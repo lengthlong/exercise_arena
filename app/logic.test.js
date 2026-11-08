@@ -248,14 +248,34 @@ assert.deepStrictEqual([wk.days.length, wk.answers, { ...wk.days[1] }, { ...wk.d
 // 统计行：不再写升级
 assert.strictEqual(L.reviewLine(wr), '5 answers: 1 right · 0 partly · 4 wrong');
 assert.strictEqual(L.reviewLine({ answers: 1, right: 1, partial: 0, wrong: 0 }), '1 answer: 1 right · 0 partly · 0 wrong');
-// 新掌握按概念分组，没填概念的按专题
-const mm = (id, concept, topic, d) => ({ id, subject: 'english', topic, concept, mastered: true, step: 4, due: null, attempts: four(d) });
-const nmx = [mm('k1', 'en-pp-fixed', 'en-prep', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-15']),
-  mm('k2', 'en-pp-fixed', 'en-prep', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-14']),
-  mm('k3', null, 'en-tense', ['2026-10-05', '2026-10-06', '2026-10-08', '2026-10-20']),
-  mm('k4', 'en-c-coord', 'en-conj', ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-13'])];
-const nm = L.weekReview(nmx, L.addDays(T1, -6), T1);   // k4 在窗口外
-assert.deepStrictEqual(Array.from(nm.newlyMastered, g => [g.kind, g.id, g.n]), [['concept', 'en-pp-fixed', 2], ['topic', 'en-tense', 1]]);
+// 新掌握：按科目（English、Math、Science）分组；同科 Key idea 一字不差的并成一行，没有 Key idea 的题自成一行；行按道数、最近掌握日期、文字排；每科前 3 行在 top，其余在 more，n 是题数
+const KI = k => `Key idea: ${k}\nSteps:\n1. Read.\nWatch out: Slow down.`;
+const mm = (id, subject, solution, d, extra) => Object.assign({ id, subject, topic: 't', concept: null, solution, stem: 'Stem ' + id, mastered: true, step: 4, due: null, attempts: four(d) }, extra || {});
+const W = ['2026-10-05', '2026-10-06', '2026-10-08'];
+const nmx = [
+  mm('k1', 'english', KI('Use [[in]] before a year.'), [...W, '2026-10-15']),
+  mm('k2', 'english', KI('Use [[in]] before a year.'), [...W, '2026-10-14']),
+  mm('k3', 'english', 'Just read it again.', [...W, '2026-10-20'], { stem: '' , setId: 's1' }),   // 讲解没有标记：没有 Key idea
+  mm('k4', 'english', KI('good at + verb-ing'), [...W, '2026-10-19']),
+  mm('k5', 'english', KI('Neither…nor joins two negatives.'), [...W, '2026-10-16']),
+  mm('k6', 'english', KI('Arrange adjectives by size first.'), [...W, '2026-10-17']),
+  mm('m1', 'math', KI('Find the fraction of the remainder.'), [...W, '2026-10-18']),
+  mm('s1', 'science', KI('Condensation needs a cool surface.'), [...W, '2026-10-18']),
+  mm('k7', 'english', KI('Old one.'), ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-13']),   // 窗口外
+  Object.assign(mm('k8', 'english', KI('Lost again.'), [...W, '2026-10-15']), { mastered: false })];   // 掌握后又做错：现在不算掌握
+const nm = L.weekReview(nmx, L.addDays(T1, -6), T1);
+assert.deepStrictEqual(Array.from(nm.newlyMastered, g => [g.subject, g.n, g.top.length, g.more.length]), [['english', 6, 3, 2], ['math', 1, 1, 0], ['science', 1, 1, 0]]);
+const nmEn = nm.newlyMastered[0], rowsOf = g => [...g.top, ...g.more];
+assert.deepStrictEqual(rowsOf(nmEn).map(r => [r.key, r.n, r.last, Array.from(r.items, x => x.id)]), [
+  ['Use [[in]] before a year.', 2, '2026-10-15', ['k1', 'k2']],       // 道数多的在前；行内题按掌握日期新到旧
+  ['', 1, '2026-10-20', ['k3']],                                        // 其余按最近掌握日期
+  ['good at + verb-ing', 1, '2026-10-19', ['k4']],
+  ['Arrange adjectives by size first.', 1, '2026-10-17', ['k6']],
+  ['Neither…nor joins two negatives.', 1, '2026-10-16', ['k5']]]);
+assert.deepStrictEqual({ ...nmEn.top[1].items[0] }, { id: 'k3', stem: '', setId: 's1' });
+// 同一天掌握、道数相同时按文字
+const nmTie = L.weekReview([mm('a', 'math', KI('B rule.'), [...W, '2026-10-18']), mm('b', 'math', KI('A rule.'), [...W, '2026-10-18'])], L.addDays(T1, -6), T1);
+assert.deepStrictEqual(rowsOf(nmTie.newlyMastered[0]).map(r => r.key), ['A rule.', 'B rule.']);
 // 按用户：视图只留本人作答、阶梯各算各的；没有作答时为起点
 const by = (u, date, result, extra) => Object.assign({ by: u, date, result, mode: 'daily' }, extra || {});
 const shared = [
