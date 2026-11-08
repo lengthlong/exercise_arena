@@ -1,6 +1,6 @@
 # 0038 Newly mastered：按科目分组，按 Key idea 列出，不列专题
 
-> 状态：**讨论中（2026-11-08）**
+> 状态：**待落盘（2026-11-08）**
 
 | 题 | 状态 | 现行裁决 | 详见 |
 |---|---|---|---|
@@ -9,6 +9,7 @@
 | M2 怎样按科目分组 | 已裁 | C：每科一个小标题（科目标签 · 道数），先列前 3 行，其余写「+N more」点开（用户选，推翻推荐 A） | 二·M2 |
 | M3 点一道题能不能打开它 | 被取代 → M3′ | — | 二·M3 |
 | M3′ 一行（一句 Key idea，可能 ×n）能不能点开 | 已裁 | C：点一行展开它代表的几道题的题干，每个题干再点开这道题的详情（用户选，推翻推荐 A） | 二·M3 改写 |
+| I1 从 Newly mastered 打开原题后怎样回来 | 已裁 | A：返回按钮写「← Back to Today」并回到 Today，展开状态保留；从 Today 打开时不丢 Exercises 里未保存的修改 | 四·I1 |
 
 ## 一、目的
 
@@ -94,9 +95,38 @@ M1 的原题已被 M1a 取代，第 3 点「其他」由 agent 提议的三项�
 
 | 行 | 裁决 | 目标文件 | 改动 |
 |---|---|---|---|
-| 1 | M1、M1a、M2 | `app/arena.html` 纯逻辑 | `weekReview` 的 `newlyMastered` 改为按科目分组的数组：`[{ subject, n, rows }]`。取区间内变成掌握、现在仍掌握的错题（条件不变）；每道题取 `parseExplanation(e.solution).keyIdea`（去首尾空白）。同一科里 Key idea 一字不差的并成一行 `{ key, n, items, last }`；没有 Key idea 的题各自一行 `{ key: '', n: 1, items, last }`。`items` 是 `{ id, stem, setId, photo }`（`photo` 为有照片），`last` 为这一行里最近的掌握日期。行按 `n` 降序、`last` 新到旧、文字（Key idea 或题干）升序；科目按 `SUBJECTS` 的顺序，只出有新掌握的科目；科目的 `n` 是题数。不再按概念、专题分组 |
-| 2 | M2、M3′ | `app/arena.html` 渲染 | `masteredList`：没有新掌握时不显示（不变）。标题「Newly mastered · 总题数」；每科一个小标题：科目标签与该科题数；先列前 3 行，其余放进「+N more」（N 为余下的行数，原生 `details` 原地展开）。Key idea 行：`details`，摘要是 Key idea（`[[ ]]` 照讲解高亮）与 `n > 1` 时的「×n」，展开后列这几道题的题干按钮；没有 Key idea 的行：直接是题干按钮。题干按钮写纯文字、一行截断（`title` 带全文），没有题干时写「(see the set material)」或「(photo only)」，点了走 `goto-ex` 打开这道题的详情。去掉概念链接与专题名。CSS 随之调整，375 宽不横向滚动 |
-| 3 | M1a、M2 | `app/logic.test.js` | 改写「新掌握按概念分组」那条断言：同科 Key idea 相同的两题并成一行 ×2；没有 Key idea（讲解无标记）的题自成一行、`key` 为空；不同科分到各自组、按 English、Math、Science 的顺序；行序按道数、再按最近掌握日期；窗口外的题不算；掌握后又做错的不算。原有空列表断言保留 |
-| 4 | — | `CONTEXT.md`、`DATA.md`、`adr/` | 不改：Newly mastered 的分组只是 Today 的显示，术语表与数据契约都没写它（E3）；不新增字段（M1a） |
-| 5 | 完成标准 | 验证（不改文件） | `./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；落盘者对照本表逐行核对实际稿；本地测试壳造多科新掌握（含 Key idea 相同、没有 Key idea、照片题、题组题、某科超过 3 行）看 This week 与 Last week，点「+N more」、点行、点题干能打开详情；375 宽与深色主题下可读、无横向滚动 |
+| 1 | M1、M1a、M2 | `app/arena.html` 纯逻辑 | `weekReview` 的 `newlyMastered` 改为按科目分组的数组：`[{ subject, n, top, more }]`。取区间内变成掌握、现在仍掌握的错题（条件不变）；每道题取 `parseExplanation(e.solution).keyIdea`（去首尾空白）。同一科里 Key idea 一字不差的并成一行 `{ key, n, items, last }`；没有 Key idea 的题各自一行（`key` 为空）。`items` 是 `{ id, stem, setId }`，按掌握日期新到旧、再按 id；`last` 为这一行里最近的掌握日期。行按 `n` 降序、`last` 新到旧、文字（Key idea 或题干）升序、首道题 id 升序；`top` 是前 3 行，`more` 是其余；科目按 `SUBJECTS` 的顺序，只出有新掌握的科目；科目的 `n` 是题数。不再按概念、专题分组 |
+| 2 | M2、M3′、I1 | `app/arena.html` 渲染与动作 | `masteredList`：没有新掌握时不显示（不变）。标题「Newly mastered · 总题数」；每科一个小标题：科目标签与该科题数；先列 `top`，`more` 放进「+N more」（N 为 `more` 的行数，原生展开、原地展开）。Key idea 行：可展开，摘要是 Key idea（`[[ ]]` 照讲解高亮）与 `n > 1` 时的「×n」，展开后列这几道题的题干按钮；没有 Key idea 的行：直接是题干按钮。题干按钮写纯文字、一行截断（悬停看全文），没有题干时写「(see the set material)」或「(photo only)」。去掉概念链接与专题名。三层展开的状态记在页面状态里（照照片展开的做法），重画后保留。点题干：切到 Exercises 打开这道题的详情，并记下「从 Today 来」；此时不丢编辑草稿，详情优先于编辑表单显示；详情页返回按钮写「← Back to Today」，点了回到 Today；在详情里点 Edit 时显示最新的那份编辑草稿；点标签栏时清掉「从 Today 来」。其他地方的 `goto-ex` 与「← Back to the list」不变。CSS 随之调整，375 宽不横向滚动 |
+| 3 | M1a、M2 | `app/logic.test.js` | 改写「新掌握按概念分组」那条断言：同科 Key idea 相同的两题并成一行 ×2；没有 Key idea（讲解无标记）的题自成一行、`key` 为空；不同科分到各自组、按 English、Math、Science 的顺序；行序按道数、再按最近掌握日期、再按文字；某科 5 行时 `top` 3 行、`more` 2 行，科目 `n` 是题数不是行数；窗口外的题不算；掌握后又做错的不算。原有空列表断言保留 |
+| 4 | — | `CONTEXT.md`、`DATA.md`、`adr/` | 不改：Newly mastered 的分组只是 Today 的显示，术语表与数据契约都没写它（E3）；不新增字段（M1a）。`DATA.md`「概念链接到知识图」仍由讲解块与详情页承担 |
+| 5 | 完成标准 | 验证（不改文件） | `./check.sh` 与 `node app/logic.test.js app/arena.html` 通过；落盘者对照本表逐行核对实际稿；本地测试壳造多科新掌握（含 Key idea 相同、没有 Key idea、照片题、题组题、某科超过 3 行）看 This week 与 Last week：点「+N more」、点行、点题干打开详情，「← Back to Today」回到 Today 且展开仍在；先在 Exercises 开着一份未保存的编辑再从 Today 点题干，回来后编辑仍在；375 宽与深色主题下可读、无横向滚动 |
 | 6 | 发布 | 线上 Artifact（外部操作） | 重新发布到 `app/arena.html` 文件头写的原网址，并更新文件头注释；**执行前单独问用户**，核销表确认不代表授权发布 |
+
+## 四、复审（2026-11-08）
+
+派一个新上下文的 subagent（与主 agent 同一模型，没有更强的可选），只给讨论文件与仓库。主 agent 逐条核验：
+
+- 事实 a 属实：`goto-ex` 会丢掉 Exercises 里未保存的编辑草稿（`S.drafts = S.drafts.filter(d => !d.editId)`），详情页的返回按钮「← Back to the list」回到 Exercises 列表，不回 Today。M3′ 说「代价几乎没有」不对。
+- 事实 b 属实：每次 `render()` 整页重写，`toggle` 监听只记照片、题组材料与照片日志的展开状态；Today 上原生展开在任何重画（含实时快照）后都会收起。
+- 未知：Key idea 一字不差重复的比例没有统计；推断多数行是一道题。影响只是 ×n 少见，不改裁决。
+
+处置：
+
+- F1 机械：「先列 3 行」与「+N 的 N 是行数」放进纯逻辑（每科输出 `top` 与 `more`），补断言（改核销行 1、3）。
+- F2 机械部分：Today 上三层展开的状态记在页面状态里、重画后保留（照照片展开的做法，改核销行 2）。Back 回到哪里改变已有按钮的去向，交用户裁（I1）。
+- F3 机械：`items` 去掉没用到的 `photo`（改核销行 1）。
+- F4 机械：行序最后按首道题 id；行内题按掌握日期新到旧（改核销行 1）。
+- F5 不适用：改名已一并提交（提交时旧路径与新路径都在）。
+- 论证修正：只代表一道题的 Key idea 行也展开，理由改为「不离开 Today 就能看到是哪道题」，不是「规则一致」（退回写题干的行本来就直接打开详情）。
+- 向用户确认核销表时明说三条交互取舍：科内行先按道数再按日期；一道题的 Key idea 行也展开；退回写题干的行直接打开详情。
+- I2（放宽为规范化比对合并）：没有线上重复率的证据，不交用户，记在这里。
+- 「Key idea 是规则句，仍可能被读成这条规则会了」：推断，粒度是用户选的，不交用户。
+
+### I1 从 Newly mastered 打开原题后怎样回来
+
+- A（推荐）**Back 回到 Today，展开状态保留；从 Today 打开时不丢编辑草稿。** 设计里变的：详情页记一个「从 Today 来」，返回按钮写「← Back to Today」并回到 Today；连看几道原题不用每次重新点开。代价：多一个来源标记，返回按钮有两种去向。
+- B **照现在：Back 回 Exercises 列表，要回 Today 自己点标签。** 代价：看一道原题要来回一趟、再点开（展开状态仍保留）；Exercises 里未保存的修改会被丢。
+
+裁决（2026-11-08）：A。
+
+重写后自查（核销行 1、2、3、5）：行 1 补了 `top` / `more` 与排序的最后一键、去掉 `photo`；行 2 补了展开状态保留与 I1 的返回去向、不丢草稿的做法；行 3 补了切分与口径的断言；行 5 补了返回与草稿的实测。逐行对照登记表，没有登记表之外的新决定；「不丢草稿」的做法（从 Today 来时详情优先于编辑表单显示，点 Edit 时显示最新的那份编辑草稿）是 I1 的机械落实。改动不大，不再派复审。
