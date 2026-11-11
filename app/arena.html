@@ -1138,6 +1138,30 @@ function podium(rows) {
   // 领奖台：星榜的前三名各站一级（星榜没有并列）
   return [0, 1, 2].map(i => rows[i] ? [rows[i].id] : []);
 }
+async function retryUnavailable(fn, sleep, rnd, retries) {
+  // 平台说 unavailable 是暂时的：写入失败带这个码时，隔一小会儿（0.5–1.5 秒，随机）再试，最多 retries 次；别的错误码原样抛出
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (!err || err.code !== 'unavailable' || i >= retries) throw err;
+      await sleep(500 + Math.floor(rnd() * 1000));
+    }
+  }
+}
+function retryingDb(db, sleep, rnd, retries) {
+  // 只给写（set、update、delete）加重试；页面里写入都是整份替换、按字段替换或删除，重做一次结果相同
+  const wrapDoc = ref => ({
+    id: ref.id, path: ref.path,
+    get: () => ref.get(),
+    set: d => retryUnavailable(() => ref.set(d), sleep, rnd, retries),
+    update: d => retryUnavailable(() => ref.update(d), sleep, rnd, retries),
+    delete: () => retryUnavailable(() => ref.delete(), sleep, rnd, retries),
+  });
+  return {
+    doc: p => wrapDoc(db.doc(p)),
+    collection: p => { const c = db.collection(p); return { doc: id => wrapDoc(c.doc(id)) }; },
+  };
+}
 /* LOGIC:END */
 </script>
 
@@ -2568,7 +2592,8 @@ async function boot() {
   const [db, assets, sample, downloads, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('downloads'), use('user')]);
   const me = user ? (await user.me()).id : null;
   if (!db || !me) { S.status = 'nodb'; render(); return; }
-  Object.assign(S, { db, assets, sample, downloads, user, me });
+  // S.db 只用来写，写入遇到 unavailable 自动重试；监听与读取仍用原来的 db
+  Object.assign(S, { db: retryingDb(db, ms => new Promise(r => setTimeout(r, ms)), Math.random, 2), assets, sample, downloads, user, me });
   S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
   try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}

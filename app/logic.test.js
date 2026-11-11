@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,toYaml,exportData,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,goalProgress,weekReview,reviewLine,keyIdeaTip,paperTry,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,ladderShares,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -592,4 +592,21 @@ const wm = [{ id: 'm1', at: '2026-10-12T08:00', players: ['uS', 'uA'] }, { id: '
   { id: 'm3', at: CD + 'T09:00', players: ['uA', 'uS'] }, { id: 'm4', at: CD + 'T10:00', players: ['uC', 'uD'] }];
 assert.strictEqual(Array.from(L.weekMatches(wm, ['uS', 'uA', 'uB'], CD), m => m.id).join(), 'm3,m1');
 assert.strictEqual(L.weekMatches([], ['uS'], CD).length, 0);
+// write retry: unavailable is transient, retried with a randomized wait; other codes throw at once
+(async () => {
+  const waits = [], sleep = ms => { waits.push(ms); return Promise.resolve(); };
+  const flaky = (n, code) => { let c = 0; return { calls: () => c, fn: async () => { c++; if (c <= n) throw { code }; return 'ok'; } }; };
+  let f = flaky(2, 'unavailable');
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0, 2), 'ok'); assert.strictEqual(f.calls(), 3); assert.deepStrictEqual(waits, [500, 500]);
+  waits.length = 0; await L.retryUnavailable(flaky(1, 'unavailable').fn, sleep, () => 0.999, 2); assert.deepStrictEqual(waits, [1499]);
+  f = flaky(3, 'unavailable');
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === 'unavailable'); assert.strictEqual(f.calls(), 3);
+  for (const code of ['invalid_argument', 'quota_exceeded', 'resource_exhausted']) { f = flaky(1, code); await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === code); assert.strictEqual(f.calls(), 1); }
+  // retryingDb: set / update / delete retry, also on a doc made by collection().doc(); get is passed through once
+  let n = 0; const raw = { id: 'x1', path: 'c/x1', get: async () => 'got', set: async () => { if (++n < 2) throw { code: 'unavailable' }; }, update: async () => {}, delete: async () => {} };
+  const rdb = L.retryingDb({ doc: () => raw, collection: () => ({ doc: () => raw }) }, sleep, () => 0, 2);
+  await rdb.collection('c').doc().set({ a: 1 }); assert.strictEqual(n, 2); assert.strictEqual(rdb.collection('c').doc().id, 'x1');
+  assert.strictEqual(await rdb.doc('c/x1').get(), 'got');
+  await rdb.doc('c/x1').update({}); await rdb.doc('c/x1').delete();
+})().then(() => console.log('retry ok'), e => { console.error(e); process.exit(1); });
 console.log('all logic tests passed');
