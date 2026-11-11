@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node app/logic.test.js app/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,retryUnavailable,retryingDb};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,retryUnavailable,retryingDb,resumeState,resumePaper};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -357,6 +357,30 @@ const dEn = { id: 'dE', kind: 'daily', for: 'uA', createdAt: T16, subject: 'engl
 const dSc = { id: 'dS', kind: 'daily', for: 'uA', createdAt: T16, subject: 'science', exerciseIds: [] };
 assert.strictEqual(L.openDailyPaper([dOpen, dSc, dEn], pwA, 'uA', 'english').id, 'dE');
 assert.strictEqual(L.openDailyPaper([dOpen, dSc], pwA, 'uA', 'english'), null);
+// 交卷写到一半失败的每日卷：作答已写成、handedIn 还没写上；每日卷只看 handedIn，所以没交成；检验卷没有 handedIn 时仍按作答算
+const dHalf = { id: 'dHalf', kind: 'daily', for: 'uA', subject: 'english', createdAt: T16, exerciseIds: ['h1', 'h2', 'h3'], responses: { h2: 'b', h3: 'x' } };
+const hv = L.viewFor([
+  { id: 'h1', createdAt: '2026-10-10', attempts: [by('uA', T16, 'right', { mode: 'daily', paperId: 'dHalf', at: T16 + 'T09:00', response: 'A' }), by('uS', T16, 'wrong', { mode: 'daily', paperId: 'dHalf', response: 'Z' })] },
+  { id: 'h2', createdAt: '2026-10-10', attempts: [] }, { id: 'h3', createdAt: '2026-10-10', attempts: [] }], 'uA');
+assert.strictEqual(L.handedInAt(dHalf, hv, 'uA'), null);
+assert.strictEqual(L.handedInAt(Object.assign({}, dHalf, { handedIn: { uA: T16 + 'T09:05' } }), hv, 'uA'), T16 + 'T09:05');
+assert.strictEqual(L.openDailyPaper([dHalf], hv, 'uA', 'english').id, 'dHalf');
+assert.deepStrictEqual(ids(L.visiblePapers([dHalf], hv, 'uA')), []);   // 没交成的不列
+// 接着做：已写成作答的题回答取作答里的（只取我的）并记为已存，其余取卷上自动存的；一道作答都没写成的不接着做
+const rs = L.resumeState(dHalf, hv);
+assert.deepStrictEqual([{ ...rs.responses }, { ...rs.saved }], [{ h1: 'A', h2: 'b', h3: 'x' }, { h1: true }]);
+assert.strictEqual(L.resumeState(Object.assign({}, dHalf, { id: 'dNone' }), hv), null);
+assert.strictEqual(L.resumeState(Object.assign({}, dHalf, { exerciseIds: ['h2', 'h3'] }), hv), null);
+// 接着做哪一张：这一科最新的一张每日卷还没交且已有作答才接着做；更新的一张已交（旧半截卷被取代）、别的科目、别人的、最新一张没有作答都不接
+const rp = L.resumePaper([dHalf], hv, 'uA', 'english');
+assert.deepStrictEqual([rp.paper.id, { ...rp.saved }], ['dHalf', { h1: true }]);
+const dNew = Object.assign({}, dHalf, { id: 'dNew', madeAt: T16 + 'T12:00', exerciseIds: ['h2', 'h3'], responses: {} });
+assert.strictEqual(L.resumePaper([dNew, Object.assign({}, dHalf, { madeAt: T16 + 'T11:00' })], hv, 'uA', 'english'), null);   // 最新一张没有作答：照旧新组
+const dEarly = Object.assign({}, dHalf, { id: 'dEarly', madeAt: T16 + 'T08:00' }), dLater = Object.assign({}, dHalf, { id: 'dLater', madeAt: T16 + 'T10:00', exerciseIds: ['h2'], handedIn: { uA: T16 + 'T10:30' } });
+assert.strictEqual(L.resumePaper([dEarly, dLater], hv, 'uA', 'english'), null);   // 更新的已交：旧半截卷不再接
+assert.strictEqual(L.resumePaper([dHalf], hv, 'uA', 'science'), null);
+assert.strictEqual(L.resumePaper([dHalf], hv, 'uS', 'english'), null);
+assert.strictEqual(L.resumePaper([], hv, 'uA', 'english'), null);
 // 列表：全部检验卷 + 我交过的每日卷；没交的（含今天的）、别人的不列
 assert.deepStrictEqual(ids(L.visiblePapers([PX, dOther, dOpen, PZ, dOld, dDone, Object.assign({}, dOld, { id: 'dOH', handedIn: { uA: '2026-10-15T20:00' } })], pwA, 'uA')), ['PX', 'PZ', 'dD', 'dOH']);
 // Today 的「已做/一共」：只数每日重做上今天做过的题，一题一次；检验卷、昨天的、别人的不算；还要做的与已做取并集；不在 todo 的不计；科目按 SUBJECTS 顺序，空科目不出
@@ -704,7 +728,7 @@ const cvB = L.viewFor([cx1, cx2], 'uB');
 assert.ok(cvB[0] !== cv1[0]);
 assert.deepStrictEqual([cvB[0].attempts.length, cvB[0].allAttempts.length, cvB[0].step], [0, 1, 1]);
 assert.deepStrictEqual([L.viewFor([cx1, cx2], 'uA')[0].step], [2]);   // 换过用户再换回来，结果仍对
-// 该删的每日卷：给本人、已交（含旧卷回退到作答）、createdAt 早于 30 天前；没交的、检验卷、别人的、30 天内的都不选
+// 该删的每日卷：给本人、已交（每日卷只看 handedIn，没有 handedIn 的即使有作答也算没交）、createdAt 早于 30 天前；没交的、检验卷、别人的、30 天内的都不选
 const sdv = L.viewFor([{ id: 'x1', createdAt: '2026-08-01', attempts: [by('uA', '2026-08-20', 'right', { paperId: 'OLDLEG' })] }], 'uA');
 const sdp = [
   { id: 'OLD', kind: 'daily', for: 'uA', createdAt: '2026-09-20', handedIn: { uA: '2026-09-20T18:00' } },
@@ -714,8 +738,8 @@ const sdp = [
   { id: 'OPEN', kind: 'daily', for: 'uA', createdAt: '2026-08-01', handedIn: {} },
   { id: 'OTHER', kind: 'daily', for: 'uB', createdAt: '2026-08-01', handedIn: { uB: '2026-08-01T18:00' } },
   { id: 'CHK', createdAt: '2026-08-01', handedIn: { uA: '2026-08-01T18:00' } }];
-assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-29', 30)), ['OLD', 'OLDLEG']);   // 2026-09-29 恰好 30 天，不删
-assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-30', 30)), ['OLD', 'OLDLEG', 'EDGE']);
+assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-29', 30)), ['OLD']);   // 2026-09-29 恰好 30 天，不删；OLDLEG 没有 handedIn，算没交，不按这条删
+assert.deepStrictEqual(ids(L.staleDailyPapers(sdp, sdv, 'uA', '2026-10-30', 30)), ['OLD', 'EDGE']);
 assert.deepStrictEqual(ids(L.staleDailyPapers([], sdv, 'uA', '2026-10-29', 30)), []);
 // 一张卷交卷前后的两架梯子：在本人第一条带本卷 paperId 的作答处切开；本卷之后的、别人的、别的卷的作答不影响；未写入的取 results，主观题要 saved 才算
 const prl = (exs, results, saved) => L.paperLadders(exs, 'uS', 'P', results || {}, saved || {});

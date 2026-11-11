@@ -9,6 +9,7 @@
   照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
   拍照后缩略图：照片一选就先显示原图，缩小在后台做，decode() 10 秒超时（用户直接指示，未开讨论）。
   重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
+  接着交卷：每日卷交卷写到一半失败时，再点这一科接着做这张卷，不新组（用户反馈，未开讨论）。
   写入重试：写入遇到 unavailable（平台的暂时不可用）时自动重试，最多两次、隔 0.5–1.5 秒；别的错误码照旧立刻提示（用户反馈，未开讨论）。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   新掌握：Today 的 Newly mastered 用科目子标签、按 Key idea 列出（前 3 行 + more），展开看题干，点开详情可返回 Today（discuss 0038）。第 88 版发布 0037 与 0038。
@@ -666,8 +667,9 @@ function paperAttempts(paper, exs) {
 }
 function isDaily(p) { return p.kind === 'daily'; }
 function handedInAt(paper, view, uid) {
-  // 我交过这张卷的时刻：卷子的 handedIn 里记的；旧卷没有 handedIn 时取我（view）在本卷作答中最晚的 at（没有 at 取 date）；没交为 null
+  // 我交过这张卷的时刻：卷子的 handedIn 里记的；没有 handedIn 的检验卷（旧卷）取我（view）在本卷作答中最晚的 at（没有 at 取 date）；没有 handedIn 的每日卷为 null；没交为 null
   if (paper.handedIn) return paper.handedIn[uid] || null;
+  if (isDaily(paper)) return null;   // 每日卷只看 handedIn：交卷写到一半失败时作答已在、handedIn 还没写上，这张卷还没交成
   let last = null;
   for (const e of view) for (const a of e.attempts || []) if (a.paperId === paper.id) { const t = a.at || a.date; if (t && (!last || t > last)) last = t; }
   return last;
@@ -742,6 +744,24 @@ function openDailyPaper(papers, view, uid, subject) {
   const key = p => String(p.madeAt || p.createdAt || '');
   return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid))
     .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+function resumeState(paper, view) {
+  // 交卷写到一半失败的每日卷再开始这一科时接着做：我在本卷已写成作答的题，回答取作答里的并记为已存（再交时跳过），其余回答取卷上自动存的；一道作答都没写成的返回 null（那样的卷照旧被新卷取代）
+  const rows = paperAttempts(paper, view).filter(r => r.ex && r.attempt);
+  if (!rows.length) return null;
+  const responses = Object.assign({}, paper.responses || {}), saved = {};
+  for (const r of rows) { responses[r.id] = String(r.attempt.response || ''); saved[r.id] = true; }
+  return { responses, saved };
+}
+function resumePaper(papers, view, uid, subject) {
+  // 再开始这一科时要接着做的卷：这一科给我的每日卷里最新的一张（madeAt，否则 createdAt；再按 id）还没交、而且我在上面已有作答；更新的一张已交（旧的半截卷被它取代）、或最新一张没有作答，都返回 null。返回 { paper, responses, saved }
+  const key = p => String(p.madeAt || p.createdAt || '');
+  const mineAll = papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject)
+    .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)));
+  const last = mineAll[0];
+  if (!last || handedInAt(last, view, uid)) return null;
+  const st = resumeState(last, view);
+  return st ? { paper: last, responses: st.responses, saved: st.saved } : null;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -2749,7 +2769,10 @@ document.addEventListener('click', async ev => {
         const today = localToday(), subj = b.dataset.subject;
         if (!SUBJ[subj]) break;
         const view = mine(), last = openDailyPaper(S.papers, view, S.me, subj);
-        const olds = S.papers.filter(x => isDaily(x) && x.for === S.me && x.subject === subj && !handedInAt(x, view, S.me));
+        // 上一张交卷写到一半失败（作答已写成、卷子还没记已交）：接着做这一张，不新组、不删，再点 Hand in 补写
+        const part = resumePaper(S.papers, view, S.me, subj);
+        if (part) { S.run = { kind: 'paper', paperId: part.paper.id, phase: 'answer', responses: part.responses, results: {}, saved: part.saved, idx: 0, openSets: {}, openPhotos: {} }; render(); window.scrollTo(0, 0); break; }
+        const olds = S.papers.filter(x => isDaily(x) && x.for === S.me && x.subject === subj && !handedInAt(x, view, S.me) && !resumeState(x, view));   // 已有作答的卷不删
         const list = subjectBatch(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit, subj);
         if (!list.length) { render(); break; }
         const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
