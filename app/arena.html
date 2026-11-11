@@ -2,7 +2,16 @@
   Exercise Arena — 练习场页面（实现）。
   数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
-  能力：db、assets、sample（images）、downloads、user（profile）。
+  能力：db、assets、sample（images）、user（profile）。
+  运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
+  加载：错题与卷子只订阅默认归属人的，错题视图按文档缓存（DATA.md「加载」）；已交每日卷满 30 天后由页面删除（discuss 0032）。
+  照片：新录入的先缩到长边不超过 2400 像素的 JPEG 再上传与识别（DATA.md「写入规则」）。
+  照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
+  拍照后缩略图：照片一选就先显示原图，缩小在后台做，decode() 10 秒超时（用户直接指示，未开讨论）。
+  重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
+  界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
+  新掌握：Today 的 Newly mastered 用科目子标签、按 Key idea 列出（前 3 行 + more），展开看题干，点开详情可返回 Today（discuss 0038）。第 88 版发布 0037 与 0038。
+  录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
 -->
 <title>Exercise Arena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +43,7 @@
   --c-wrong: #b3261e;
   --c-seg-ink: #fff;
   --lad1: #9db2ee; --lad2: #5f80dc; --lad3: #2f52c0; --lad4: #1b307a; --lad-m: #1f7a4a;
+  --v1: #ea580c; --v2: #ca8a04; --v3: #16a34a; --v4: #db2777; --vm: #9333ea;   /* 两架梯子的级名与跑的小人：与右梯小人同色系 */
   --font-body: "Lexend", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-hand: "Patrick Hand", "Lexend", cursive;
   --r: 10px;
@@ -45,6 +55,7 @@
     --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
     --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
     --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
+    --v1: #ff7a45; --v2: #facc15; --v3: #22c55e; --v4: #ec4899; --vm: #c084fc;
     color-scheme: dark;
   }
 }
@@ -54,6 +65,7 @@
   --red: #ff7b70; --red-soft: #3a1c1c; --green: #64d295; --green-soft: #15301f; --amber: #f0b862; --amber-soft: #36280f;
   --hl: #6b5a12; --hl-ink: #fff4c4; --c-right: #1f9a80; --c-partial: #bb891c; --c-wrong: #de4b74; --c-seg-ink: #1b2231;
   --lad1: #34488a; --lad2: #4f6cd0; --lad3: #7a98f5; --lad4: #bccbff; --lad-m: #64d295;
+  --v1: #ff7a45; --v2: #facc15; --v3: #22c55e; --v4: #ec4899; --vm: #c084fc;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -97,6 +109,7 @@ mark { background: var(--hl); color: var(--hl-ink); padding: 0 .15em; border-rad
 .note { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
 .note.err { background: var(--red-soft); color: var(--red); }
 .note.ok { background: var(--green-soft); color: var(--green); }
+.note.warn { background: var(--amber-soft); color: var(--amber); }
 label.f { display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); min-width: 0; }
 input[type=text], input[type=number], input[type=date], input[type=search], select, textarea {
   width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 14px;
@@ -122,19 +135,22 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .today-h { grid-column: 1 / -1; }
 .today-papers { grid-column: 1 / -1; display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
 .plan .sub, .review .sub, .dash .sub { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 8px; }
-.days7 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.days7 li { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); min-width: 0; }
-.days7 .d { font-size: 12px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
-@media (max-width: 480px) { .days7 { gap: 4px; } .days7 .d { font-size: 11px; letter-spacing: -.02em; } }
-.days7 .n { font: 400 24px/1 var(--font-hand); color: var(--pen); }
-.days7 li.zero .n { color: var(--muted); }
-.days7 li.is-today { border-color: var(--pen); background: var(--pen-soft); }
-.days7 li.is-today .d { color: var(--pen); font-weight: 600; }
-.checklist, .mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
-.checklist li, .mastered li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.tick { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
-.tick.ok { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 700; }
-.rv-head { display: flex; align-items: baseline; gap: 10px; }
+.plan .ladpair, .review .ladpair, .run-ladder .ladpair { border-top: 1px solid var(--rule); padding-top: 8px; }
+/* 新掌握的列表 */
+.mastered { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; min-width: 0; }
+.mastered li { min-width: 0; }
+.nm summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; list-style: none; }
+.nm summary::-webkit-details-marker { display: none; }
+.nm summary::before { content: '▸'; color: var(--muted); flex: none; width: 10px; }
+.nm[open] > summary::before { content: '▾'; }
+.nm-qs { display: grid; gap: 2px; padding: 4px 0 4px 18px; }
+.nm-q { display: block; width: 100%; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 13.5px; color: var(--pen); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nm-q:hover { text-decoration: underline; }
+.mastered > li > .nm-q::before { content: '•'; display: inline-block; width: 18px; color: var(--muted); }
+.nm-more > summary { font-size: 13.5px; color: var(--muted); }
+.nm-more > .mastered { padding-top: 4px; }
+.rv-head { display: flex; align-items: center; gap: 10px; }
+.rv-txt { display: grid; gap: 2px; min-width: 0; }
 .rv-n { font: 400 40px/1 var(--font-hand); color: var(--red); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
 .stats b { color: var(--ink); font-weight: 600; }
@@ -142,11 +158,6 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 /* question sheet */
 .sheet { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; font-size: 15.5px; line-height: 1.6; }
 .qhead { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.sum-txt { display: grid; gap: 2px; }
-.sum-head { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; min-width: 0; }
-.sum-head .h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sum-head .btn, .sum-head .chip { flex: none; white-space: nowrap; }
-@media (max-width: 480px) { .wide-only { display: none; } }
 .qhead-r { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
 .stem { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.65; }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -182,6 +193,11 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .selfmark button[aria-pressed="true"][data-r="wrong"] { background: var(--red-soft); }
 .progress { display: flex; align-items: center; gap: 8px; }
 .progress .btn, .progress > .small { white-space: nowrap; }
+.progress .ellip { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.progress.sheet-top { flex-wrap: wrap; }
+.progress .score { font-size: 32px; }
+.sum-name { display: grid; min-width: 0; flex: 1 1 100%; }
+.sum-name .ellip { white-space: nowrap; }
 .bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--pen); }
 .score { font: 400 48px/1 var(--font-hand); color: var(--red); }
@@ -209,6 +225,9 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .checks input { margin: 0; }
 .draft { border-left: 3px solid var(--pen); }
 .bank { display: flex; flex-wrap: wrap; gap: 6px; }
+details.plog { font-size: 13px; }
+details.plog > summary { cursor: pointer; color: var(--muted); width: fit-content; }
+details.plog > textarea { width: 100%; margin: 6px 0; font: 12px/1.4 ui-monospace, monospace; white-space: pre; overflow: auto; }
 details.photos > summary { cursor: pointer; font-size: 13px; color: var(--pen); width: fit-content; }
 details.photos[open] > summary { margin-bottom: 6px; }
 .why { display: grid; gap: 8px; }
@@ -222,8 +241,8 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .dash-block { display: grid; gap: 6px; min-width: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-/* Last 7 days：7 列平分块宽的叠柱 */
-.bars7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; height: 120px; border-bottom: 1px solid var(--line); }
+/* This week 与 Last week：7 列平分块宽的叠柱 */
+.bars7 { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; height: 144px; border-bottom: 1px solid var(--line); }
 .bars7 .col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; border-radius: 4px 4px 0 0; }
 .bars7 .col:hover { background: var(--surface-2); }
 .bars7 .v { font: 500 11px var(--font-body); color: var(--muted); margin-bottom: 2px; }
@@ -234,16 +253,54 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .bars7 .stack i:last-child { border-radius: 3px 3px 0 0; }
 .bars7 .stack.none { height: 2px; background: var(--line); border-radius: 1px; }
 .bars7-x { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
-/* Ladders：环形图与图例 */
-.lad { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 18px; align-items: center; }
-@media (max-width: 420px) { .lad { grid-template-columns: minmax(0, 1fr); justify-items: center; } .lad .lad-legend { width: 100%; } }
-.lad svg { width: 140px; height: 140px; display: block; }
-.lad .lad-n { font: 400 30px var(--font-hand); fill: var(--ink); }
-.lad .lad-t { font: 400 11px var(--font-body); fill: var(--muted); }
-.lad-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; max-width: 360px; }
-.lad-legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
-.lad-legend .sw { width: 12px; height: 12px; border-radius: 3px; }
-.lad-legend .k { color: var(--muted); }
+/* This week 与 Last week 的组合图：左轴作答次数、右轴正确率，两轴共用三条横线；正确率是主角：蓝色粗线带底色描边、大点、点上写百分比，柱子淡下去作背景，次数在悬停时才出 */
+.combo { display: grid; grid-template-columns: 26px minmax(0, 1fr) 34px; column-gap: 6px; }
+.combo .ax { position: relative; height: 144px; font-size: 10.5px; color: var(--muted); }
+.combo .ax span { position: absolute; transform: translateY(-50%); line-height: 1; }
+.combo .ax.l span { right: 0; }
+.combo .ax.r span { left: 0; color: var(--pen); font-weight: 600; }
+.combo .plot { position: relative; min-width: 0; }
+.combo .grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--rule); }
+.combo .bars7 .stack { opacity: .45; }
+.combo .bars7 .stack b, .combo .bars7 .v { visibility: hidden; }
+.combo .bars7 .col:hover .stack { opacity: 1; }
+.combo .bars7 .col:hover .stack b, .combo .bars7 .col:hover .v { visibility: visible; }
+.combo .bars7 .v { position: relative; z-index: 4; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
+.combo .plot svg { position: absolute; left: 0; top: 0; width: 100%; height: 144px; overflow: visible; pointer-events: none; z-index: 1; }
+.combo .plot path { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.combo .plot path.halo { stroke: var(--surface); stroke-width: 7; }
+.combo .plot path.rate { stroke: var(--pen); stroke-width: 3; }
+.combo .plot i.dot { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--pen); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.combo .plot b.rl { position: absolute; transform: translate(-50%, calc(-100% - 7px)); font: 600 12px/1 var(--font-body); color: var(--pen); white-space: nowrap; pointer-events: none; z-index: 3; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
+.combo .bars7-x { grid-column: 2; }
+/* This week 与 Last week：标题行、计划柱、目标句 */
+.wk-head { display: flex; align-items: baseline; gap: 8px; }
+.bars7 .plan { width: 60%; max-width: 56px; display: flex; justify-content: center; align-items: flex-start; border: 1.5px dashed var(--pen); border-bottom: 0; border-radius: 3px 3px 0 0; background: var(--pen-soft); }
+.bars7 .plan b { font: 600 10.5px/1 var(--font-body); color: var(--pen); margin-top: 2px; }
+.bars7-x .is-today { color: var(--pen); font-weight: 600; }
+/* 两架梯子：左为周初、右为周末；中间一列级名；小圆点的爬升动画 */
+.ladpair { display: grid; gap: 4px; justify-items: center; }
+.ladpair svg { width: 100%; max-width: 420px; height: auto; display: block; overflow: visible; }
+.ladpair .wrail { stroke: #5e3b1a; stroke-width: .8; }
+.ladpair .wrung { stroke: #6b4423; stroke-width: .6; }
+.ladpair .grain { stroke: #e3b884; stroke-width: .7; stroke-linecap: round; opacity: .55; fill: none; }
+.ladpair text { font: 500 11px var(--font-body); fill: var(--muted); }
+.ladpair .lv { text-anchor: end; font-weight: 600; }
+.ladpair .lv.v1 { fill: var(--v1); } .ladpair .lv.v2 { fill: var(--v2); } .ladpair .lv.v3 { fill: var(--v3); } .ladpair .lv.v4 { fill: var(--v4); } .ladpair .lv.v5 { fill: var(--vm); }
+.ladpair .nm { font-size: 11.5px; }
+.ladpair .nn { font-weight: 600; fill: var(--ink); }
+.ladpair .runner circle { fill: currentColor; }
+.ladpair .climber .cs { fill: var(--cf); stroke: var(--cd); stroke-width: 1.2; }
+.ladpair .climber .ch { fill: #ffe0bd; stroke: var(--cd); stroke-width: 1.1; }
+.ladpair .climber .hair { fill: #4a2c17; }
+.ladpair .climber .ce { fill: #1b2231; }
+.ladpair .climber .cm { fill: none; stroke: #1b2231; stroke-width: .9; stroke-linecap: round; }
+.ladpair .climber .ca, .ladpair .climber .cl { fill: none; stroke: var(--cf); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .climber .zz { font: 700 8px var(--font-body); fill: var(--cf); }
+.ladpair .climber .csh { fill: #000; opacity: .18; }
+.ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .nu { font-weight: 600; fill: var(--green); }
+.ladpair .nd { font-weight: 600; fill: var(--c-wrong); }
 /* 阶梯分段横条（Exercises 每科小卡） */
 .ladbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
 .ladbar i { display: block; height: 100%; }
@@ -271,8 +328,25 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .tray-item img { display: block; height: 84px; max-width: 140px; object-fit: cover; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
 .tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
 .tray-x:hover { border-color: var(--red); color: var(--red); }
-.rec-go { display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 10px 12px; align-items: end; }
-@media (max-width: 480px) { .rec-go { grid-template-columns: minmax(0, 1fr); } }
+.rec-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rec-btns { display: flex; gap: 8px; margin-left: auto; }
+.mat-sel { overflow-wrap: anywhere; min-width: 0; }
+/* 面板里的分组：组间一条细分隔线；底部按钮行左边放弃或返回、右边确认 */
+.grp { display: grid; gap: 8px; min-width: 0; }
+.grp + .grp { border-top: 1px solid var(--rule); padding-top: 10px; }
+.lr { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.foot { border-top: 1px solid var(--rule); padding-top: 10px; }
+.mats { display: grid; gap: 8px; }
+.mat { display: flex; gap: 10px; align-items: stretch; text-align: left; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.mat:hover:not(:disabled) { border-color: var(--pen); }
+.mat.picked { border: 2px solid var(--pen); background: var(--pen-soft); padding: 7px; }
+.mat:disabled { cursor: not-allowed; opacity: .7; }
+.mat-thumb { flex: none; width: 72px; height: 72px; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--rule); display: grid; }
+.mat-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mat-txt { font-size: 10.5px; line-height: 1.3; color: var(--muted); padding: 4px; overflow: hidden; }
+.mat-body { display: grid; gap: 3px; align-content: start; min-width: 0; }
+.mat-top { display: flex; gap: 6px; flex-wrap: wrap; }
+.mat-label { font-weight: 600; overflow-wrap: anywhere; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .filters > * { min-width: 0; }
@@ -301,20 +375,35 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .pg-n[aria-pressed="true"] { outline: 2px solid var(--pen); outline-offset: 1px; font-weight: 700; }
 .linkbtn { border: 0; background: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .item .t .chip { vertical-align: 1px; }
-/* 卷子列表：类型标签与左侧色条 */
-.item.k-daily { border-left: 3px solid var(--muted); }
-.item.k-check { border-left: 3px solid var(--ink); }
+/* 卷名前的类型标签；Daily papers 的日期小标题 */
+.day-h { margin-top: 4px; }
+select.narrow { width: auto; }
+
 .chip.k-daily { color: var(--muted); border-color: var(--muted); background: none; }
 .chip.k-check { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 500; }
-/* Exercises：每科小卡 */
-.subj-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
-.subj-card { display: grid; gap: 4px; text-align: left; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; font-size: 12.5px; color: var(--muted); min-width: 0; }
-.subj-card:hover { border-color: var(--muted); }
-.subj-card[aria-pressed="true"] { border-color: var(--pen); background: var(--pen-soft); }
-.subj-card .sc-h { font-size: 14px; color: var(--ink); font-weight: 600; }
-.subj-card b { color: var(--ink); font-weight: 500; }
+/* Exercises：科目子标签与一科的小结 */
+.subtabs { margin: 0; }
+.subtabs button .num { font-weight: 400; font-size: 13px; }
+.subj-sum .ss-nums { margin: 0; color: var(--muted); }
+.subj-sum .ss-nums b { color: var(--ink); font-weight: 600; }
+.tchart { display: grid; gap: 2px; }
+.trow { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr) 58px; gap: 8px; align-items: center; width: 100%; padding: 3px 6px; border: 1px solid transparent; border-radius: 6px; background: none; text-align: left; font-size: 13px; }
+button.trow { cursor: pointer; }
+button.trow:hover { background: var(--surface-2); }
+button.trow[aria-pressed="true"] { border-color: var(--pen); background: var(--pen-soft); }
+.trow.th { font-size: 11.5px; color: var(--muted); padding-block: 0; }
+.trow .tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow .tbar { display: block; min-width: 0; }
+.trow .tbar .ladbar { height: 10px; min-width: 4px; }
+.trow .tr { text-align: right; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 16px; }
+.tlist { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 2px; font-size: 13.5px; }
+.tlist li span:first-child { margin-right: 6px; }
+.tlist li .muted { margin-left: 6px; font-size: 12.5px; }
+.causebar { height: 10px; }
 /* Settings：左标签、右控件 */
 .form-rows { display: grid; gap: 6px; }
+.saved { margin: 0; text-align: right; color: var(--green); font-weight: 500; }
 p.form-row { margin: 0; }
 .form-row > select, .form-row > input { justify-self: start; }
 .row .fill { flex: 1 1 240px; min-width: 0; }
@@ -440,12 +529,17 @@ function ladderInput(attempts) {
   // 推阶梯用的作答：每日重做的全部作答，加检验卷上做错的；检验卷上做对、部分对不改阶梯
   return (attempts || []).filter(a => a.mode !== 'paper' || a.result === 'wrong');
 }
+const VIEW_CACHE = new WeakMap();   // 错题对象 → { uid, v }；只在内存，平台换了文档对象（文档变了）就不命中、重算
 function viewFor(exs, uid) {
   // 一位用户的视图：作答只留 by 为该用户的，阶梯由其中的阶梯输入现算；原文档的全部作答留在 allAttempts
   return exs.map(e => {
+    const c = VIEW_CACHE.get(e);
+    if (c && c.uid === uid) return c.v;
     const all = e.attempts || [];
     const mine = all.filter(a => a.by === uid);
-    return Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, ladderInput(mine)));
+    const v = Object.assign({}, e, { allAttempts: all, attempts: mine }, deriveState(e.createdAt, ladderInput(mine)));
+    VIEW_CACHE.set(e, { uid, v });
+    return v;
   });
 }
 function sameOwner(a, b) { return (a || null) === (b || null); }
@@ -467,6 +561,25 @@ function todayScope(exs, uid, defaultOwner) {
 }
 function normAnswer(s) {
   return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ').replace(/\.$/, '').trim();
+}
+// 保存前的重复提示（DATA.md「派生字段」·可能重复）：规范化后的比对键；题干为空时没有键
+function dupKey(subject, stem, options) {
+  // 转小写、去掉 [[ ]]、引号与空白、去掉 . , ; : ! ?（夹在两个数字之间的 . 与 , 保留：3.5、1,000）；括号与运算符号保留
+  const norm = t => String(t == null ? '' : t).toLowerCase().replace(/\[\[|\]\]/g, '').replace(/[‘’“”'"]/g, '').replace(/\s+/g, '')
+    .replace(/[.,;:!?]/g, (c, i, all) => (/\d/.test(all[i - 1] || '') && /\d/.test(all[i + 1] || '')) ? c : '');
+  const st = norm(stem);
+  if (!subject || !st) return null;
+  return [subject, st].concat((options || []).filter(o => String(o).trim()).map(norm)).join('\u0001');
+}
+function dupOf(x) { return dupKey(x.subject, x.stem, x.format === 'mcq' ? x.options : []); }
+function findDuplicate(d, saved, earlier) {
+  // d：一张新草稿；saved：已录错题；earlier：同批排在它前面的新草稿。先报已录的；编辑已录错题的草稿不判
+  if (d.editId) return null;
+  const k = dupOf(d);
+  if (!k) return null;
+  const ex = saved.find(x => dupOf(x) === k);
+  if (ex) return { kind: 'saved', ex };
+  return earlier.some(x => !x.editId && dupOf(x) === k) ? { kind: 'draft' } : null;
 }
 function asNumber(t) {
   const u = t.replace(/(\d),(?=\d{3}(\D|$))/g, '$1').replace(/\s/g, '');
@@ -559,7 +672,7 @@ function handedInAt(paper, view, uid) {
   return last;
 }
 function todayPapers(papers, view, defaultOwner, uid, today) {
-  // Today 的 Check papers：默认归属人的检验卷中我没交的，加我今天交的；没交的在前、组卷日期新的在前，交过的在后、交卷早的在前
+  // Today 的 Exam papers：默认归属人的检验卷中我没交的，加我今天交的；没交的在前、组卷日期新的在前，交过的在后、交卷早的在前
   const at = p => handedInAt(p, view, uid);
   const open = papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && !at(p))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(a.id).localeCompare(String(b.id)));
@@ -573,7 +686,7 @@ function paperProgress(paper, view) {
   return { done: rows.filter(r => r.attempt).length, total: rows.length };
 }
 function visiblePapers(papers, view, uid) {
-  // 卷子列表：全部检验卷，加我交过的每日卷；没交的每日卷不列（再开始重做时会被删掉换新）
+  // 卷子列表：全部检验卷，加我交过的每日卷；没交的每日卷不列（再开始这一科的重做时被新卷取代，回答带到新卷上）
   return papers.filter(p => !isDaily(p) || (p.for === uid && handedInAt(p, view, uid)));
 }
 function dailyBySubject(list) {
@@ -623,9 +736,11 @@ function makeDailyPaper(list, uid, owner, today, fmt, subject, madeAt) {
   return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today, madeAt: madeAt || null,
     subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
 }
-function openDailyPaper(papers, view, uid, today, subject) {
-  // 今天这一科给我、我还没交的那张每日卷（再开始这一科的重做时删它）；缺 subject 按 null
-  return papers.find(p => isDaily(p) && p.for === uid && p.createdAt === today && (p.subject || null) === (subject || null) && !handedInAt(p, view, uid)) || null;
+function openDailyPaper(papers, view, uid, subject) {
+  // 这一科给我、我还没交的每日卷里最新的一张（madeAt，否则 createdAt；再按 id）：再开始这一科的重做时，新卷从它带上已填的回答；旧式混合卷（subject 为 null）不取
+  const key = p => String(p.madeAt || p.createdAt || '');
+  return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid))
+    .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -699,49 +814,6 @@ function pageSlice(list, page, size) {
   const p = Math.min(Math.max(1, page), pages);
   return { items: list.slice((p - 1) * size, p * size), page: p, pages };
 }
-function yamlScalar(v) {
-  if (v === null || v === undefined) return 'null';
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return JSON.stringify(String(v));
-}
-function yamlKey(k) { return /^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? k : JSON.stringify(k); }
-function toYaml(v, ind) {
-  ind = ind || 0;
-  const pad = ' '.repeat(ind);
-  const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
-  if (Array.isArray(v)) {
-    if (!v.length) return pad + '[]';
-    return v.map(x => {
-      if (isObj(x) && Object.keys(x).length) return pad + '- ' + toYaml(x, ind + 2).replace(/^\s+/, '');
-      if (Array.isArray(x)) return x.length ? pad + '-\n' + toYaml(x, ind + 2) : pad + '- []';
-      if (isObj(x)) return pad + '- {}';
-      return pad + '- ' + yamlScalar(x);
-    }).join('\n');
-  }
-  if (isObj(v)) {
-    const ks = Object.keys(v);
-    if (!ks.length) return pad + '{}';
-    return ks.map(k => {
-      const x = v[k], key = pad + yamlKey(k) + ':';
-      if (Array.isArray(x)) return x.length ? key + '\n' + toYaml(x, ind + 2) : key + ' []';
-      if (isObj(x)) return Object.keys(x).length ? key + '\n' + toYaml(x, ind + 2) : key + ' {}';
-      return key + ' ' + yamlScalar(x);
-    }).join('\n');
-  }
-  return pad + yamlScalar(v);
-}
-function exportData(exs, sets, papers, settings, exportedAt, userIds) {
-  // 导出：数据库原文档、带 id（含全部作答与 by）；images 换成张数；另带用户 id 与当前用户的设置
-  const imgs = o => Object.assign({}, o, { images: Array.isArray(o.images) ? o.images.length : 0 });
-  return {
-    exportedAt,
-    users: (userIds || []).slice(),
-    settings: Object.assign({}, settings),
-    exercises: exs.map(imgs),
-    sets: sets.map(imgs),
-    papers: papers.map(p => Object.assign({}, p))
-  };
-}
 function streakInfo(exs, today) {
   // 连续天数：按作答的 date 计天；今天还没有作答时从昨天往回数
   const days = new Set();
@@ -800,7 +872,7 @@ function helloStats(d, g) {
   return items;
 }
 /* ---------- 设置、计划与回顾 ---------- */
-const SETTINGS_DEFAULT = { dailyLimit: 10, practiceDays: 6, papersPerWeek: 1 };
+const SETTINGS_DEFAULT = { dailyLimit: 10 };
 function readSettings(v, uid) {
   // 缺字段或不是数按默认值；超出范围收紧；0 照常保留；defaultOwner 不是非空字符串时为本人 uid
   v = v || {};
@@ -809,11 +881,11 @@ function readSettings(v, uid) {
     if (v[k] == null || v[k] === '' || typeof v[k] === 'boolean' || !Number.isFinite(n)) return SETTINGS_DEFAULT[k];
     return Math.max(lo, Math.min(hi, Math.round(n)));
   };
-  return { dailyLimit: num('dailyLimit', 1, 50), practiceDays: num('practiceDays', 1, 7), papersPerWeek: num('papersPerWeek', 0, 3),
+  return { dailyLimit: num('dailyLimit', 1, 50),
     defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
 }
 function dueByDay(todo, today) {
-  // Next 7 days：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；
+  // 未来 7 天每天的题数（This week 的计划柱取用）：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；
   // 其后各天按「到期的题都在到期那天做对」推算：从 due（过期的算今天）起，每做对一次升一级、隔 GAPS 天再来，第 4 次重做后不再出现
   const end = addDays(today, 6), later = {};
   for (const e of todo) {
@@ -837,81 +909,138 @@ function weekStart(today) {
   const dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
   return addDays(today, -((dow + 6) % 7));
 }
-function goalProgress(exs, papers, from, to, uid) {
-  // exs 是我的视图：区间内有作答的天数、我在区间内交过的检验卷张数（每日卷不算）
-  const days = new Set();
-  for (const e of exs) for (const a of e.attempts || []) if (a.date >= from && a.date <= to) days.add(a.date);
-  const done = papers.filter(p => { if (isDaily(p)) return false; const t = handedInAt(p, exs, uid); return t && t.slice(0, 10) >= from && t.slice(0, 10) <= to; }).length;
-  return { days: days.size, papers: done };
-}
-function weekReview(done, papers, today, uid) {
-  // 最近 7 天（含今天），按 done（我的全部错题）
+function weekReview(done, from, to) {
+  // from 到 to（含两端）的回顾，按 done（我的全部错题）：Last week 是上周一到上周日，This week 是本周一到本周日（今天以后各天为 0）
   const exs = done;
-  const from = addDays(today, -6);
   const days = [];
-  for (let i = 6; i >= 0; i--) days.push({ date: addDays(today, -i), right: 0, partial: 0, wrong: 0 });
+  for (let d = from; d <= to; d = addDays(d, 1)) days.push({ date: d, right: 0, partial: 0, wrong: 0 });
   const idx = Object.fromEntries(days.map((d, i) => [d.date, i]));
-  const ans = { right: 0, partial: 0, wrong: 0 }, wrongBy = {}, moved = new Set();
+  const ans = { right: 0, partial: 0, wrong: 0 };
   let questions = 0;
   for (const e of exs) {
-    let hit = false, step = 1, mastered = false;
+    let hit = false;
     for (const a of e.attempts || []) {
-      const inW = a.date >= from && a.date <= today;
-      if (inW) {
-        hit = true;
-        if (ans[a.result] != null) { ans[a.result]++; days[idx[a.date]][a.result]++; }
-        if (a.result === 'wrong') { const k = e.subject + '|' + e.topic; wrongBy[k] = (wrongBy[k] || 0) + 1; }
-      }
-      // 与 deriveState 同一套逐次规则，数作答时尚未掌握、做对而升级的题；只看阶梯输入（检验卷上做对、部分对不算）
-      if (!ladderInput([a]).length) continue;
-      if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
-      if (a.result === 'right') { if (inW) moved.add(e.id); if (step === 4) mastered = true; else step++; }
-      else if (a.result !== 'partial') step = 1;
+      if (!(a.date >= from && a.date <= to)) continue;
+      hit = true;
+      if (ans[a.result] != null) { ans[a.result]++; days[idx[a.date]][a.result]++; }
     }
     if (hit) questions++;
   }
-  const top = Object.entries(wrongBy).sort((a, b) => b[1] - a[1] || a[0].split('|')[1].localeCompare(b[0].split('|')[1]))[0];
-  const groups = {};
+  // 新掌握：区间内变成掌握、现在仍掌握的题，按科目（SUBJECTS 的顺序）分组；同科 Key idea 一字不差的并成一行，没有 Key idea 的题各自一行；
+  // 行按道数降序、最近掌握日期新到旧、文字、首道题 id；每科 top 是前 3 行、more 是其余，n 是题数
+  const bySubj = {};
   for (const e of exs) {
     const m = e.mastered && masteredOn(e);
-    if (!m || m < from || m > today) continue;
-    const kind = e.concept ? 'concept' : 'topic', id = e.concept || e.topic, k = e.subject + '|' + kind + '|' + id;
-    (groups[k] = groups[k] || { subject: e.subject, kind, id, n: 0 }).n++;
+    if (!m || m < from || m > to) continue;
+    const key = parseExplanation(e.solution).keyIdea.trim();
+    const g = bySubj[e.subject] = bySubj[e.subject] || { subject: e.subject, n: 0, rows: {} };
+    g.n++;
+    const rk = key ? 'k|' + key : 'q|' + e.id;
+    const r = g.rows[rk] = g.rows[rk] || { key, n: 0, items: [], last: '' };
+    r.n++; r.items.push({ id: e.id, stem: e.stem || '', setId: e.setId || null, on: m });
+    if (m > r.last) r.last = m;
   }
-  const newlyMastered = Object.values(groups).sort((a, b) => b.n - a.n || String(a.id).localeCompare(String(b.id)));
-  const g = goalProgress(exs, papers, from, today, uid);
+  const byOn = (a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0) || String(a.id).localeCompare(String(b.id));
+  const order = SUBJECTS.map(x => x[0]);
+  const newlyMastered = Object.values(bySubj)
+    .sort((a, b) => ((order.indexOf(a.subject) + 1 || 99) - (order.indexOf(b.subject) + 1 || 99)) || String(a.subject).localeCompare(String(b.subject)))
+    .map(g => {
+      const rows = Object.values(g.rows).map(r => { r.items.sort(byOn); r.items = r.items.map(x => ({ id: x.id, stem: x.stem, setId: x.setId })); return r; })
+        .sort((a, b) => b.n - a.n || (a.last < b.last ? 1 : a.last > b.last ? -1 : 0)
+          || String(a.key || a.items[0].stem).localeCompare(String(b.key || b.items[0].stem)) || String(a.items[0].id).localeCompare(String(b.items[0].id)));
+      return { subject: g.subject, n: g.n, top: rows.slice(0, 3), more: rows.slice(3) };
+    });
   return {
-    from, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
-    practised: g.days, papersDone: g.papers, days, newlyMastered, moved: moved.size,
-    topWrong: top ? { subject: top[0].split('|')[0], topic: top[0].split('|')[1], n: top[1] } : null
+    from, to, questions, answers: ans.right + ans.partial + ans.wrong, right: ans.right, partial: ans.partial, wrong: ans.wrong,
+    days, newlyMastered
   };
 }
+function dayRates(days) {
+  // This week 与 Last week 组合图的正确率线：每天做对的作答占当天作答的百分比（部分对不算对），取整；当天没有作答为 null
+  return days.map(d => { const t = d.right + d.partial + d.wrong; return t ? Math.round(d.right / t * 100) : null; });
+}
+function axisMax(n) {
+  // 组合图左轴的顶：不小于 n 的「整」数，一半也是整数，作中间那条横线
+  const NICE = [2, 4, 6, 8, 10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 1000];
+  return NICE.find(x => x >= n) || Math.ceil(n / 1000) * 1000;
+}
 function reviewLine(week) {
-  // Last 7 days 的统计行；升级的题数为 0 时不出那一项
+  // Last week 的统计行
   const parts = [`${week.right} right`, `${week.partial} partly`, `${week.wrong} wrong`];
-  if (week.moved > 0) parts.push(`${week.moved} moved up`);
-  parts.push(`practised on ${week.practised} of 7 days`);
   return `${week.answers} answer${week.answers === 1 ? '' : 's'}: ${parts.join(' · ')}`;
 }
-function keyIdeaTip(week, topicName) {
-  // 最近 7 天某专题错 3 次以上时，Today 提醒重读讲解
-  const name = topicName || (t => t.topic);
-  return week.topWrong && week.topWrong.n >= 3 ? `Read the Key idea again for ${name(week.topWrong)} before you redo it.` : '';
+function weekPlan(todo, today, from) {
+  // This week 的计划柱：from 起 7 天每天的计划题数；今天以前 0，今天为此刻到期的题数，以后同 dueByDay
+  const later = Object.fromEntries(dueByDay(todo, today).map(x => [x.date, x.count])), now = dueNowIds(todo, today).length;
+  return Array.from({ length: 7 }, (_, i) => { const date = addDays(from, i); return { date, planned: date < today ? 0 : date === today ? now : (later[date] || 0) }; });
 }
-function paperTry(week, topicName) {
-  // 本周检验卷没达到时，接在 This week 检验卷行后：错得最多的专题，没有时混合专题
-  const name = topicName || (t => t.topic);
-  return week.topWrong ? ` — try one on ${name(week.topWrong)}` : ' — try one on mixed topics';
-}
-function ladderShares(ladder) {
-  // Ladders 的环形图：1st、2nd、3rd、4th 与 mastered 五段的题数与百分比；百分比取整、按最大余数补足到 100；总数为 0 时全为 0
-  const keys = [1, 2, 3, 4, 'mastered'], ns = keys.map(k => (ladder && ladder[k]) || 0), tot = ns.reduce((a, b) => a + b, 0);
-  const pct = ns.map(n => tot ? Math.floor(n * 100 / tot) : 0);
-  if (tot) {
-    let left = 100 - pct.reduce((a, b) => a + b, 0);
-    ns.map((n, i) => [n * 100 / tot - pct[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (left > 0) { pct[i]++; left--; } });
+function ladderAt(e, date) {
+  // 到 date 那天为止（含当天的作答）这道题在阶梯的哪一级：1–4，掌握为 5；date 时还没录入为 null；规则同 deriveState
+  if (!e.createdAt || e.createdAt > date) return null;
+  let step = 1, mastered = false;
+  for (const a of ladderInput(e.attempts)) {
+    if (a.date > date) break;
+    if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
+    if (a.result === 'right') { if (step === 4) mastered = true; else step++; }
+    else if (a.result !== 'partial') step = 1;
   }
-  return keys.map((key, i) => ({ key, n: ns[i], pct: pct[i] }));
+  return mastered ? 5 : step;
+}
+function weekLadders(todo, from, to) {
+  // 一周的两架梯子：左为周初（from 前一天结束时），右为 to 结束时；五项依次为 1–4 级与掌握
+  // 周内新录的算左梯 1 级（fresh）；周初已掌握、到 to 仍掌握的两架都不放（masteredBefore）；周初掌握、之后不再掌握的左梯记 1 级并算下降；左梯的掌握一项恒为 0
+  const left = [0, 0, 0, 0, 0], right = [0, 0, 0, 0, 0], up = { 2: 0, 3: 0, 4: 0, 5: 0 }, flowMap = {};
+  let fresh = 0, masteredBefore = 0, down = 0;
+  for (const e of todo) {
+    let a = ladderAt(e, addDays(from, -1));
+    const b = ladderAt(e, to);
+    if (b === null) continue;
+    if (a === null) { a = 1; fresh++; }
+    if (a === 5 && b === 5) { masteredBefore++; continue; }
+    if (a === 5) { a = 1; down++; }
+    else if (b < a) down++;
+    left[a - 1]++; right[b - 1]++;
+    if (b > a) { up[b]++; const k = a + '>' + b; flowMap[k] = (flowMap[k] || 0) + 1; }
+  }
+  const flows = Object.entries(flowMap).map(([k, n]) => { const [f, t] = k.split('>').map(Number); return { from: f, to: t, n }; }).sort((x, y) => x.from - y.from || x.to - y.to);
+  return { left, right, fresh, masteredBefore, up, down, flows };
+}
+function levelOf(atts) {
+  // 一串阶梯输入作答推出的级：1–4，掌握为 5；规则同 ladderAt / deriveState
+  let step = 1, mastered = false;
+  for (const a of atts) {
+    if (mastered) { if (a.result === 'wrong') { mastered = false; step = 1; } continue; }
+    if (a.result === 'right') { if (step === 4) mastered = true; else step++; }
+    else if (a.result !== 'partial') step = 1;
+  }
+  return mastered ? 5 : step;
+}
+function paperLadders(exs, uid, paperId, results, saved) {
+  // 一张卷交卷前后的两架梯子，形状同 weekLadders：左为本卷作答之前（在本人第一条带本卷 paperId 的阶梯输入作答处切开，按数组位置，之后的不算），右为加上本卷作答之后
+  // 本卷作答已写入的取已有的；还没写入的取 results，主观题要 saved 才算；没有结果的留在原级。toMark 是还没自评的主观题数
+  // 交卷前已掌握：交卷后仍掌握的计 masteredBefore、两架都不放；不再掌握的左梯记 1 级并算 down
+  const left = [0, 0, 0, 0, 0], right = [0, 0, 0, 0, 0], up = { 2: 0, 3: 0, 4: 0, 5: 0 }, flowMap = {};
+  let masteredBefore = 0, down = 0, toMark = 0;
+  for (const e of exs) {
+    const input = ladderInput((e.attempts || []).filter(a => a.by === uid));
+    const i = input.findIndex(a => a.paperId === paperId);
+    let before, after;
+    if (i >= 0) { before = input.slice(0, i); after = input.slice(0, i + 1); }
+    else {
+      const r = (results || {})[e.id], ready = r && (e.format !== 'open' || (saved || {})[e.id]);
+      if (e.format === 'open' && !ready) toMark++;
+      before = input; after = ready ? input.concat([{ result: r }]) : input;
+    }
+    let a = levelOf(before);
+    const b = levelOf(after);
+    if (a === 5 && b === 5) { masteredBefore++; continue; }
+    if (a === 5) { a = 1; down++; }
+    else if (b < a) down++;
+    left[a - 1]++; right[b - 1]++;
+    if (b > a) { up[b]++; const k = a + '>' + b; flowMap[k] = (flowMap[k] || 0) + 1; }
+  }
+  const flows = Object.entries(flowMap).map(([k, n]) => { const [f, t] = k.split('>').map(Number); return { from: f, to: t, n }; }).sort((x, y) => x.from - y.from || x.to - y.to);
+  return { left, right, fresh: 0, masteredBefore, up, down, flows, toMark };
 }
 function subjectSummary(exs, today) {
   // Exercises 的每科小结：按 SUBJECTS 顺序，有错题的科目才出；专题取前三、错因只含出现过的，都按多到少，并列按 id 字母序
@@ -925,6 +1054,38 @@ function subjectSummary(exs, today) {
       topics: count('topic').slice(0, 3).map(([topic, n]) => ({ topic, n })), causes: count('cause') };
   }).filter(Boolean);
 }
+function topicSummary(exs, subject, today) {
+  // Exercises 一科的小结：每个有错题的专题的题数、阶梯五级、最近 7 天的作答（含检验卷）与正确率（作答不到 5 次为 null）；
+  // stronger 取正确率最高的三个，weaker 取其余里正确率最低的三个
+  const from = addDays(today, -6), m = {};
+  for (const e of exs) {
+    if (e.subject !== subject || !e.topic) continue;
+    const t = m[e.topic] = m[e.topic] || { topic: e.topic, n: 0, steps: [0, 0, 0, 0, 0], answers: 0, right: 0, wrong: 0, rate: null };
+    t.n++; t.steps[e.mastered ? 4 : Math.min(4, Math.max(1, e.step || 1)) - 1]++;
+    for (const a of e.attempts || []) if (a.date >= from && a.date <= today) { t.answers++; if (a.result === 'right') t.right++; if (a.result === 'wrong') t.wrong++; }
+  }
+  const topics = Object.values(m).sort((a, b) => b.n - a.n || a.topic.localeCompare(b.topic));
+  for (const t of topics) t.rate = t.answers >= 5 ? Math.round(t.right / t.answers * 100) : null;
+  const rated = topics.filter(t => t.rate !== null);
+  const stronger = rated.slice().sort((a, b) => b.rate - a.rate || b.n - a.n || a.topic.localeCompare(b.topic)).slice(0, 3);
+  const weaker = rated.filter(t => !stronger.includes(t)).sort((a, b) => a.rate - b.rate || b.wrong - a.wrong || a.topic.localeCompare(b.topic)).slice(0, 3);
+  return { topics, stronger, weaker };
+}
+function dailyGroups(papers, from, all) {
+  // Papers 的 Daily 子标签：每日卷按 createdAt 分组，新的在前，组内按 madeAt 新的在前、再按 id；all 为假时只取 createdAt ≥ from，older 是没列出的张数
+  const daily = papers.filter(isDaily), shown = all ? daily : daily.filter(p => String(p.createdAt || '') >= from);
+  const g = {};
+  for (const p of shown) (g[p.createdAt || ''] = g[p.createdAt || ''] || []).push(p);
+  const key = p => String(p.madeAt || p.createdAt || '');
+  return { groups: Object.keys(g).sort().reverse().map(date => ({ date, papers: g[date].sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id))) })),
+    older: daily.length - shown.length };
+}
+const DAILY_KEEP_DAYS = 30;
+function staleDailyPapers(papers, view, uid, today, days) {
+  // 该删的每日卷：给本人（for）、本人已交（handedInAt）、createdAt 早于今天往前 days 天；没交的、检验卷、别人的都不选
+  const from = addDays(today, -days);
+  return papers.filter(p => isDaily(p) && p.for === uid && String(p.createdAt || '') && String(p.createdAt) < from && handedInAt(p, view, uid));
+}
 function matchesQuery(e, set, q) {
   // Exercises 的搜索：题干与所属题组材料正文（去掉 [[ ]] 标记）忽略大小写包含搜索词；搜索词为空时都算
   const k = String(q || '').trim().toLowerCase();
@@ -933,10 +1094,9 @@ function matchesQuery(e, set, q) {
   return (strip(e.stem) + '\n' + strip(set && set.text)).toLowerCase().includes(k);
 }
 function filterPapers(papers, f, view, uid) {
-  // 卷子列表的筛选：归属人、类型（daily / check）、科目、我交没交（todo / done，按 handedInAt）；空值不筛
+  // 卷子列表的筛选：类型（daily / check）、科目、我交没交（todo / done，按 handedInAt）；空值不筛
   f = f || {};
-  return papers.filter(p => (!f.owner || sameOwner(p.owner, f.owner))
-    && (!f.kind || (f.kind === 'daily') === isDaily(p))
+  return papers.filter(p => (!f.kind || (f.kind === 'daily') === isDaily(p))
     && (!f.subject || p.subject === f.subject)
     && (!f.status || (f.status === 'done') === !!handedInAt(p, view, uid)));
 }
@@ -1162,6 +1322,59 @@ function retryingDb(db, sleep, rnd, retries) {
     collection: p => { const c = db.collection(p); return { doc: id => wrapDoc(c.doc(id)) }; },
   };
 }
+function fitSize(w, h, maxSide) {
+  // 照片缩放：长边超过上限时按比例缩到长边等于上限（宽高取整、至少 1）；不超过时原样，从不放大
+  if (!(Math.max(w, h) > maxSide)) return { w, h };
+  const k = maxSide / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+function countStems(text) {
+  // 流式回复里已收完整的 "stem" 字符串个数；没闭合引号的半截不算
+  const m = String(text || '').match(/"stem"\s*:\s*"(?:[^"\\]|\\.)*"/g);
+  return m ? m.length : 0;
+}
+function photoGroups(exs) {
+  // 补录来源之一：没有题组、带照片的错题里，照片（id 与顺序）和科目都相同的归成一批；单题也算一批。现算、不存
+  const map = new Map();
+  for (const e of exs) {
+    if (e.setId || !Array.isArray(e.images) || !e.images.length) continue;
+    const key = e.subject + ':' + e.images.join(',');
+    if (!map.has(key)) map.set(key, { key, images: e.images.slice(), subject: e.subject, items: [] });
+    map.get(key).items.push(e);
+  }
+  const byRec = (a, b) => String(recordedKey(a)).localeCompare(String(recordedKey(b))) || String(a.id).localeCompare(String(b.id));
+  const out = Array.from(map.values()).map(g => {
+    const items = g.items.slice().sort(byRec);
+    return { key: g.key, images: g.images, subject: g.subject, ids: items.map(e => e.id), last: recordedKey(items[items.length - 1]) };
+  });
+  out.sort((a, b) => String(b.last).localeCompare(String(a.last)) || a.key.localeCompare(b.key));
+  return out.map(g => ({ key: g.key, images: g.images, subject: g.subject, ids: g.ids }));
+}
+function savedMaterials(sets, exercises) {
+  // 录入页「From saved material」的列表：有错题指向的题组，加上 photoGroups 的照片批次，合成一个列表，按最近录入（组内错题 recordedKey 的最大值）新到旧排，相同按 id；现算、不存
+  const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
+  const labelOf = (title, source, stem) => String(title || '').trim() || String(source || '').trim() || strip(stem).trim().slice(0, 40).trim() || 'Untitled';
+  const lastOf = items => items.reduce((m, e) => (String(recordedKey(e)) > m ? String(recordedKey(e)) : m), '');
+  const out = [];
+  for (const x of sets) {
+    const items = exercises.filter(e => e.setId === x.id).sort(cmpSetPos);
+    if (!items.length) continue;
+    out.push({ id: x.id, kind: 'set', subject: x.subject, title: x.title || '', source: x.source || '', text: x.text || '', images: Array.isArray(x.images) ? x.images.slice() : [], ids: items.map(e => e.id), stems: items.map(e => strip(e.stem)), last: lastOf(items), label: labelOf(x.title, x.source, items[0].stem) });
+  }
+  const byId = new Map(exercises.map(e => [e.id, e]));
+  for (const g of photoGroups(exercises)) {
+    const items = g.ids.map(id => byId.get(id)).filter(Boolean);   // photoGroups 已按录入先后排，第一道是最早录入的
+    out.push({ id: 'photos:' + g.key, kind: 'photos', subject: g.subject, title: '', source: items[0].source || '', text: '', images: g.images.slice(), ids: g.ids.slice(), stems: items.map(e => strip(e.stem)), last: lastOf(items), label: labelOf('', items[0].source, items[0].stem) });
+  }
+  return out.sort((a, b) => b.last.localeCompare(a.last) || String(a.id).localeCompare(String(b.id)));
+}
+function matchMaterial(item, query) {
+  // 材料列表的搜索：搜索词去首尾空白，空即全部；不分大小写，在 label、出处、材料文字（去 [[ ]] 记号）、已录题干里找子串
+  const k = String(query || '').trim().toLowerCase();
+  if (!k) return true;
+  const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
+  return [item.label, item.source, strip(item.text)].concat(item.stems || []).join('\n').toLowerCase().includes(k);
+}
 /* LOGIC:END */
 </script>
 
@@ -1196,7 +1409,7 @@ const blobUrl = id => '/_blob/' + id;
 // 日期或时刻显示为「15 Oct」或「15 Oct 20:06」
 const fmtWhen = t => t ? fmtDate(String(t).slice(0, 10)) + (String(t).length > 10 ? ' ' + String(t).slice(11, 16) : '') : '—';
 const fmtDate = iso => { if (!iso) return '—'; const p = iso.split('-'); return Number(p[2]) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(p[1]) - 1]; };
-const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Waiting for the ${['1st', '2nd', '3rd', '4th'][e.step - 1]} redo">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
+const ladderHtml = e => e.mastered ? '<span class="ladder m" title="Mastered">★ mastered</span>' : `<span class="ladder" title="Waiting at level ${e.step} (day ${[1, 3, 7, 14][e.step - 1]})">${'●'.repeat(e.step)}${'○'.repeat(4 - e.step)}</span>`;
 const subjChip = s => `<span class="chip s-${esc(s)}">${esc(SUBJ[s] ? SUBJ[s].en : s)}</span>`;
 function mapLink(subject, id, label) {
   if (!id || !MAPS[subject]) return esc(label);
@@ -1207,20 +1420,36 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 无本地存储时忽略 */ } }
 };
 
+/* ---------- 照片日志 ----------
+   只记「拍照或选照片 → 缩略图出现」这一段发生了什么，留在本机（localStorage，最多 80 条，不进 db），
+   Record 页的「Photo log」里能看到、复制。页面中途被系统重载时，下一次启动的 "page load" 行会紧跟在没写完的记录后面。 */
+const PLOG_KEY = 'arena.photoLog';
+function plogRead() { try { const a = JSON.parse(store.get(PLOG_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function plog(msg) { try { const a = plogRead(); a.push(new Date().toISOString().slice(11, 23) + ' ' + String(msg).slice(0, 300)); store.set(PLOG_KEY, JSON.stringify(a.slice(-80))); } catch (e) { /* 日志本身不能出错 */ } }
+const fdesc = f => f ? `"${f.name}" ${f.type || 'no-type'} ${f.size}B` : 'none';
+plog(`page load; vis=${document.visibilityState}; ua=${navigator.userAgent}`);
+document.addEventListener('visibilitychange', () => plog('visibility ' + document.visibilityState));
+window.addEventListener('pagehide', ev => plog('pagehide persisted=' + ev.persisted));
+window.addEventListener('pageshow', ev => plog('pageshow persisted=' + ev.persisted));
+window.addEventListener('error', ev => plog('window error: ' + (ev.message || '') + ' @' + (ev.lineno || '?')));
+window.addEventListener('unhandledrejection', ev => plog('unhandled rejection: ' + (ev.reason && (ev.reason.message || ev.reason)) ));
+// 缩略图的 <img> 加载成功或失败（error、load 不冒泡，用捕获）
+for (const ev of ['load', 'error']) document.addEventListener(ev, e => { const i = e.target; if (i && i.tagName === 'IMG' && i.closest && i.closest('.tray-item')) plog(`tray img ${ev} ${i.alt} ${ev === 'load' ? i.naturalWidth + 'x' + i.naturalHeight : ''}`); }, true);
+
 /* ---------- 状态 ---------- */
 const S = {
   status: 'loading',            // loading | ready | nodb
   tab: store.get('arena.tab') || 'today',   // today | record | exercises | papers | settings
-  db: null, assets: null, sample: null, downloads: null, imgLimits: null,
+  db: null, assets: null, sample: null, imgLimits: null,
   user: null, me: null, userIds: [], names: {},   // me：平台给当前用户的 id；names：显示时向平台现取的名字，不存
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recOwner: undefined, recSubject: '', recText: '', recPhotos: [], recBusy: false, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId}；recMsg 只放 AI 识别的状态
-  filters: { owner: '', subject: '', topic: '', cause: '', state: '', q: '' },
-  paperFilters: { owner: '', kind: '', subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
-  detailId: null, confirmDel: null,
-  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1, exportMsg: null,
+  drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
+  filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
+  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
+  detailId: null, detailFrom: null, todayScroll: 0, nmSubj: {}, nmOpen: {}, confirmDel: null,
+  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
@@ -1237,18 +1466,12 @@ function mine() {
 }
 function myEx(id) { return mine().find(e => e.id === id); }
 function userName(id) { return id ? (S.names[id] || 'Someone') : '—'; }
-function recOwner() { return S.recOwner === undefined ? S.settings.defaultOwner : (S.recOwner || null); }
+function recOwner() { return S.settings.defaultOwner; }
 function ownerOptions(sel) {
   const ids = S.userIds.slice();
   if (sel && !ids.includes(sel)) ids.push(sel);
   // 只列用户；没有归属人的旧错题不预选，必须选一位
   return (sel ? '' : `<option value="" selected disabled>Choose owner</option>`) + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
-}
-function ownerFilterOptions(sel, docs, allLabel) {
-  // 筛选用：All 加每位用户与数据里出现过的归属人，本人标 (me)
-  const ids = S.userIds.slice();
-  for (const x of docs) if (x.owner && !ids.includes(x.owner)) ids.push(x.owner);
-  return `<option value="">${allLabel || 'All'}</option>` + ids.map(id => `<option value="${esc(id)}" ${sel === id ? 'selected' : ''}>${esc(userName(id))}${id === S.me ? ' (me)' : ''}</option>`).join('');
 }
 async function loadNames() {
   // 名字只在显示时向平台现取，只用名（first name）；取不到的显示 Someone
@@ -1264,6 +1487,16 @@ async function loadNames() {
 
 /* ---------- 题组 ---------- */
 function setById(id) { return S.sets.find(x => x.id === id); }
+function recSource() {
+  // 补录的来源：已录题组（值是题组 id），或一批共用照片的独立题（值以 photos: 开头）；找不到（组内题被删、照片被移除）就是 null
+  if (!S.recSet) return null;
+  if (S.recSet.startsWith('photos:')) {
+    const g = photoGroups(S.exercises).find(x => 'photos:' + x.key === S.recSet);
+    return g ? { kind: 'photos', id: S.recSet, subject: g.subject, title: '', text: '', images: g.images, wordBank: [], group: g } : null;
+  }
+  const s = setById(S.recSet);
+  return s ? { kind: 'set', id: s.id, subject: s.subject, title: s.title, text: s.text, images: s.images, wordBank: s.wordBank, set: s } : null;
+}
 function liveSets(subject) { return S.sets.filter(x => x.subject === subject && S.exercises.some(e => e.setId === x.id)); }
 function nextPos(setId) {
   let m = pendingPos[setId] || 0;
@@ -1275,12 +1508,16 @@ async function cleanupSet(setId, goneId) {
   if (!setId) return;
   if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
 }
+// 照片展开或收起记在哪：作答页 S.run.openPhotos，卷子详情 S.paperOpenPhotos；按这组照片（id 用逗号连起来）记，翻到有同一组照片的题时沿用；别处不记
+function photoStore() { return S.run ? (S.run.openPhotos = S.run.openPhotos || {}) : (S.tab === 'papers' && S.paperView) ? S.paperOpenPhotos : null; }
 function photosBlock(ids, alt) {
   // 照片默认收起：「Show photo (n)」，点开才显示
   if (!ids || !ids.length) return '';
-  return `<details class="photos"><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
+  const k = ids.join(','), st = photoStore();
+  return `<details class="photos" data-pkey="${esc(k)}"${st && st[k] ? ' open' : ''}><summary>Show photo (${ids.length})</summary><div class="imgs">${ids.map(id => `<img src="${blobUrl(id)}" alt="${alt}" loading="lazy">`).join('')}</div></details>`;
 }
 function materialBlock(set, open) {
+  // 题组材料默认展开，收起与否由调用处记下；材料照片同题目照片，默认收起
   if (!set) return '';
   return `<details class="material" data-set="${esc(set.id)}" ${open ? 'open' : ''}><summary>${esc(set.title || 'Read this first')}</summary>${set.text ? `<div class="stem">${ul(set.text)}</div>` : ''}${photosBlock(set.images, 'Material photo')}</details>`;
 }
@@ -1304,6 +1541,12 @@ function draftsInOrder() {
   for (const sd of S.setDrafts) out.push(...fresh.filter(d => d.setRef === 'new:' + sd.key));
   return out.concat(fresh.filter(d => !out.includes(d)));
 }
+// 带「可能重复」提示的新草稿：草稿 → findDuplicate 的结果；现算，不存
+function dupFlags() {
+  const order = draftsInOrder(), out = new Map();
+  order.forEach((d, i) => { const f = findDuplicate(d, S.exercises, order.slice(0, i)); if (f) out.set(d, f); });
+  return out;
+}
 
 /* ---------- 渲染 ---------- */
 function matchLive() { return !!(S.lift && (S.lift.phase === 'saving' || S.lift.phase === 'anim')); }
@@ -1325,13 +1568,13 @@ function render() {
   if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
+  if (S.status === 'ready' && ((S.tab === 'today' && !S.run) || (S.run && S.run.phase === 'review'))) armLadders();
 }
 
 /* ---------- Today ---------- */
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const wd = iso => { const p = iso.split('-').map(Number); return WD[new Date(p[0], p[1] - 1, p[2]).getDay()]; };
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const tick = ok => ok ? '<span class="tick ok" aria-label="done">✓</span>' : '<span class="tick" aria-label="not yet">○</span>';
 function renderPractice() {
   if (S.run) return renderPaperRun();
   const today = localToday();
@@ -1344,12 +1587,12 @@ function renderPractice() {
   const redo = redoButtons(sc.todo, today);
   const cps = todayPapers(S.papers, sc.done, S.settings.defaultOwner, S.me, today);
   const db = dashboardData(sc.todo, sc.done, today);
-  const week = weekReview(sc.done, S.papers, today, S.me);
+  // This week 是本周一到本周日，Last week 是上周一到上周日
+  const ws = weekStart(today), lws = addDays(ws, -7);
   return helloBlock(dateLine, db)
-    + todayBlock(today, redo, cps, sc.todo, sc.done, week)
-    + planBlock(dueByDay(sc.todo, today), today, sc.done, week)
-    + reviewBlock(week)
-    + progressBlock(db);
+    + todayBlock(today, redo, cps, sc.todo, sc.done)
+    + thisWeekBlock(today, ws, sc)
+    + lastWeekBlock(lws, sc);
 }
 
 /* 问候、今天的对题数、新掌握数与连续天数 */
@@ -1371,19 +1614,18 @@ function redoButtons(todo, today) {
     return { subject: s, n: ids.length, ids };
   }).filter(b => b.n);
 }
-function todayBlock(today, redo, cps, todo, view, week) {
+function todayBlock(today, redo, cps, todo, view) {
   // n 是各按钮这一批的题数之和；大数字与按钮写「已做/一共」：已做只数每日重做，一共是已做与此刻全部到期的并集；某科没有要做的、但今天做过时出打勾标签
   const n = redo.reduce((t, b) => t + b.n, 0);
   const tc = todayCounts(todo, today, dueNowIds(todo, today));
   const frac = c => `${c.done}/${c.all}`;
   const subjC = Object.fromEntries(tc.bySubject);
   const next = todo.filter(e => !e.mastered && e.due && e.due > today).map(e => e.due).sort()[0];
-  // 还有要做的题时不出 h2（大数字已说明已做/一共），只说过期与今天到期各几题、全部到期题主要哪些专题，错得多的专题提醒重读讲解；没有要做的题时 h2 说做完了或今天没有
+  // 还有要做的题时不出 h2（大数字已说明已做/一共），只说过期与今天到期各几题、全部到期题主要哪些专题；没有要做的题时 h2 说做完了或今天没有
   const head = n ? '' : tc.total.done ? 'All caught up for today!' : 'Nothing due today';
   const ds = dueSplit(todo, today);
   const split = [[ds.overdue, 'overdue'], [ds.today, 'due today']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`).join(' · ');
   const tops = leftMix(todo, dueNowIds(todo, today)).topics.slice(0, 2).map(t => esc(topicLabel(t.subject, t.topic)));
-  const tip = keyIdeaTip(week, t => topicLabel(t.subject, t.topic, 'en'));
   const whatsLeft = `${split}${tops.length ? `<br>Mostly ${tops.join(' and ')}.` : ''}`;
   let h = `<section class="today" aria-label="Today">
     <p class="h3 today-h">Today</p>
@@ -1391,12 +1633,11 @@ function todayBlock(today, redo, cps, todo, view, week) {
     <div class="txt">
       ${head ? `<p class="h2">${head}</p>` : ''}
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
-      ${n && tip ? `<p class="small">${esc(tip)}</p>` : ''}
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
   if (cps.length) {
     // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
-    h += `<div class="today-papers"><p class="h3">Check papers</p><div class="list">${cps.map(p => {
+    h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => {
       const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
       const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
       const body = `<span class="t">${paperTag(p)} ${esc(pname(p))}</span>${side}<span class="meta"><span>set ${fmtDate(p.createdAt)}</span></span>`;
@@ -1406,74 +1647,202 @@ function todayBlock(today, redo, cps, todo, view, week) {
   return h + `</section>`;
 }
 
-/* 计划：未来 7 天每天的题数（今天之后按全对推算）与本周目标 */
-function planBlock(days, today, done, week) {
-  const st = S.settings, ws = weekStart(today);
-  const g = goalProgress(done, S.papers, ws, addDays(ws, 6), S.me);
-  const goals = [`<li>${tick(g.days >= st.practiceDays)}<span>Practise on ${st.practiceDays} days: <b class="num">${g.days}/${st.practiceDays}</b></span></li>`];
-  if (st.papersPerWeek > 0) {
-    const met = g.papers >= st.papersPerWeek;
-    goals.push(`<li>${tick(met)}<span>Check papers: <b class="num">${g.papers}/${st.papersPerWeek}</b>${met ? '' : esc(paperTry(week, t => topicLabel(t.subject, t.topic, 'en')))}</span></li>`);
-  }
-  return `<section class="panel plan" aria-label="Next 7 days">
-    <p class="h3">Next 7 days</p>
-    <ol class="days7">${days.map((x, i) => `<li class="${i === 0 ? 'is-today' : ''}${x.count ? '' : ' zero'}" title="${fmtDate(x.date)}: ${plural(x.count, 'question')}"><span class="d">${i === 0 ? 'Today' : wd(x.date)}</span><span class="n num">${x.count}</span></li>`).join('')}</ol>
-    <div class="sub"><p class="h3">This week</p><ul class="checklist">${goals.join('')}</ul></div>
-  </section>`;
-}
-
-/* 回顾：最近 7 天 */
-function reviewBlock(week) {
-  const label = g => {
-    if (g.kind === 'concept') { const c = nameOf(g.subject, 'concept', g.id); return mapLink(g.subject, g.id, c ? c.en : g.id); }
-    return esc(topicLabel(g.subject, g.id, 'en'));
+/* 本周与上周：组合图、目标句、两架梯子、新掌握 */
+const fmtRange = (a, b) => { const x = fmtDate(a).split(' '), y = fmtDate(b).split(' '); return x[1] === y[1] ? `${x[0]}–${y[0]} ${y[1]}` : `${fmtDate(a)} – ${fmtDate(b)}`; };
+function masteredList(week, blk) {
+  // 新掌握：一排科目子标签（科目 · 题数），一次看一科；选中的科先列 3 行，其余在「+N more」里；Key idea 行展开后列这几道题的题干，题干点开详情（从 Today 来）；
+  // 没有 Key idea 的行直接是题干；选中科与展开状态记在页面状态里，重画后保留
+  const gs = week.newlyMastered;
+  if (!gs.length) return '';
+  const cur = gs.find(g => g.subject === S.nmSubj[blk]) || gs[0];
+  const total = gs.reduce((t, g) => t + g.n, 0);
+  const open = k => S.nmOpen[k] ? ' open' : '';
+  const q = x => { const t = plain(x.stem).trim() || (x.setId ? '(see the set material)' : '(photo only)'); return `<button type="button" class="nm-q" data-act="goto-ex" data-from="today" data-id="${esc(x.id)}" title="${esc(t)}">${esc(t)}</button>`; };
+  const row = r => {
+    if (!r.key) return `<li>${q(r.items[0])}</li>`;
+    const k = `${blk}|${cur.subject}|r|${r.items[0].id}`;
+    return `<li><details class="nm" data-nkey="${esc(k)}"${open(k)}><summary><span>${hl(r.key)}</span>${r.n > 1 ? `<span class="muted num">×${r.n}</span>` : ''}</summary><div class="nm-qs">${r.items.map(q).join('')}</div></details></li>`;
   };
-  const mastered = week.newlyMastered.length ? `<ul class="mastered">${week.newlyMastered.map(g => `<li>${subjChip(g.subject)}<span>${label(g)}</span>${g.n > 1 ? `<span class="muted num">×${g.n}</span>` : ''}</li>`).join('')}</ul>` : '';
-  return `<section class="panel review" aria-label="Last 7 days">
-    <p class="h3">Last 7 days</p>
-    <div class="rv-head"><span class="rv-n num">${week.questions}</span><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span></div>
-    <p class="small muted">${esc(reviewLine(week))}</p>
-    <div class="legend small"><span><i style="background:var(--c-right)"></i>Right</span><span><i style="background:var(--c-partial)"></i>Partly</span><span><i style="background:var(--c-wrong)"></i>Wrong</span></div>
-    ${activityChart(week.days)}
-    ${mastered ? `<div class="sub"><p class="h3">Newly mastered</p>${mastered}</div>` : ''}
+  const mk = `${blk}|${cur.subject}|more`;
+  return `<div class="sub nm-block"><p class="h3">Newly mastered · <span class="num">${total}</span></p>
+    <nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${gs.map(g => `<button type="button" role="tab" data-act="nm-subj" data-blk="${blk}" data-v="${esc(g.subject)}" aria-selected="${g === cur}">${esc(SUBJ[g.subject] ? SUBJ[g.subject].en : g.subject)} <span class="num muted">${g.n}</span></button>`).join('')}</nav>
+    <ul class="mastered">${cur.top.map(row).join('')}</ul>
+    ${cur.more.length ? `<details class="nm nm-more" data-nkey="${esc(mk)}"${open(mk)}><summary>+${cur.more.length} more</summary><ul class="mastered">${cur.more.map(row).join('')}</ul></details>` : ''}</div>`;
+}
+function thisWeekBlock(today, ws, sc) {
+  // 同 Last week：本周到今天为止复习了几题与统计行，再是组合图（带计划柱）、两架梯子、新掌握
+  const we = addDays(ws, 6);
+  const week = weekReview(sc.done, ws, we);
+  const plan = weekPlan(sc.todo, today, ws);
+  const days = week.days.map((d, i) => Object.assign({}, d, { planned: plan[i].planned }));
+  return `<section class="panel plan" aria-label="This week">
+    <div class="wk-head"><p class="h3">This week</p><span class="small muted num">${fmtRange(ws, we)}</span></div>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
+    ${activityChart(days, { todayIdx: days.findIndex(d => d.date === today) })}
+    ${ladderPair(weekLadders(sc.todo, ws, today), 'this')}
+    ${masteredList(week, 'this')}
+  </section>`;
+}
+function lastWeekBlock(lws, sc) {
+  const lwe = addDays(lws, 6), week = weekReview(sc.done, lws, lwe);
+  return `<section class="panel review" aria-label="Last week">
+    <div class="wk-head"><p class="h3">Last week</p><span class="small muted num">${fmtRange(lws, lwe)}</span></div>
+    <div class="rv-head"><span class="rv-n num">${week.questions}</span><div class="rv-txt"><span class="h2">question${week.questions === 1 ? '' : 's'} reviewed</span><span class="small muted">${esc(reviewLine(week))}</span></div></div>
+    ${activityChart(week.days, { todayIdx: -1 })}
+    ${ladderPair(weekLadders(sc.todo, lws, lwe), 'last')}
+    ${masteredList(week, 'last')}
   </section>`;
 }
 
-function activityChart(days) {
-  // 每天一列、7 列平分块宽；每列一根按对、部分对、错自下而上叠的柱子（最后一天是今天），段间 2px 间隔；每列一个提示
-  // 段里写它的次数：柱高取「16px × min(3, 当天次数)」与按比例的高中大的那个（只随当天次数增，次数少的柱不会更高），每个有数的段先给 16px，余下（扣去段间 2px）按段内次数分
-  const n = days.length, H = 96, MIN = 16;
-  const max = Math.max(1, ...days.map(d => d.right + d.partial + d.wrong));
+function activityChart(days, opts) {
+  // 组合图：每天一列、7 列平分块宽；每列一根按对、部分对、错自下而上叠的柱子，柱高按左轴（作答次数，顶为 axisMax）成比例，段间 2px 间隔，段高够 13px 才写次数；
+  // 有 planned 的天在实际柱上再叠一段虚线空心的计划柱（写计划数）；正确率线（dayRates）按右轴 0–100% 叠在柱上，没有作答的那天断开，每个点上写百分比；
+  // 两轴共用 0、一半、顶三条横线；柱子淡下去、柱上的次数藏起来（悬停或点按那一列时恢复），每列一个提示；opts.todayIdx 那一列写 Today，其余写星期
+  const o = opts || {}, n = days.length, TOP = 24, H = 120, PH = TOP + H;
+  const tots = days.map(d => d.right + d.partial + d.wrong), plans = days.map(d => d.planned || 0);
+  const top = axisMax(Math.max(1, ...tots.map((t, i) => t + plans[i])));
   const order = [['right', 'var(--c-right)'], ['partial', 'var(--c-partial)'], ['wrong', 'var(--c-wrong)']];
-  const cols = days.map(d => {
-    const tot = d.right + d.partial + d.wrong, on = order.filter(([k]) => d[k] > 0);
-    const spare = Math.max(MIN * Math.min(3, tot), tot / max * H) - MIN * on.length - 2 * Math.max(0, on.length - 1);
-    const segs = on.map(([k, c]) => `<i class="seg-${k}" style="height:${(MIN + (tot ? d[k] / tot * spare : 0)).toFixed(1)}px;background:${c}"><b class="num">${d[k]}</b></i>`).join('');
-    return `<div class="col" title="${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong">${tot ? `<span class="v num">${tot}</span><span class="stack">${segs}</span>` : '<span class="stack none"></span>'}</div>`;
+  const rates = dayRates(days), rx = i => (i + 0.5) * 100 / n, ry = r => (TOP + (100 - r) / 100 * H).toFixed(1);
+  const xl = i => i === o.todayIdx ? 'Today' : wd(days[i].date);
+  const cols = days.map((d, i) => {
+    const tot = tots[i], pl = plans[i], on = order.filter(([k]) => d[k] > 0);
+    const room = Math.max(on.length, tot / top * H) - 2 * Math.max(0, on.length - 1);
+    const segs = on.map(([k, c]) => { const h = Math.max(1, d[k] / tot * room); return `<i class="seg-${k}" style="height:${h.toFixed(1)}px;background:${c}">${h >= 13 ? `<b class="num">${d[k]}</b>` : ''}</i>`; }).join('');
+    const planEl = pl ? `<span class="plan" style="height:${Math.max(15, pl / top * H).toFixed(1)}px"><b class="num">${pl}</b></span>` : '';
+    const tip = `${fmtDate(d.date)}: ${d.right} right, ${d.partial} partly, ${d.wrong} wrong${rates[i] == null ? '' : ` · ${rates[i]}% right`}${pl ? ` · ${pl} planned` : ''}`;
+    return `<div class="col" title="${tip}">${tot ? `<span class="v num">${tot}</span>` : ''}${planEl}${tot ? `<span class="stack">${segs}</span>` : pl ? '' : '<span class="stack none"></span>'}</div>`;
   }).join('');
-  return `<div role="img" aria-label="Answers in the last ${n} days"><div class="bars7">${cols}</div><div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span>${i === n - 1 ? 'Today' : wd(d.date)}</span>`).join('')}</div></div>`;
+  let path = '';
+  rates.forEach((r, i) => { if (r != null) path += `${i && rates[i - 1] != null ? 'L' : 'M'}${rx(i).toFixed(2)} ${ry(r)} `; });
+  const grid = [1, 0.5].map(f => `<div class="grid" style="top:${TOP + (1 - f) * H}px"></div>`).join('');
+  const dots = rates.map((r, i) => r == null ? '' : `<i class="dot" style="left:${rx(i).toFixed(2)}%;top:${ry(r)}px"></i><b class="rl num" style="left:${rx(i).toFixed(2)}%;top:${ry(r)}px">${r}%</b>`).join('');
+  const axL = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${top * f}</span>`).join('');
+  const axR = [1, 0.5, 0].map(f => `<span class="num" style="top:${TOP + (1 - f) * H}px">${100 * f}%</span>`).join('');
+  const label = `Answers (left axis, 0 to ${top}) and correct rate (right axis, 0 to 100%), ${fmtDate(days[0].date)} to ${fmtDate(days[n - 1].date)}: ${days.map((d, i) => `${xl(i)} ${tots[i]} answers${rates[i] == null ? '' : ', ' + rates[i] + '% right'}${plans[i] ? ', ' + plans[i] + ' planned' : ''}`).join('; ')}`;
+  return `<div class="combo" role="img" aria-label="${label}">`
+    + `<div class="ax l" aria-hidden="true">${axL}</div><div class="plot">${grid}<div class="bars7">${cols}</div><svg viewBox="0 0 100 ${PH}" preserveAspectRatio="none" aria-hidden="true"><path class="halo" d="${path.trim()}"/><path class="rate" d="${path.trim()}"/></svg>${dots}</div><div class="ax r" aria-hidden="true">${axR}</div>`
+    + `<div class="bars7-x" aria-hidden="true">${days.map((d, i) => `<span${i === o.todayIdx ? ' class="is-today"' : ''}>${xl(i)}</span>`).join('')}</div></div>`;
 }
 
-/* 阶梯：五段的环形图与图例 */
-const LADDER_SEGS = [[1, '1st redo (day 1)', 'var(--lad1)'], [2, '2nd redo (day 3)', 'var(--lad2)'], [3, '3rd redo (day 7)', 'var(--lad3)'], [4, '4th redo (day 14)', 'var(--lad4)'], ['mastered', 'Mastered', 'var(--lad-m)']];
-function progressBlock(db) {
-  const sh = ladderShares(db.ladder), R = 54, C = 2 * Math.PI * R, live = sh.filter(x => x.n);
-  // 环从 12 点起顺时针；多于一段时每段末尾留 2px 底色间隔
-  let off = 0;
-  const arcs = live.map(x => {
-    const len = x.n / db.total * C, gap = live.length > 1 ? Math.min(2, len / 2) : 0, seg = LADDER_SEGS.find(g => g[0] === x.key);
-    const el = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${seg[2]}" stroke-width="18" stroke-dasharray="${(len - gap).toFixed(2)} ${(C - len + gap).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${seg[1]}: ${x.n} (${x.pct}%)</title></circle>`;
-    off += len;
-    return el;
-  }).join('');
-  const label = 'Ladders: ' + sh.map(x => x.key === 'mastered' ? `${x.n} mastered` : `${x.n} at ${['1st', '2nd', '3rd', '4th'][x.key - 1]} redo`).join(', ');
-  return `<section class="panel dash" aria-label="Ladders">
-    <p class="h3">Ladders</p>
-    <div class="lad">
-      <svg viewBox="0 0 140 140" role="img" aria-label="${label}"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--surface-2)" stroke-width="18"></circle>${arcs}<text x="70" y="72" text-anchor="middle" class="lad-n num">${db.total}</text><text x="70" y="90" text-anchor="middle" class="lad-t">question${db.total === 1 ? '' : 's'}</text></svg>
-      <ul class="lad-legend">${sh.map((x, i) => `<li><span class="sw" style="background:${LADDER_SEGS[i][2]}"></span><span class="k">${LADDER_SEGS[i][1]}</span><span class="num"><b>${x.n}</b> · ${x.pct}%</span></li>`).join('')}</ul>
-    </div>
-  </section>`;
+/* 阶梯：1–4 级与掌握五项的名字与颜色（Today 的两架梯子、Exercises 的横条与专题图共用） */
+const LADDER_SEGS = [[1, 'Level 1 · day 1', 'var(--lad1)'], [2, 'Level 2 · day 3', 'var(--lad2)'], [3, 'Level 3 · day 7', 'var(--lad3)'], [4, 'Level 4 · day 14', 'var(--lad4)'], ['mastered', '★ Mastered', 'var(--lad-m)']];
+// 两架梯子的几何：级名右对齐在 TX；左梯中心 LX、右梯中心 RX、横档半宽 LW；各级题数写在梯子右边（NL、NR 起）；箭头从 A0 到 A1；第 k 级（1–5）横档的 y；curve 给一股流的箭头与动画共用的弧线
+const LAD = { W: 388, H: 210, TX: 66, LX: 98, RX: 270, LW: 18, NL: 124, NR: 296, A0: 176, A1: 244, y: k => 184 - (k - 1) * 38,
+  curve(f) { const y0 = this.y(f.from), y1 = this.y(f.to); return { x0: this.A0, y0, x1: this.A1, y1, cx: (this.A0 + this.A1) / 2, cy: Math.min(y0, y1) - 20 }; } };
+// 梯子上的小人：两架梯子上有题的 1–4 级各站一个，姿势按级——1 级躺着、2 级坐着、3 级站着、4 级跳着；颜色是不随深浅色变的亮色；
+// 以那一级横档的上沿为原点；动画（playLadder）逐帧改 data-pose 对应的部位：躺着的打呼、坐着的晃腿、站着的挥手、跳着的上下跳
+const POSES = ['lie', 'sit', 'stand', 'jump'];
+// 级名与跑的小人的颜色（随深浅色取 --v1…--v4、--vm，与右梯小人同色系）
+const VCOL = ['var(--v1)', 'var(--v2)', 'var(--v3)', 'var(--v4)', 'var(--vm)'];
+const VIVID = [['#ff7a45', '#c2410c'], ['#facc15', '#a16207'], ['#22c55e', '#15803d'], ['#ec4899', '#be185d']];
+function headSvg(x, y) {
+  return `<circle class="ch" cx="${x}" cy="${y}" r="5"/><path class="hair" d="M${x - 5} ${y - 1} Q${x - 4.5} ${y - 6.5} ${x} ${y - 6} Q${x + 4.5} ${y - 6.5} ${x + 5} ${y - 1} Q${x + 2} ${y - 3.5} ${x - 5} ${y - 1} z"/>`
+    + `<circle class="ce" cx="${x - 1.8}" cy="${y - .1}" r=".7"/><circle class="ce" cx="${x + 1.8}" cy="${y - .1}" r=".7"/><path class="cm" d="M${x - 1.8} ${y + 2.2} Q${x} ${y + 3.6} ${x + 1.8} ${y + 2.2}"/>`;
+}
+function poseParts(pose, ph) {
+  // ph：-1…1 的相位；返回会动的部位：l 腿、a 手臂、dy 身子上下
+  if (pose === 'sit') return { l: `M-2 -3 L5 -3 L${(5 + 2.5 * ph).toFixed(1)} 6 M2 -3 L7 -3 L${(7 - 2.5 * ph).toFixed(1)} 6`, a: 'M-3 -14 L-8 -4 M3 -14 L8 -4', dy: 0 };
+  if (pose === 'stand') return { l: 'M-2 -9 L-3 0 M2 -9 L3 0', a: `M-3 -17 L-7 -10 M3 -17 L${(8 + ph).toFixed(1)} ${(-25 + 2 * ph).toFixed(1)}`, dy: 0 };
+  if (pose === 'jump') { const h = Math.abs(ph); return { l: `M-2 -9 L${(-4 + h).toFixed(1)} ${(-1 - 3 * h).toFixed(1)} M2 -9 L${(4 - h).toFixed(1)} ${(-1 - 3 * h).toFixed(1)}`, a: `M-3 -17 L-8 ${(-24 - 3 * h).toFixed(1)} M3 -17 L8 ${(-24 - 3 * h).toFixed(1)}`, dy: -9 * h }; }
+  return { l: 'M7 -5 L17 -4 M7 -3 L16 -1', a: 'M-4 -5 L-10 -1', dy: 0 };
+}
+function climberSvg(x, y, k) {
+  const pose = POSES[k - 1], [c, d] = VIVID[k - 1], p = poseParts(pose, 0);
+  const body = pose === 'lie' ? `<rect class="cs" x="-6" y="-9" width="14" height="8" rx="4"/>${headSvg(-11, -6)}<text class="zz" x="-13" y="-14">z</text>`
+    : pose === 'sit' ? `<rect class="cs" x="-4.5" y="-16" width="9" height="12" rx="4.5"/>${headSvg(0, -21)}`
+    : `<rect class="cs" x="-4.5" y="-20" width="9" height="12" rx="4.5"/>${headSvg(0, -25)}`;
+  return `<g class="climber" data-pose="${pose}" transform="translate(${x} ${y})" style="--cf:${c};--cd:${d}">${pose === 'jump' ? '<ellipse class="csh" cx="0" cy="0" rx="7" ry="1.6"/>' : ''}<g class="cb">
+    <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>${body}</g></g>`;
+}
+function ladderPair(wl, key) {
+  // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级后写本周新录的题数「↑N」（绿）；
+  // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↑5」（红）；data-flows 给小人跑跳的动画（armLadders）
+  const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
+  // 木头：横档与扶手用木纹渐变，扶手上几道浅色木纹；横档先画、扶手压在上面，像榫进扶手里
+  const top = y(5) - 18, bot = y(1) + 18;
+  const ladder = cx => [1, 2, 3, 4, 5].map(k => `<rect class="wrung" x="${cx - LW - 2}" y="${y(k) - 3.5}" width="${2 * LW + 4}" height="7" rx="3.5" fill="url(#wh-${key})"/>`).join('')
+    + [-1, 1].map(sd => { const x = cx + sd * LW - 4; return `<rect class="wrail" x="${x}" y="${top}" width="8" height="${bot - top}" rx="4" fill="url(#wv-${key})"/>`
+      + `<path class="grain" d="M${x + 2.6} ${top + 8} L${x + 2.6} ${top + 46} M${x + 5.2} ${top + 70} L${x + 5.2} ${top + 120} M${x + 3} ${top + 140} L${x + 3} ${bot - 10}"/>`; }).join('');
+  const num = (x, k, n, up, down) => `<text class="nm num" x="${x}" y="${y(k) + 4}"><tspan class="nn">${n}</tspan>${up ? `<tspan class="nu" dx="4">↑${up}</tspan>` : ''}${down ? `<tspan class="nd" dx="4">↑${down}</tspan>` : ''}</text>`;
+  let g = ladder(LX) + ladder(RX);
+  for (let k = 1; k <= 5; k++) {
+    g += `<text class="lv v${k}" x="${TX}" y="${y(k) + 4}">${LADDER_SEGS[k - 1][1].split(' · ')[0]}</text>`;
+    if (k < 5) g += num(NL, k, wl.left[k - 1], k === 1 ? wl.fresh : 0);
+    g += num(NR, k, wl.right[k - 1], k > 1 ? wl.up[k] : 0, k === 1 ? wl.down : 0);
+  }
+  const defs = `<defs><linearGradient id="wv-${key}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#8a5a2b"/><stop offset=".45" stop-color="#c8925a"/><stop offset="1" stop-color="#7a4d22"/></linearGradient>`
+    + `<linearGradient id="wh-${key}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9a76b"/><stop offset=".6" stop-color="#b27a43"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>`
+    + `</defs>`;
+  // 两架梯子上有题的 1–4 级各站一个小人，姿势按级
+  for (let k = 1; k <= 4; k++) {
+    if (wl.left[k - 1]) g += climberSvg(LX, y(k) - 3.5, k);
+    if (wl.right[k - 1]) g += climberSvg(RX, y(k) - 3.5, k);
+  }
+  const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
+  const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
+  const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
+  return `<div class="ladpair" data-key="${key}">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-flows='${JSON.stringify(wl.flows)}'>${defs}${g}<g class="dots"></g></svg>
+  </div>`;
+}
+// 爬升动画：每股升级放 min(n, 6) 个小人，从左梯 from 级沿弧线跑到右梯 to 级，最后一段抬手爬上那一级；每个约 1.8 秒、依次错开，一直循环；
+// 梯子在视野里才播，离开视野或页面重画后停；系统要求减少动态效果时不播
+const ladRuns = new Map();   // svg → 正在播的 requestAnimationFrame 句柄
+let ladObserver = null;
+function stopLadder(svg) { const h = ladRuns.get(svg); if (h) cancelAnimationFrame(h); ladRuns.delete(svg); const l = svg.querySelector('.dots'); if (l) l.innerHTML = ''; }
+function playLadder(svg) {
+  if (ladRuns.has(svg) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  let flows = [];
+  try { flows = JSON.parse(svg.dataset.flows || '[]'); } catch (e) { return; }
+  const layer = svg.querySelector('.dots'); if (!layer || !flows.length) return;
+  const NS = 'http://www.w3.org/2000/svg', runners = [], DUR = 1800, CYCLE = 2800;
+  // 小人：圆头、身子、两臂、两腿（以脚下为原点，高约 15）
+  const mk = color => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'runner'); g.style.color = color;
+    g.innerHTML = '<circle cx="0" cy="-12.5" r="2.8"/><path class="b" d="M0 -9.5 L0 -4"/><path class="a" d=""/><path class="l" d=""/>';
+    layer.appendChild(g); return g;
+  };
+  let k = 0;
+  for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(VCOL[f.to - 1]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
+  const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ pose: g.dataset.pose, b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), z: g.querySelector('.zz'), sh: g.querySelector('.csh'), off: i * 1.7 }));
+  const start = performance.now();
+  const step = now => {
+    if (!svg.isConnected) { ladRuns.delete(svg); return; }
+    for (const c of climbers) {
+      const ph = Math.sin(now / (c.pose === 'jump' ? 240 : 320) + c.off), p = poseParts(c.pose, ph);
+      c.a.setAttribute('d', p.a); c.l.setAttribute('d', p.l);
+      c.b.setAttribute('transform', `translate(0 ${p.dy.toFixed(2)})`);
+      if (c.sh) c.sh.setAttribute('rx', (7 - 3 * Math.abs(ph)).toFixed(1));
+      if (c.z) { const t = (now / 1600 + c.off) % 1; c.z.setAttribute('y', (-12 - 10 * t).toFixed(1)); c.z.setAttribute('x', (-13 + 4 * t).toFixed(1)); c.z.style.opacity = String(1 - t); }
+    }
+    for (const r of runners) {
+      const t = (((now - start - r.t0) % CYCLE) + CYCLE) % CYCLE / DUR;
+      if (t >= 1) { r.g.style.opacity = '0'; continue; }
+      const { x0, y0, x1, y1, cx, cy } = r.c, u = 1 - t;
+      const x = u * u * x0 + 2 * u * t * cx + t * t * x1, y = u * u * y0 + 2 * u * t * cy + t * t * y1;
+      const ph = Math.sin(now / 70 + r.t0), climb = t > 0.82;
+      // 跑：两腿前后摆、两臂反向摆；爬：两臂举起交替够横档，两腿交替蹬
+      r.g.querySelector('.l').setAttribute('d', climb ? `M0 -4 L${-2.5} ${(-1 + ph * 2).toFixed(1)} M0 -4 L2.5 ${(-1 - ph * 2).toFixed(1)}` : `M0 -4 L${(ph * 3.5).toFixed(1)} 0 M0 -4 L${(-ph * 3.5).toFixed(1)} 0`);
+      r.g.querySelector('.a').setAttribute('d', climb ? `M0 -8.5 L-3 ${(-14 + ph * 2).toFixed(1)} M0 -8.5 L3 ${(-14 - ph * 2).toFixed(1)}` : `M0 -8.5 L${(-ph * 3).toFixed(1)} -5 M0 -8.5 L${(ph * 3).toFixed(1)} -5`);
+      r.g.setAttribute('transform', `translate(${x.toFixed(1)} ${(y + 3).toFixed(1)})`);
+      r.g.style.opacity = t < 0.06 ? String(t / 0.06) : t > 0.94 ? String((1 - t) / 0.06) : '1';
+    }
+    ladRuns.set(svg, requestAnimationFrame(step));
+  };
+  ladRuns.set(svg, requestAnimationFrame(step));
+}
+function armLadders() {
+  // 重画后调用：停掉旧图上的动画；新图进入视野时播、离开时停
+  for (const svg of Array.from(ladRuns.keys())) if (!svg.isConnected) stopLadder(svg);
+  const els = Array.from(document.querySelectorAll('.ladpair svg'));
+  if (ladObserver) ladObserver.disconnect();
+  if (!els.length) return;
+  if (!('IntersectionObserver' in window)) { els.forEach(playLadder); return; }
+  ladObserver = new IntersectionObserver(entries => {
+    for (const en of entries) { if (en.isIntersecting) playLadder(en.target); else stopLadder(en.target); }
+  }, { threshold: 0.3 });
+  for (const el of els) ladObserver.observe(el);
 }
 
 function exById(id) { return S.exercises.find(e => e.id === id); }
@@ -1547,12 +1916,13 @@ function cardPager(marks, idx, act) {
   return `<nav class="cardpager" aria-label="Questions"><div class="cp-row">
     ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}</div></nav>`;
 }
-function cardNav(idx, n, act, lastLabel) {
-  // 题卡底部：左边 Previous、右边 Next；第一张的 Previous 不可点；最后一张给了 lastLabel 时 Next 换成交卷按钮（作答阶段），否则不可点；作答页与 View details 共用
+function cardNav(idx, n, act, lastLabel, backAct) {
+  // 题卡底部：左边 Previous、右边 Next；第一张的 Previous 换成 Back（backAct，与页面左上角的 Back 同一动作）；最后一张给了 lastLabel 时 Next 换成交卷按钮（作答阶段），否则不可点；作答页与 View details 共用
   const next = idx >= n - 1 && lastLabel
     ? `<button type="button" class="btn primary small" data-act="paper-submit">${lastLabel}</button>`
     : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next →</button>`;
-  return `<div class="card-nav"><button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}" ${idx <= 0 ? 'disabled' : ''}>← Previous</button>${next}</div>`;
+  const prev = idx <= 0 ? `<button type="button" class="btn ghost small" data-act="${backAct}">‹ Back</button>` : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}">← Previous</button>`;
+  return `<div class="card-nav">${prev}${next}</div>`;
 }
 function runCoinsLine(p, exs) {
   // 每日卷交卷后：这张卷挣的金币；用本次判好的作答加原有历史即时算，不等 snapshot；主观题自评存好后才算进
@@ -1575,16 +1945,13 @@ function renderPaperRun() {
   const exs = runExs();
   R.idx = Math.min(Math.max(0, R.idx || 0), Math.max(0, exs.length - 1));
   const marks = runMarks(exs, R.phase, R.responses, R.results, R.saved);
-  let h = `<div class="progress">${paperTag(p)}<span class="small muted">${esc(pname(p))}</span><div class="grow"></div>${R.phase === 'answer' ? `<button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button><button type="button" class="btn ghost small" data-act="exit-run">Stop</button>` : ''}</div>`;
+  // 顶上一行：左上角 Back（每日卷先存好回答再走，检验卷没交的回答不留），右边作答阶段的 Hand in
+  let h = `<div class="progress"><button type="button" class="btn ghost small back" data-act="exit-run">‹ Back</button>${paperTag(p)}<span class="small muted ellip">${esc(pname(p))}</span><div class="grow"></div>${R.phase === 'answer' ? `<button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button>` : ''}</div>`;
   if (R.phase === 'review') {
-    // 得分立即显示：客观题交卷即判，主观题自评存好后算进
+    // 得分立即显示，一行：客观题交卷即判，主观题自评存好后算进；对错分布看翻页条的颜色
     const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    // 摘要卡右上角是返回（与 View details 的返回同一位置）
-    h += `<section class="panel"><div class="sum-head"><p class="h3 grow">${R.saving ? 'Saving…' : R.handed ? 'Handed in · saved' : 'Not saved yet'}</p><button type="button" class="btn ghost small" data-act="exit-run" aria-label="Back to today">← Back<span class="wide-only"> to today</span></button></div>
-      <div class="row"><span class="score num">${s.right}/${exs.length}</span><span class="muted">${s.right} right · ${s.partial} partly · ${s.wrong} wrong${toMark ? ` · ${toMark} to self-mark` : ''}</span></div>
-      ${isDaily(p) ? runCoinsLine(p, exs) : ''}
-      <p class="muted small">${toMark ? 'Check your written answers against the model answers and mark each one.' : 'Any you missed go back to the start of the ladder.'}</p></section>`;
+    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? '<span class="small muted">Mark your written answers</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
   }
   if (R.phase === 'answer' && R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
@@ -1593,15 +1960,15 @@ function renderPaperRun() {
   if (exs.length) {
     const i = R.idx, e = exs[i], key = 'p' + i;
     h += cardPager(marks, i, 'card-go');
-    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认收起，点开后同组各卡保持展开（R.openSets）
+    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认展开，收起后同组各卡保持收起（R.openSets）
     const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
     h += `<article class="sheet">${questionBody(e, { key, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
     if (R.phase === 'review') {
       h += solutionBlock(e);
       if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
     }
-    h += cardNav(i, exs.length, 'card-go', R.phase === 'answer' ? (R.warn ? 'Hand in anyway' : 'Hand in') : '') + '</article>';
-    if (e.setId) h += materialBlock(setById(e.setId), !!(R.openSets && R.openSets[e.setId]));
+    h += cardNav(i, exs.length, 'card-go', R.phase === 'answer' ? (R.warn ? 'Hand in anyway' : 'Hand in') : '', 'exit-run') + '</article>';
+    if (e.setId) h += materialBlock(setById(e.setId), !(R.openSets && R.openSets[e.setId] === false));
   }
   if (R.phase === 'review' && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
@@ -1619,38 +1986,76 @@ function renderManage() {
   return `<div style="display:grid;gap:12px">${h}</div>`;
 }
 
-function subjectOptions(sel, withAuto) {
-  return (withAuto ? `<option value="">Let AI decide</option>` : `<option value="">Choose subject</option>`) + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
+function subjectOptions(sel) {
+  return `<option value="">Choose subject</option>` + SUBJECTS.map(s => `<option value="${s[0]}" ${sel === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('');
 }
 
+const MAT_PAGE = 10;
+function resetRecMode() {
+  // 每次进入 Record 页都停在 New photos or text；所选材料、给 AI 的提示与列表的搜索、筛选、页码都不保留
+  S.recMode = 'new'; S.recSet = ''; S.recHint = ''; S.matQuery = ''; S.matPage = 1;
+}
+function materialCard(m, picked, off) {
+  const thumb = m.images.length ? `<img src="${blobUrl(m.images[0])}" alt="" loading="lazy">` : `<span class="mat-txt">${esc(plain(m.text).trim().slice(0, 60))}</span>`;
+  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off ? 'disabled' : ''}>
+    <span class="mat-thumb">${thumb}</span>
+    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span></span>
+  </button>`;
+}
+function matPager(n, page) {
+  // 材料列表的翻页：参照卷子详情页（cardPager 与 cardNav）——列表上方一行紧凑页码，下方左 Previous、右 Next；只有一页时都不显示。页码按钮的位置数按宽度估，面板的内边距与边框再减 26 px
+  if (n <= 1) return { top: '', bottom: '' };
+  const vw = window.innerWidth || 880, avail = Math.min(vw, 880) - (vw >= 720 ? 56 : 32) - 26, max = Math.floor(avail / 27);
+  const top = `<nav class="cardpager" aria-label="Pages"><div class="cp-row">${pagerSlots(n, page - 1, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n" data-act="mat-page" data-v="${i + 1}" aria-pressed="${i + 1 === page}" title="Page ${i + 1}">${i + 1}</button>`).join('')}</div></nav>`;
+  const bottom = `<div class="card-nav"><button type="button" class="btn ghost small" data-act="mat-page" data-v="${page - 1}" ${page <= 1 ? 'disabled' : ''}>← Previous</button><button type="button" class="btn ghost small" data-act="mat-page" data-v="${page + 1}" ${page >= n ? 'disabled' : ''}>Next →</button></div>`;
+  return { top, bottom };
+}
 function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
-  const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy;
-  let h = `<section class="panel">
-    <p class="h2">Record exercises</p>
-    <p class="small muted">Take a photo or paste the question text; AI splits it into drafts. Check each draft before saving, especially the answer.</p>`;
-  if (canPhoto) {
-    // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
-    const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
-    h += `<div class="picks">
-      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-camera" data-photos="1" accept="${acc}" capture="environment" ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">📷</span><span class="pick-main">Take photo</span></label>
-      <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-files" data-photos="1" accept="${acc}" multiple ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">🖼️</span><span class="pick-main">Choose photos</span></label>
-    </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
-    if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
-  } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
-  h += `<label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label>
-    <div class="rec-go">
-      <label class="f"><span>Subject</span><select id="rec-subject" data-bind="recSubject">${subjectOptions(S.recSubject, true)}</select></label>
-      <label class="f"><span>Owner</span><select id="rec-owner" data-bind="recOwner">${ownerOptions(recOwner())}</select></label>
-      <button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy) ? 'disabled' : ''}>${busy ? 'Reading…' : 'Read with AI'}</button>
-    </div>
+  const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
+  const saved = S.recMode === 'saved';
+  const rs = recSource();
+  if (S.recSet && !rs) S.recSet = '';
+  // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
+  let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
+  <section class="panel">`;
+  // 动作区：左边是状态文字，右边 Stop 在左、Read with AI 在右；提示条在下面
+  const act = (left, can) => `<div class="rec-act"><span class="small muted mat-sel">${left}</span><span class="rec-btns">${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}<button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy || !can) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button></span></div>
     ${!canSample ? '<p class="note err">Reading with AI is unavailable right now, so exercises can\'t be recorded here for the moment.</p>' : ''}
-    ${S.recMsg ? `<p class="note ${S.recMsg.kind}">${esc(S.recMsg.text)}</p>` : ''}
-  </section>`;
+    ${S.recMsg ? `<p class="note ${S.recMsg.kind}" id="rec-note">${esc(S.recMsg.text)}</p>` : ''}`;
+  if (saved) {
+    // 从已录的材料补录：题组，或一批共用照片的独立题。给 AI 的提示与动作区一组；搜索、页码、列表一组；点一张卡选中，再点另一张就换
+    const all = savedMaterials(S.sets, S.exercises);
+    const shown = all.filter(m => matchMaterial(m, S.matQuery));
+    const pg = pageSlice(shown, S.matPage, MAT_PAGE);
+    S.matPage = pg.page;
+    const nav = matPager(pg.pages, pg.page);
+    h += `<div class="grp"><label class="f"><span>Hint for AI (optional)</span><textarea id="rec-hint" data-bind="recHint" rows="2" placeholder="e.g. Questions 5 to 8 only">${esc(S.recHint)}</textarea></label>
+      ${act(rs ? 'Selected: ' + esc((all.find(m => m.id === rs.id) || { label: '' }).label) : '', !!rs)}</div>`;
+    h += `<div class="grp"><input type="search" id="mat-q" data-matsearch="1" placeholder="Search title, source, text or questions" value="${esc(S.matQuery)}" aria-label="Search saved material" autocomplete="off">${nav.top}`;
+    h += !all.length ? `<p class="small muted">Nothing saved yet.</p>` : !shown.length ? `<p class="small muted">No match.</p>`
+      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy)).join('')}</div>`;
+    h += nav.bottom + `</div></section>`;
+  } else {
+    h += `<div class="grp">`;
+    if (canPhoto) {
+      // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
+      const off = full || busy, acc = esc((L.mediaTypes || ['image/*']).join(','));
+      h += `<div class="picks">
+        <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-camera" data-photos="1" accept="${acc}" capture="environment" ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">📷</span><span class="pick-main">Take photo</span></label>
+        <label class="pick${off ? ' off' : ''}"><input type="file" id="rec-files" data-photos="1" accept="${acc}" multiple ${off ? 'disabled' : ''}><span class="pick-ico" aria-hidden="true">🖼️</span><span class="pick-main">Choose photos</span></label>
+      </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
+      if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
+    } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
+    const pl = plogRead();
+    if (pl.length) h += `<details class="plog" ${S.plogOpen ? 'open' : ''}><summary>Photo log (${pl.length})</summary><textarea readonly rows="8" aria-label="Photo log">${esc(pl.join('\n'))}</textarea><button type="button" class="btn ghost small" data-act="plog-clear">Clear log</button></details>`;
+    h += `</div><div class="grp"><label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label></div>`;
+    h += `<div class="grp">${act('', true)}</div></section>`;
+  }
   const newDrafts = S.drafts.filter(d => !d.editId);
   const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
   if (newDrafts.length || S.setDrafts.length) {
-    h += `<div id="rec-drafts" style="display:grid;gap:8px"><div class="row"><p class="h2 grow">To check: ${plural(newDrafts.length, 'exercise')}${S.setDrafts.length ? `, ${plural(S.setDrafts.length, 'question set')}` : ''}</p><button type="button" class="btn primary" data-act="save-all">Save all</button><button type="button" class="btn ghost" data-act="discard-all">Discard all</button></div>${saveNote}</div>`;
+    h += `<div id="rec-drafts" style="display:grid;gap:8px"><p class="h2">To check: ${plural(newDrafts.length, 'exercise')}${S.setDrafts.length ? `, ${plural(S.setDrafts.length, 'question set')}` : ''}</p><div class="lr"><button type="button" class="btn ghost" data-act="discard-all">Discard all</button><button type="button" class="btn primary" data-act="save-all">Save all</button></div>${saveNote}</div>`;
     for (const sd of S.setDrafts) {
       const members = newDrafts.filter(d => d.setRef === 'new:' + sd.key);
       h += setForm(sd, members.length);
@@ -1665,32 +2070,73 @@ function clearPhotos() {
   for (const p of S.recPhotos) URL.revokeObjectURL(p.url);
   S.recPhotos = [];
 }
-function addPhotos(files) {
-  const L = S.imgLimits, skipped = [];
-  for (const f of files) {
-    if (S.recPhotos.length >= L.maxCount) skipped.push(`"${f.name}" is over the limit of ${L.maxCount} photos`);
-    else if (L.maxInputBytes && f.size > L.maxInputBytes) skipped.push(`"${f.name}" is too large (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo or shrink it first`);
-    else S.recPhotos.push({ file: f, url: URL.createObjectURL(f), assetId: null });
-  }
-  if (skipped.length) S.recMsg = { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' };
+// 新录入的照片先缩到长边不超过这么多像素的 JPEG，再上传与识别；平台自己送给 Claude 前还会缩到约 1.2 百万像素
+const PHOTO_MAX_SIDE = 2400;
+let photoSeq = 1;
+async function shrinkPhoto(file, L) {
+  // 长边不超过上限且没超过 maxInputBytes 的原样用；解码失败也原样用（照旧只按 maxInputBytes 检查）
+  let url = '';
+  const t0 = Date.now();
+  try {
+    url = URL.createObjectURL(file);
+    const img = new Image(); img.src = url;
+    // 浏览器按照片自带的方向给出宽高并画正；个别手机浏览器 decode() 迟迟不返回，超时就当解码失败、原样用
+    await Promise.race([img.decode(), new Promise((_, no) => setTimeout(() => no(new Error('decode timeout')), 10000))]);
+    const w = img.naturalWidth, h = img.naturalHeight, t = fitSize(w, h, PHOTO_MAX_SIDE);
+    plog(`shrink: decoded ${w}x${h} in ${Date.now() - t0}ms; target ${t.w}x${t.h}`);
+    if (t.w === w && t.h === h && !(L.maxInputBytes && file.size > L.maxInputBytes)) { plog('shrink: kept as is'); return file; }
+    const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, t.w, t.h); g.drawImage(img, 0, 0, t.w, t.h);   // 白底：PNG 透明处不变黑
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+    plog(`shrink: toBlob ${blob ? blob.size + 'B' : 'null'} in ${Date.now() - t0}ms total`);
+    return blob ? new File([blob], String(file.name || 'photo').replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch (e) { plog(`shrink: failed after ${Date.now() - t0}ms, using the original: ${e && e.name}: ${e && e.message}`); return file; }
+  finally { if (url) URL.revokeObjectURL(url); }
+}
+async function addPhotos(files) {
+  const L = S.imgLimits, skipped = [], before = S.recMsg;
+  plog(`addPhotos: ${files.length} file(s), tray has ${S.recPhotos.length}, limits=${JSON.stringify(L)}`);
+  S.recPrep = true; S.recMsg = { kind: '', text: 'Preparing photos…' }; render();
+  try {
+    for (const f0 of files) {
+      plog('file: ' + fdesc(f0));
+      if (S.recPhotos.length >= L.maxCount) { skipped.push(`"${f0.name}" is over the limit of ${L.maxCount} photos`); plog('skipped: over the count limit'); continue; }
+      // 先把原照片放进缩略图列表，缩小在后面做完再换成缩小后的；缩小慢（或手机上卡住）时也看得到刚拍的照片
+      const item = { file: f0, url: URL.createObjectURL(f0), assetId: null, uid: photoSeq++ };
+      S.recPhotos.push(item); render();
+      plog(`tray: pushed uid=${item.uid}; ${S.recPhotos.length} in S.recPhotos, ${document.querySelectorAll('.tray-item').length} in the DOM`);
+      const f = await shrinkPhoto(f0, L);
+      if (L.maxInputBytes && f.size > L.maxInputBytes) {
+        skipped.push(`"${f0.name}" is too large even after shrinking (max ${Math.floor(L.maxInputBytes / 1048576 * 10) / 10} MB); use another photo`);
+        const i = S.recPhotos.indexOf(item); if (i >= 0) S.recPhotos.splice(i, 1);
+        URL.revokeObjectURL(item.url);
+        plog(`skipped: ${f.size}B is over maxInputBytes ${L.maxInputBytes}`);
+      } else if (f !== f0) { URL.revokeObjectURL(item.url); item.file = f; item.url = URL.createObjectURL(f); plog(`tray: uid=${item.uid} now the shrunk file ${fdesc(f)}`); }
+    }
+  } catch (e) { plog(`addPhotos: threw ${e && e.name}: ${e && e.message}`); throw e; }
+  finally { S.recPrep = false; plog(`addPhotos: done; ${S.recPhotos.length} in S.recPhotos; skipped=${skipped.length}`); }
+  S.recMsg = skipped.length ? { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' } : before;
 }
 
 function setForm(sd, nMembers) {
   const k = sd.key, edit = k === 'edit';
   const inp = (field, v, ph) => `<input type="text" id="s${k}-${field}" data-s="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
-  let h = `<section class="panel setcard" id="set-${k}">
-    <div class="row"><p class="h3 grow">${edit ? 'Edit question set' : (sd.savedId ? 'Question set (saved)' : 'Question set draft')}</p>${edit ? '' : `<button type="button" class="btn ghost small" data-act="drop-set" data-s="${k}">Discard set</button>`}</div>
-    <div class="grid2">
+  // 两组：Basics（科目、标题、出处）与 Material（材料文字、词表、照片）；底部左边放弃或取消、右边确认
+  let h = `<section class="panel setcard" id="set-${k}">${edit ? '<p class="h2">Edit question set</p>' : sd.savedId ? '<p class="h2">Question set (saved)</p>' : ''}
+    <div class="grp"><p class="h3">Basics</p><div class="grid2">
       ${edit ? `<div class="f small"><span class="muted">Subject</span><div>${esc(SUBJ[sd.subject] ? SUBJ[sd.subject].en : '')}</div></div>` : `<label class="f"><span>Subject *</span><select id="s${k}-subject" data-s="${k}" data-f="subject" data-rerender="1">${subjectOptions(sd.subject)}</select></label>`}
       <label class="f"><span>Title</span>${inp('title', sd.title, 'e.g. School carnival flyer')}</label>
       <label class="f"><span>Source</span>${inp('source', sd.source, 'e.g. 2026 P5 SA2 Paper 2 Booklet B')}</label>
-    </div>
+    </div></div>
+    <div class="grp"><p class="h3">Material</p>
     <label class="f"><span>Material text (the passage, flyer or experiment set-up; [[ ]] shows as underlined)</span><textarea id="s${k}-text" data-s="${k}" data-f="text" rows="6">${esc(sd.text)}</textarea></label>
     <label class="f"><span>Word bank (the words in the grammar cloze box, separated by ; or new lines; leave empty if none)</span><textarea id="s${k}-wordBank" data-s="${k}" data-f="wordBank" data-rerender="1" rows="2" placeholder="e.g. although; despite; which; whose">${esc(sd.wordBank)}</textarea></label>`;
   if (sd.images.length) h += `<div class="imgs thumbs">${sd.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="Material photo ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-simg" data-s="${k}" data-i="${i}">Remove photo</button></span>`).join('')}</div>`;
+  h += `</div>`;
   if (!edit && nMembers === 0) h += `<p class="small muted">No questions belong to this set yet; a set without questions won't be saved.</p>`;
   if (sd.error) h += `<p class="note err">${esc(sd.error)}</p>`;
-  if (edit) h += `<div class="row"><button type="button" class="btn primary" data-act="save-set">Save set</button><button type="button" class="btn ghost" data-act="cancel-set">Cancel</button></div>`;
+  h += edit ? `<div class="foot lr"><button type="button" class="btn ghost" data-act="cancel-set">Cancel</button><button type="button" class="btn primary" data-act="save-set">Save set</button></div>`
+    : `<div class="foot lr"><button type="button" class="btn ghost" data-act="drop-set" data-s="${k}">Discard set</button></div>`;
   return h + '</section>';
 }
 
@@ -1706,24 +2152,27 @@ function draftForm(d) {
   const f = (name, label, html) => `<label class="f"><span>${label}</span>${html}</label>`;
   const inp = (field, v, ph) => `<input type="text" id="d${k}-${field}" data-d="${k}" data-f="${field}" value="${esc(v)}" placeholder="${esc(ph || '')}">`;
   const ta = (field, v, rows, ph) => `<textarea id="d${k}-${field}" data-d="${k}" data-f="${field}" rows="${rows}" placeholder="${esc(ph || '')}">${esc(v)}</textarea>`;
-  let h = `<section class="panel draft" id="draft-${k}">
-    <div class="row"><p class="h3 grow">${d.editId ? 'Edit exercise' : 'Draft'}</p>${d.editId ? '' : `<button type="button" class="btn ghost small" data-act="drop-draft" data-k="${k}">Discard this one</button>`}</div>
-    <div class="grid2">
+  // 四组：Classify、Question、Answer、Explain；底部左边放弃或取消、右边确认
+  let h = `<section class="panel draft" id="draft-${k}">${d.editId ? '<p class="h2">Edit exercise</p>' : ''}
+    <div class="grp"><p class="h3">Classify</p><div class="grid2">
       ${f('subject', 'Subject *', `<select id="d${k}-subject" data-d="${k}" data-f="subject" data-rerender="1">${subjectOptions(s)}</select>`)}
       ${f('topic', 'Topic *', `<select id="d${k}-topic" data-d="${k}" data-f="topic" data-rerender="1"><option value="">Choose topic</option>${topics}</select>`)}
       ${f('concept', 'Concept', `<select id="d${k}-concept" data-d="${k}" data-f="concept"><option value="">(none)</option>${concepts}</select>`)}
       ${f('qtype', 'Question type', `<select id="d${k}-qtype" data-d="${k}" data-f="qtype"><option value="">(none)</option>${qtypes}</select>`)}
-      ${f('format', 'Answer format', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}
       ${f('cause', 'Error cause', `<select id="d${k}-cause" data-d="${k}" data-f="cause">${CAUSES.map(c => `<option value="${c[0]}" ${d.cause === c[0] ? 'selected' : ''}>${c[1]}</option>`).join('')}</select>`)}
-      ${d.editId ? f('owner', 'Owner', `<select id="d${k}-owner" data-d="${k}" data-f="owner">${ownerOptions(d.owner)}</select>`) : ''}
-    </div>
-    ${f('setRef', 'Question set', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">None (stand-alone question)</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>New in this batch: ${esc(sd.title || 'Untitled set')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || 'Untitled set')}</option>`).join('')}</select>`)}
+    </div></div>
+    <div class="grp"><p class="h3">Question</p>
+    <div class="grid2">${f('setRef', 'Question set', `<select id="d${k}-setRef" data-d="${k}" data-f="setRef" data-rerender="1"><option value="">None (stand-alone question)</option>${S.setDrafts.filter(sd => !sd.subject || !s || sd.subject === s).map(sd => `<option value="new:${sd.key}" ${d.setRef === 'new:' + sd.key ? 'selected' : ''}>New in this batch: ${esc(sd.title || 'Untitled set')}</option>`).join('')}${(s ? liveSets(s) : []).map(x => `<option value="${esc(x.id)}" ${d.setRef === x.id ? 'selected' : ''}>${esc(x.title || 'Untitled set')}</option>`).join('')}</select>`)}
+    ${f('format', 'Answer format', `<select id="d${k}-format" data-d="${k}" data-f="format" data-rerender="1">${FORMATS.map(x => `<option value="${x[0]}" ${d.format === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`)}</div>
     ${f('stem', (d.setRef ? 'Question text (for a question inside the material: the sentence that holds it)' : 'Question text') + '; [[ ]] shows as underlined', ta('stem', d.stem, 4))}`;
   if (d.images.length) h += `<div class="imgs thumbs">${d.images.map((id, i) => `<span style="display:grid;gap:4px;justify-items:start"><img src="${blobUrl(id)}" alt="Question photo ${i + 1}"><button type="button" class="btn ghost small" data-act="drop-img" data-k="${k}" data-i="${i}">Remove photo</button></span>`).join('')}</div>`;
   if (d.format === 'mcq') {
     h += `<div class="grid2">${d.options.map((o, i) => f('o' + i, `Option (${i + 1})`, `<input type="text" id="d${k}-o${i}" data-d="${k}" data-f="opt" data-i="${i}" value="${esc(o)}">`)).join('')}</div>
-      <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">Add an option</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">Remove the last one</button>` : ''}</div>
-      <div class="grid2">${f('answer', 'Correct option *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
+      <div class="row"><button type="button" class="btn ghost small" data-act="add-opt" data-k="${k}">Add an option</button>${d.options.length > 2 ? `<button type="button" class="btn ghost small" data-act="del-opt" data-k="${k}">Remove the last one</button>` : ''}</div>`;
+  }
+  h += `</div><div class="grp"><p class="h3">Answer</p>`;
+  if (d.format === 'mcq') {
+    h += `<div class="grid2">${f('answer', 'Correct option *', `<select id="d${k}-answer" data-d="${k}" data-f="answer">${d.options.map((o, i) => `<option value="${LETTERS[i]}" ${String(d.answer).toUpperCase() === LETTERS[i] ? 'selected' : ''}>(${i + 1})</option>`).join('')}</select>`)}
       ${f('wrongAnswer', 'Chosen at the time', inp('wrongAnswer', d.wrongAnswer, 'e.g. (1)'))}</div>`;
   } else if (d.format === 'pick') {
     const sd = setOfDraft(d), bank = sd ? parseList(sd.wordBank) : [];
@@ -1737,16 +2186,20 @@ function draftForm(d) {
     h += f('wrongAnswer', 'Answer at the time', ta('wrongAnswer', d.wrongAnswer, 2));
     h += f('mustUse', 'Must-use words (for synthesis; separated by ;, write split pairs as Neither…nor)', inp('mustUse', d.mustUse, 'e.g. Despite'));
   }
+  h += `</div><div class="grp"><p class="h3">Explain</p>`;
   h += f('solution', 'Explanation (three parts: Key idea: … / Steps: 1. … / Watch out: …; key words in [[ ]])', ta('solution', d.solution, 5, 'Key idea: …\nSteps:\n1. …\n2. …\nWatch out: …'));
-  h += `<div class="grid2">${f('source', 'Source', inp('source', d.source, 'e.g. 2026 P5 SA2 Paper 2 Q7'))}</div>`;
+  h += `<div class="grid2">${f('source', 'Source', inp('source', d.source, 'e.g. 2026 P5 SA2 Paper 2 Q7'))}</div></div>`;
+  const dup = dupFlags().get(d);
+  if (dup) h += `<p class="note warn">Possible duplicate of ${dup.kind === 'saved' ? `a saved exercise: “${esc(plain(dup.ex.stem).trim().slice(0, 40))}”${dup.ex.source ? ' · ' + esc(dup.ex.source) : ''} · ${esc(fmtDate(dup.ex.createdAt))} <button type="button" class="linkbtn" data-act="goto-ex" data-id="${esc(dup.ex.id)}">View</button>` : 'another draft above'}.</p>`;
   if (d.error) h += `<p class="note err">${esc(d.error)}</p>`;
-  h += `<div class="row"><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">${d.editId ? 'Save changes' : 'Save this one'}</button>${d.editId ? `<button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">Cancel</button>` : ''}</div></section>`;
+  h += d.editId ? `<div class="foot lr"><button type="button" class="btn ghost" data-act="cancel-edit" data-k="${k}">Cancel</button><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">Save changes</button></div></section>`
+    : `<div class="foot lr"><button type="button" class="btn ghost" data-act="drop-draft" data-k="${k}">Discard this one</button><button type="button" class="btn primary" data-act="save-draft" data-k="${k}">Save this one</button></div></section>`;
   return h;
 }
 
 function newDraft(x) {
   x = x || {};
-  const subject = SUBJ[x.subject] ? x.subject : (S.recSubject || '');
+  const subject = SUBJ[x.subject] ? x.subject : '';
   const topic = subject && nameOf(subject, 'topic', x.topic) ? x.topic : '';
   const concept = topic && nameOf(subject, 'concept', x.concept) && IDX[subject].concept[x.concept].topic === topic ? x.concept : '';
   const qtype = subject && nameOf(subject, 'qtype', x.qtype) ? x.qtype : '';
@@ -1795,11 +2248,16 @@ function draftToDoc(d) {
 }
 
 function renderExercises() {
-  const editing = S.drafts.find(d => d.editId);
+  // 从 Today 打开的详情优先于编辑表单（不丢未保存的修改）；有几份编辑草稿时显示最新的
+  const editing = S.drafts.slice().reverse().find(d => d.editId);
+  if (S.detailId && S.detailFrom === 'today') return renderDetail();
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
-  const owned = mine().filter(e => !F.owner || sameOwner(e.owner, F.owner));
+  const owned = mine();
+  // 科目子标签：只列有错题的科目；记住的科目已没有错题时改选第一个有错题的科目
+  const subjN = SUBJECTS.map(([k]) => [k, owned.filter(e => e.subject === k).length]).filter(x => x[1]);
+  if (subjN.length && !subjN.some(x => x[0] === F.subject)) { F.subject = subjN[0][0]; F.topic = ''; }
   const list = owned.filter(e => (!F.subject || e.subject === F.subject) && (!F.topic || e.topic === F.topic) && (!F.cause || e.cause === F.cause)
     && (!F.state || (F.state === 'mastered' ? e.mastered : F.state === 'due' ? (!e.mastered && e.due && e.due <= today) : !e.mastered))
     && matchesQuery(e, e.setId && setById(e.setId), F.q));
@@ -1811,12 +2269,11 @@ function renderExercises() {
   const on = k => F[k] ? ' on' : '';
   const sel = (k, label, opts, dis) => `<select id="flt-${k}" class="compact${on(k)}" data-filter="${k}" aria-label="${label}" ${dis ? 'disabled' : ''}>${opts}</select>`;
   const opt = (k, v, t) => `<option value="${v}" ${F[k] === v ? 'selected' : ''}>${t}</option>`;
-  const anyF = ['owner', 'subject', 'topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
-  let h = `<section class="panel list-tools">
+  const anyF = ['topic', 'cause', 'state'].some(k => F[k]) || !!String(F.q || '').trim();
+  let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Subjects">${subjN.map(([k, n]) => [k, SUBJ[k].en, n]).map(([k, t, n]) => `<button type="button" role="tab" data-act="ex-subj" data-v="${k}" aria-selected="${F.subject === k}">${esc(t)} <span class="num muted">${n}</span></button>`).join('')}</nav>
+  <section class="panel list-tools">
     <div class="filters">
       <input type="search" id="flt-q" class="${F.q ? 'on' : ''}" data-search="1" value="${esc(F.q)}" placeholder="Search question text" aria-label="Search question text" autocomplete="off">
-      ${sel('owner', 'Owner', ownerFilterOptions(F.owner, S.exercises, 'All owners'))}
-      ${sel('subject', 'Subject', opt('subject', '', 'All subjects') + SUBJECTS.map(s => opt('subject', s[0], s[1])).join(''))}
       ${sel('topic', 'Topic', opt('topic', '', 'All topics') + topicOpts, !F.subject)}
       ${sel('cause', 'Error cause', opt('cause', '', 'All error causes') + CAUSES.map(c => opt('cause', c[0], c[1])).join(''))}
       ${sel('state', 'Status', opt('state', '', 'Any status') + opt('state', 'learning', 'On the ladder') + opt('state', 'due', 'Due today') + opt('state', 'mastered', 'Mastered'))}
@@ -1827,7 +2284,7 @@ function renderExercises() {
       <button type="button" class="btn ghost small" data-act="list-dir" aria-label="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.listSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.listSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>
   </section>`;
-  h += subjectCards(owned, today, F.subject);
+  if (F.subject) h += subjectDetail(owned, F.subject, today, F.topic);
   if (!S.exercises.length) return h + `<div class="list"><div class="empty"><b>No exercises yet</b><span>Go to Record and take a photo of a question that was wrong, or send the question to Claude in a Claude Code chat.</span></div></div>`;
   h += `<div class="list">${pg.items.length ? pg.items.map(e => `
     <button type="button" class="item" data-act="detail" data-id="${esc(e.id)}">
@@ -1839,27 +2296,51 @@ function renderExercises() {
   return h;
 }
 
-function subjectCards(exs, today, active) {
-  // 每科一张小卡：只按 Owner 筛选后的错题算，不随其他筛选与搜索变；点卡按这一科筛选，再点取消
-  const cards = subjectSummary(exs, today);
-  if (!cards.length) return '';
-  return `<div class="subj-cards">${cards.map(c => {
-    const segs = c.steps.map((n, i) => [n, LADDER_SEGS[i][2]]).concat([[c.mastered, LADDER_SEGS[4][2]]]).filter(x => x[0]);
-    return `<button type="button" class="subj-card" data-act="subj-card" data-v="${c.subject}" aria-pressed="${active === c.subject}" title="${active === c.subject ? 'Show all subjects' : 'Show only ' + esc(SUBJ[c.subject].en)}">
-      <span class="sc-h">${esc(SUBJ[c.subject].en)} · <span class="num">${c.n}</span></span>
-      <span class="ladbar" role="img" aria-label="${c.steps.map((n, i) => `${n} at ${['1st', '2nd', '3rd', '4th'][i]} redo`).join(', ')}, ${c.mastered} mastered">${segs.map(([n, col]) => `<i style="flex:${n};background:${col}"></i>`).join('')}</span>
-      <span class="num"><b>${c.due}</b> due · <b>${c.mastered}</b> mastered · wrong ${c.wrongAvg.toFixed(1)}× on average</span>
-      <span>Top topics: ${c.topics.map(t => `${esc(topicLabel(c.subject, t.topic))} <b class="num">${t.n}</b>`).join(' · ')}</span>
-      <span>${c.causes.map(([k, n]) => `${esc(CAUSE[k] ? CAUSE[k].en : k)} <b class="num">${n}</b>`).join(' · ')}</span>
-    </button>`;
-  }).join('')}</div>`;
+const CAUSE_COLOR = { concept: 'var(--pen)', misread: 'var(--amber)', careless: 'var(--c-wrong)', incomplete: 'var(--muted)' };
+function subjectDetail(exs, subject, today, activeTopic) {
+  // 选了一科时的小结：数字一行；专题图（每个专题一条按阶梯五级分段的横条，长度按题数，行尾最近 7 天正确率，点一行按专题筛选，最多 8 行、其余并成 Other topics）；
+  // Getting stronger 与 Needs more work 两列；错因一条分段横条加图例；只按 Owner 筛选后的错题算
+  const sum = subjectSummary(exs, today).find(x => x.subject === subject);
+  if (!sum) return '';
+  const ts = topicSummary(exs, subject, today), MAX = 8;
+  let rows = ts.topics.slice(0, MAX);
+  if (ts.topics.length > MAX) {
+    const rest = ts.topics.slice(MAX), o = { topic: '', n: 0, steps: [0, 0, 0, 0, 0], answers: 0, right: 0, wrong: 0, other: rest.length };
+    for (const t of rest) { o.n += t.n; o.answers += t.answers; o.right += t.right; o.wrong += t.wrong; t.steps.forEach((v, i) => { o.steps[i] += v; }); }
+    o.rate = o.answers >= 5 ? Math.round(o.right / o.answers * 100) : null;
+    rows = rows.concat([o]);
+  }
+  const top = Math.max(1, ...rows.map(r => r.n));
+  const bar = r => `<span class="tbar"><span class="ladbar" style="width:${(r.n / top * 100).toFixed(1)}%">${r.steps.map((v, i) => v ? `<i style="flex:${v};background:${LADDER_SEGS[i][2]}"></i>` : '').join('')}</span></span>`;
+  const name = r => r.other ? `Other topics (${r.other})` : esc(topicLabel(subject, r.topic));
+  const row = r => {
+    const inner = `<span class="tn">${name(r)} <span class="num muted">${r.n}</span></span>${bar(r)}<span class="tr num">${r.rate == null ? '—' : r.rate + '%'}</span>`;
+    const aria = `${r.steps.slice(0, 4).map((v, i) => `${v} at level ${i + 1}`).join(', ')}, ${r.steps[4]} mastered; ${r.rate == null ? 'not enough answers in the last 7 days' : r.rate + '% right in the last 7 days'}`;
+    return r.other ? `<div class="trow" title="${aria}">${inner}</div>` : `<button type="button" class="trow" data-act="topic-row" data-v="${esc(r.topic)}" aria-pressed="${activeTopic === r.topic}" title="${aria}">${inner}</button>`;
+  };
+  const list = (xs, wrong) => xs.length ? `<ol class="tlist">${xs.map(t => `<li><span>${esc(topicLabel(subject, t.topic))}</span><b class="num">${t.rate}%</b>${wrong ? `<span class="muted num">${t.wrong} wrong</span>` : ''}</li>`).join('')}</ol>` : '<p class="small muted">Not enough answers in the last 7 days yet.</p>';
+  const causes = sum.causes, ctot = causes.reduce((t, c) => t + c[1], 0);
+  return `<section class="panel subj-sum" aria-label="${esc(SUBJ[subject].en)} summary">
+    <p class="ss-nums"><b class="num">${sum.due}</b> due · <b class="num">${sum.mastered}</b> mastered</p>
+    <div class="tchart">
+      <div class="trow th" aria-hidden="true"><span>Topic</span><span>Ladder levels</span><span class="tr">Right · 7d</span></div>
+      ${rows.map(row).join('')}
+    </div>
+    <div class="legend small">${LADDER_SEGS.map(g => `<span><i style="background:${g[2]}"></i>${g[1].split(' · ')[0]}</span>`).join('')}</div>
+    <div class="two">
+      <div><p class="h3">Getting stronger</p>${list(ts.stronger, false)}</div>
+      <div><p class="h3">Needs more work</p>${list(ts.weaker, true)}</div>
+    </div>
+    ${ctot ? `<div class="sub"><p class="h3">Error causes</p><span class="ladbar causebar" role="img" aria-label="${causes.map(([k, n]) => `${CAUSE[k] ? CAUSE[k].en : k} ${n}`).join(', ')}">${causes.map(([k, n]) => `<i style="flex:${n};background:${CAUSE_COLOR[k] || 'var(--line)'}"></i>`).join('')}</span>
+      <div class="legend small">${causes.map(([k, n]) => `<span><i style="background:${CAUSE_COLOR[k] || 'var(--line)'}"></i>${esc(CAUSE[k] ? CAUSE[k].en : k)} <b class="num">${n}</b></span>`).join('')}</div></div>` : ''}
+  </section>`;
 }
 
 function renderDetail() {
   const e = myEx(S.detailId);
   if (!e) { S.detailId = null; return renderExercises(); }
   const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
-  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">← Back to the list</button></div>`;
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">${S.detailFrom === 'today' ? '← Back to Today' : '← Back to the list'}</button></div>`;
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
@@ -1885,7 +2366,7 @@ function renderDetail() {
   for (const g of groups) {
     const own = g.by === S.me;
     h += `<p class="small"><b>${esc(userName(g.by))}</b>${own ? ' (me)' : ''}</p><div class="tbl"><table><thead><tr><th>Date</th><th>Mode</th><th>Answer</th><th>Result</th><th>Judged</th></tr></thead><tbody>${g.items.map(({ a, i }) => `
-    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? 'Check paper' : 'Check paper (deleted)') : 'Daily redo'}</td><td>${esc(a.response || '—')}</td>
+    <tr><td class="num">${esc(a.at ? a.at.replace('T', ' ') : a.date)}</td><td>${a.mode === 'paper' ? (S.papers.some(p => p.id === a.paperId) ? 'Exam paper' : 'Exam paper (deleted)') : 'Daily redo'}</td><td>${esc(a.response || '—')}</td>
     <td>${own ? `<select id="ov-${i}" data-act-change="override" data-id="${esc(e.id)}" data-i="${i}">${['right', 'partial', 'wrong'].map(r => `<option value="${r}" ${a.result === r ? 'selected' : ''}>${RESULT[r].en}</option>`).join('')}</select>` : esc(RESULT[a.result] ? RESULT[a.result].en : '')}</td>
     <td>${JUDGE[a.judgedBy] || ''}</td></tr>`).join('')}</tbody></table></div>`;
   }
@@ -1901,77 +2382,98 @@ function paperPool() {
   return ownedBy(viewFor(S.exercises, owner), owner);
 }
 function renderPapers() {
+  // 两个子标签：Exam（组卷与检验卷列表）、Daily（按天分组的每日卷）
+  const view0 = mine(), shown0 = visiblePapers(S.papers, view0, S.me), nD = shown0.filter(isDaily).length;
+  const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Exam', shown0.length - nD], ['daily', 'Daily', nD]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
+  if (S.paperTab === 'daily') return tabs + renderDailyPapers(shown0, view0);
   const P = S.paperForm;
   const T = TAX[P.subject];
   const counts = {};
   for (const e of paperPool()) if (e.subject === P.subject) counts[e.topic] = (counts[e.topic] || 0) + 1;
   const topicChecks = T.topics.filter(t => counts[t[0]]).map(t => `<label><input type="checkbox" data-act-change="paper-topic" value="${t[0]}" ${P.topics.includes(t[0]) ? 'checked' : ''}>${esc(t[3])} <span class="muted num">${counts[t[0]]}</span></label>`).join('');
-  let h = `<section class="panel"><p class="h2">Make a check paper</p>
-    <p class="small muted">Questions are drawn from the default owner's (${esc(userName(S.settings.defaultOwner))}) exercises; change it in Settings.</p>
+  let h = tabs + `<section class="panel"><p class="h2">Make an exam paper</p>
     <div class="grid2">
       <label class="f"><span>Subject</span><select id="pf-subject" data-act-change="paper-subject">${SUBJECTS.map(s => `<option value="${s[0]}" ${P.subject === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
       <label class="f"><span>Questions</span><input type="number" id="pf-count" min="1" max="50" value="${P.count}" data-act-change="paper-count"></label>
     </div>
     <div class="f small"><span class="muted">Topics (none ticked means all)</span><div class="checks">${topicChecks || '<span class="muted">No exercises in this subject yet.</span>'}</div></div>
     <p class="small muted">Draw order: most times wrong first; on a tie, mastered ones first; then the longest since last answered. Drawn questions from one set sit together on the paper.</p>
-    <div class="row"><button type="button" class="btn" data-act="paper-preview">Preview the draw</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>Create check paper (${plural(S.paperPreview.length, 'question')})</button>` : ''}</div>
+    <div class="row"><button type="button" class="btn" data-act="paper-preview">Preview the draw</button>${S.paperPreview ? `<button type="button" class="btn primary" data-act="paper-create" ${S.paperPreview.length ? '' : 'disabled'}>Create exam paper (${plural(S.paperPreview.length, 'question')})</button>` : ''}</div>
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  // 卷子列表：筛选一行与排序同 Exercises；每行最前是类型标签与左侧色条；20 张一页
-  const PF = S.paperFilters, view = mine();
-  const shown = visiblePapers(S.papers, view, S.me);
-  const sorted = sortPapers(filterPapers(shown, PF, view, S.me), S.paperSort.key, S.paperSort.dir, view, S.me);
+  // 检验卷列表：筛选一行与排序同 Exercises；20 张一页
+  const PF = S.paperFilters, view = view0;
+  const shown = shown0.filter(p => !isDaily(p));
+  const sorted = sortPapers(filterPapers(shown, Object.assign({}, PF, { kind: 'check' }), view, S.me), S.paperSort.key, S.paperSort.dir, view, S.me);
   const pg = pageSlice(sorted, S.paperPage, 20);
   S.paperPage = pg.page;
   const on = k => PF[k] ? ' on' : '';
   const psel = (k, label, opts) => `<select id="pfl-${k}" class="compact${on(k)}" data-pfilter="${k}" aria-label="${label}">${opts}</select>`;
   const popt = (k, v, t) => `<option value="${v}" ${PF[k] === v ? 'selected' : ''}>${t}</option>`;
-  const anyPF = ['owner', 'kind', 'subject', 'status'].some(k => PF[k]);
-  h += `<section class="panel list-tools"><p class="h3">Papers</p>
+  const anyPF = ['subject', 'status'].some(k => PF[k]);
+  h += `<section class="panel list-tools">
     <div class="filters">
-      ${psel('owner', 'Owner', ownerFilterOptions(PF.owner, S.papers, 'All owners'))}
-      ${psel('kind', 'Kind', popt('kind', '', 'All kinds') + popt('kind', 'daily', 'Daily') + popt('kind', 'check', 'Check'))}
       ${psel('subject', 'Subject', popt('subject', '', 'All subjects') + SUBJECTS.map(x => popt('subject', x[0], x[1])).join(''))}
       ${psel('status', 'Status', popt('status', '', 'Any status') + popt('status', 'todo', 'Not done by me') + popt('status', 'done', 'Done by me'))}
     </div>
     <div class="row list-bar">
-      <b>${plural(sorted.length, 'paper')}</b>${anyPF ? '<button type="button" class="btn ghost small" data-act="paper-clear">Clear filters</button>' : ''}<span class="sortbox">
+      ${anyPF ? `<b>${plural(sorted.length, 'paper')}</b><button type="button" class="btn ghost small" data-act="paper-clear">Clear filters</button>` : ''}<span class="sortbox">
       <select id="paper-sort" class="compact" data-act-change="paper-sort" aria-label="Sort by">${[['created', 'Created'], ['done', 'Done'], ['score', 'Score'], ['questions', 'Questions']].map(k => `<option value="${k[0]}" ${S.paperSort.key === k[0] ? 'selected' : ''}>Sort: ${k[1]}</option>`).join('')}</select>
       <button type="button" class="btn ghost small" data-act="paper-dir" aria-label="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}; switch order" title="${S.paperSort.dir === 'desc' ? 'Descending' : 'Ascending'}">${S.paperSort.dir === 'desc' ? '↓' : '↑'}</button></span>
     </div>`;
-  if (!shown.length) h += `<p class="small muted">No check papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
+  if (!shown.length) h += `<p class="small muted">No exam papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
   else if (!sorted.length) h += `<p class="small muted">No papers match these filters.</p>`;
   else h += `<div class="list">${pg.items.map(p => {
-    const daily = isDaily(p), done = handedInAt(p, view, S.me);
+    const done = handedInAt(p, view, S.me);
     // 整行可点：交过的进详情，没交的开始作答；Delete 与删除确认在行里，点它们不触发整行
-    return `<div class="item ${daily ? 'k-daily' : 'k-check'}" role="button" tabindex="0" data-act="${done ? 'paper-view' : 'start-paper'}" data-id="${esc(p.id)}">
-      <span class="t">${paperTag(p)} ${esc(pname(p))}</span>
+    return `<div class="item" role="button" tabindex="0" data-act="${done ? 'paper-view' : 'start-paper'}" data-id="${esc(p.id)}">
+      <span class="t">${p.subject ? subjChip(p.subject) : ''} ${esc(pname(p))}</span>
       <span class="side">${done ? (() => { const sc = paperScore(p, view); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
       <span class="meta"><span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${done ? `<span class="num">Done ${esc(fmtWhen(done))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
-        ${S.confirmDel === p.id ? `<span class="confirm" data-act="none">Delete this paper? Answers already given stay.<button type="button" class="btn danger" data-act="paper-delete" data-id="${esc(p.id)}">Delete</button><button type="button" class="btn ghost" data-act="cancel-del">Cancel</button></span>` : `<button type="button" class="btn ghost small" data-act="ask-del" data-id="${esc(p.id)}">Delete</button>`}
       </span></div>`;
   }).join('')}</div>`;
   if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="paper-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h + `</section>`;
 }
 
+function renderDailyPapers(shown, view) {
+  // 每日卷（都是我交过的）：默认只列最近 7 天，按天分组、新的在前；底下「Show older (N)」列全部；筛选只有 Subject，不排序、不分页
+  const PF = S.paperFilters, today = localToday();
+  const list = shown.filter(p => isDaily(p) && (!PF.subject || p.subject === PF.subject));
+  const dg = dailyGroups(list, addDays(today, -6), S.dailyAll);
+  const head = d => d === today ? 'Today' : d === addDays(today, -1) ? 'Yesterday' : (d ? `${wd(d)} ${fmtDate(d)}` : '—');
+  const popt = (v, t) => `<option value="${v}" ${PF.subject === v ? 'selected' : ''}>${t}</option>`;
+  let h = `<section class="panel list-tools">
+    <div class="row"><select id="pfl-subject" class="compact narrow${PF.subject ? ' on' : ''}" data-pfilter="subject" aria-label="Subject">${popt('', 'All subjects') + SUBJECTS.map(x => popt(x[0], x[1])).join('')}</select></div>`;
+  if (!list.length) h += `<p class="small muted">${shown.some(isDaily) ? 'No daily papers match this subject.' : 'No daily papers yet. Each one shows up here once it is handed in.'}</p>`;
+  else if (!dg.groups.length) h += `<p class="small muted">No daily papers in the last 7 days.</p>`;
+  for (const g of dg.groups) {
+    h += `<p class="h3 day-h">${esc(head(g.date))}</p><div class="list">${g.papers.map(p => {
+      const sc = paperScore(p, view), done = handedInAt(p, view, S.me);
+      return `<div class="item" role="button" tabindex="0" data-act="paper-view" data-id="${esc(p.id)}">
+        <span class="t">${p.subject ? subjChip(p.subject) : ''} <span class="num">${sc.right}/${sc.total}</span>${p.test ? ' <span class="chip test">TEST</span>' : ''}</span>
+        <span class="side"><span class="num">Done ${esc(done ? done.slice(11, 16) || fmtWhen(done) : '—')}</span></span></div>`;
+    }).join('')}</div>`;
+  }
+  if (dg.older) h += `<div class="row"><button type="button" class="btn ghost small" data-act="daily-older">Show older (${dg.older})</button></div>`;
+  return h + `</section>`;
+}
+
 const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
 function renderPaperSheet(paperId) {
-  // 卷子详情（可改判）：一次一张卡，翻页条在卡片上方；题组材料同作答页
+  // 卷子详情（可改判）：顶上一行返回与摘要，下面一次一张卡，翻页条在卡片上方；题组材料同作答页
   const p = S.papers.find(x => x.id === paperId);
-  const back = `<button type="button" class="btn ghost small" data-act="paper-view-close" aria-label="Back to papers">← Back<span class="wide-only"> to papers</span></button>`;
+  const back = `<button type="button" class="btn ghost small back" data-act="paper-view-close">‹ Back</button>`;
   if (!p) return `<div class="row">${back}</div><p class="note">This paper has been deleted.</p>`;
   const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
   const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
-  // 摘要卡：右上角返回；得分右侧上一行对错计数、下一行交卷时刻
-  let h = `<section class="panel"><div class="sum-head">${paperTag(p)}<p class="h2 grow">${esc(pname(p))}</p>${back}</div>
-    <div class="row"><span class="score num">${sc.right}/${sc.total}</span><div class="sum-txt"><span class="muted">Right ${sc.right} · Partly ${sc.partial} · Wrong ${sc.wrong}</span><span class="small muted">Handed in <b>${esc(when)}</b></span></div></div>
-  </section>`;
+  // 摘要：左上角返回、类型标签、分数一行，卷名与交卷时刻在下一行
+  let h = `<div class="progress sheet-top">${back}${paperTag(p)}<div class="grow"></div><span class="score num">${sc.right}/${sc.total}</span><div class="sum-name"><span class="h3 ellip">${esc(pname(p))}</span><span class="small muted ellip">Handed in ${esc(when)}</span></div></div>`;
   if (!rows.length) return h;
   const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
-  if (!r.ex) return h + `<article class="sheet"><p class="muted">This exercise has been deleted.</p>${cardNav(i, rows.length, 'sheet-go')}</article>`;
+  if (!r.ex) return h + `<article class="sheet"><p class="muted">This exercise has been deleted.</p>${cardNav(i, rows.length, 'sheet-go', '', 'paper-view-close')}</article>`;
   const e = r.ex, a = r.attempt;
   // 卡片右上角：改判下拉（不加标签，选中项即当前结果）与 Detail 按钮；对错另看作答的底色；题组材料在卡片下方
   const ov = a ? `<select id="pv-ov-${i}" class="compact ov-sel res-${esc(a.result)}" data-act-change="override" data-id="${esc(e.id)}" data-i="${e.allAttempts.indexOf(a)}" aria-label="Override the result">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select>` : '';
@@ -1979,31 +2481,24 @@ function renderPaperSheet(paperId) {
   h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, response: a ? a.response : '', locked: true, showCorrect: true, result: a ? a.result : '', right: top })}`;
   if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
   h += solutionBlock(e);
-  h += cardNav(i, rows.length, 'sheet-go') + '</article>';
+  h += cardNav(i, rows.length, 'sheet-go', '', 'paper-view-close') + '</article>';
   if (e.setId) h += materialBlock(setById(e.setId), S.paperOpenSets[e.setId] !== false);
   return h;
 }
 
 function renderSettings() {
-  // 一块四行（左标签、右控件），保存与结果同一行；阶梯说明默认收起；导出一行
-  return `<section class="panel"><p class="h2">Settings</p>
+  // 一块两行（左标签、右控件），改一项存一项，存好在块底出一个小 Saved；阶梯说明默认展开
+  return `<section class="panel">
     <div class="form-rows">
       <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
-      <p class="form-row"><span class="hint small muted">Today, new check papers and new exercises use this person.</span></p>
+      <p class="form-row"><span class="hint small muted">Today, new exam papers and new exercises use this person.</span></p>
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
-      <label class="form-row"><span>Practice days per week (1–7)</span><input type="number" id="set-days" min="1" max="7" value="${S.settings.practiceDays}"></label>
-      <label class="form-row"><span>Check papers per week (0–3)</span><input type="number" id="set-papers" min="0" max="3" value="${S.settings.papersPerWeek}"></label>
-      <p class="form-row"><span class="hint small muted">Weeks run Monday to Sunday. The goal shows in Next 7 days on Today.</span></p>
     </div>
-    <div class="row"><button type="button" class="btn primary" data-act="save-settings">Save</button>${S.settingsMsg ? `<span class="note ${S.settingsMsg.kind}">${esc(S.settingsMsg.text)}</span>` : ''}</div>
+    ${S.settingsMsg ? '<p class="small saved" role="status">Saved</p>' : ''}
   </section>
-  <details class="panel"><summary>How the review ladder works</summary>
-    <p class="small muted">After an exercise is recorded, it comes back for a 1st, 2nd, 3rd and 4th redo on day 1, 3, 7 and 14. Right moves it on to the next redo, wrong sends it back to the 1st redo, partly right keeps it waiting for the same redo. Right on the 4th redo means mastered. On a check paper, right and partly right answers don't move a question; a wrong one sends it back to the 1st redo.</p>
-  </details>
-  <section class="panel">
-    <div class="row"><button type="button" class="btn" data-act="export" ${S.downloads ? '' : 'disabled'}>Export YAML</button><span class="small muted fill">${S.downloads ? 'Saves arena-export-date.yaml.txt (drop the .txt if needed): every exercise with all answers, question set, paper and these settings; photos only as counts.' : 'This page can\'t save files, so export is unavailable.'}</span></div>
-    ${S.exportMsg ? `<p class="note ${S.exportMsg.kind}">${esc(S.exportMsg.text)}</p>` : ''}
-  </section>`;
+  <details class="panel" open><summary>How the review ladder works</summary>
+    <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On an exam paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
+  </details>`;
 }
 
 /* ---------- Games ---------- */
@@ -2017,7 +2512,7 @@ function weekStars(id, today) { const r = scoreboard(shownMatches(), myGroup(), 
 function weekCoins(group, today) { return Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])); }
 function renderGames() {
   const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
-  const parts = [[c.up[2], 2, 'up to ladder 2'], [c.up[3], 3, 'up to ladder 3'], [c.up[4], 4, 'up to ladder 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried']].filter(x => x[0]);
+  const parts = [[c.up[2], 2, 'up to level 2'], [c.up[3], 3, 'up to level 3'], [c.up[4], 4, 'up to level 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried']].filter(x => x[0]);
   const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
     <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
     <p class="small muted">${parts.length ? `Earned: ${parts.map(x => `${x[0]} ${x[2]} × ${x[1]}`).join(' + ')}.` : 'No coins yet this week.'}</p></section>`;
@@ -2182,6 +2677,30 @@ async function startMatch() {
 }
 
 /* ---------- 写数据 ---------- */
+// 每日卷的回答自动存在卷子上（responses）：停顿 1 秒后整份写入，一次只有一个写入在途，写完若又改过就再写；交卷开始后不再写（R.handing）；检验卷不存
+function queueResponses() {
+  const R = S.run, p = R && S.papers.find(x => x.id === R.paperId);
+  if (!p || !isDaily(p) || R.phase !== 'answer' || R.handing) return;
+  R.dirty = true;
+  clearTimeout(R.saveTimer);
+  R.saveTimer = setTimeout(() => { R.saveTimer = null; saveResponses(R); }, 1000);
+}
+async function saveResponses(R) {
+  if (R.saveP || !R.dirty || R.handing) return R.saveP;
+  R.dirty = false;
+  R.saveP = S.db.doc('papers/' + R.paperId).update({ responses: Object.assign({}, R.responses) })
+    .then(() => { if (R.err) { R.err = null; if (S.run === R) render(); } })
+    .catch(err => { R.dirty = true; if (S.run === R) R.err = dbErr(err); else S.errMsg = dbErr(err); render(); })
+    .finally(() => { R.saveP = null; if (R.dirty && !R.err && !R.saveTimer && !R.handing) saveResponses(R); });
+  return R.saveP;
+}
+async function flushResponses(R) {
+  // Back：把还没写的回答写掉
+  if (!R) return;
+  clearTimeout(R.saveTimer); R.saveTimer = null;
+  if (R.saveP) await R.saveP.catch(() => {});
+  if (R.dirty && !R.handing) await saveResponses(R);
+}
 async function writeAttempts(e, attempts) {
   // e 是原文档，attempts 是所有人的全部作答；阶梯按人现算，不写派生字段
   await S.db.doc('exercises/' + e.id).update({ attempts });
@@ -2202,7 +2721,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.detailId = null; S.confirmDel = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2213,37 +2732,47 @@ document.addEventListener('click', async ev => {
       case 'hist-start': if (S.hist) { S.hist.phase = 'anim'; render(); histPlay(); } break;
       case 'hist-skip': if (S.hist && S.hist.phase === 'anim') { S.hist.phase = 'shown'; render(); } break;
       case 'hist-done': clearTimeout(histTimer); if (S.hist) S.hist.phase = 'rest'; render(); break;
-      case 'clear-filters': S.filters = { owner: '', subject: '', topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
-      case 'subj-card': S.filters.subject = S.filters.subject === b.dataset.v ? '' : b.dataset.v; S.filters.topic = ''; S.listPage = 1; render(); break;
-      case 'paper-clear': S.paperFilters = { owner: '', kind: '', subject: '', status: '' }; S.paperPage = 1; render(); break;
+      case 'clear-filters': S.filters = { subject: S.filters.subject, topic: '', cause: '', state: '', q: '' }; S.listPage = 1; render(); break;
+      case 'ex-subj': S.filters.subject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.filters.topic = ''; S.listPage = 1; store.set('arena.exSubject', S.filters.subject); render(); window.scrollTo(0, 0); break;
+      case 'topic-row': S.filters.topic = S.filters.topic === b.dataset.v ? '' : b.dataset.v; S.listPage = 1; render(); break;
+      case 'paper-clear': S.paperFilters = { subject: '', status: '' }; S.paperPage = 1; render(); break;
+      case 'paper-tab': S.paperTab = b.dataset.v === 'daily' ? 'daily' : 'check'; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
+      case 'daily-older': S.dailyAll = true; render(); break;
       case 'paper-dir': S.paperSort.dir = S.paperSort.dir === 'desc' ? 'asc' : 'desc'; S.paperPage = 1; render(); break;
       case 'paper-page': S.paperPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
       case 'list-dir': S.listSort.dir = S.listSort.dir === 'desc' ? 'asc' : 'desc'; S.listPage = 1; render(); break;
       case 'list-page': S.listPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
-      case 'export': await exportAll(); break;
 
       case 'start-daily': {
-        // 不接着做：先删掉这一科今天没交的每日卷（卷上还没有作答），再按这一科此刻的一批新组一张；没有到期题就不组卷
+        // 每次都按这一科此刻的一批（先没做过的、再最久没用的）新组一张；带上这一科最新那张没交的每日卷上、新卷也有的题的回答；写好新卷后删掉本人这一科所有没交的每日卷；没有到期题就不组卷
         const today = localToday(), subj = b.dataset.subject;
         if (!SUBJ[subj]) break;
+        const view = mine(), last = openDailyPaper(S.papers, view, S.me, subj);
+        const olds = S.papers.filter(x => isDaily(x) && x.for === S.me && x.subject === subj && !handedInAt(x, view, S.me));
         const list = subjectBatch(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit, subj);
-        const old = openDailyPaper(S.papers, mine(), S.me, today, subj);
-        if (old) { await S.db.doc('papers/' + old.id).delete(); S.papers = S.papers.filter(x => x.id !== old.id); }
         if (!list.length) { render(); break; }
         const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
+        const carried = Object.fromEntries(Object.entries((last && last.responses) || {}).filter(([id, v]) => doc.exerciseIds.includes(id) && String(v || '').trim()));
+        if (Object.keys(carried).length) doc.responses = carried;
         const ref = S.db.collection('papers').doc();
         await ref.set(doc);
         const p = Object.assign({ id: ref.id }, doc);
         if (!S.papers.some(x => x.id === p.id)) S.papers = S.papers.concat([p]);
-        S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: {}, results: {}, saved: {}, idx: 0, openSets: {} };
+        for (const o of olds) { await S.db.doc('papers/' + o.id).delete(); S.papers = S.papers.filter(x => x.id !== o.id); }
+        S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: Object.assign({}, carried), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} };
         render(); window.scrollTo(0, 0); break;
       }
-      case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) R.responses[e.id] = b.dataset.v; render(); break; }
-      case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); window.scrollTo(0, 0); break;
-      case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); window.scrollTo(0, 0); break;
-      case 'exit-run': S.run = null; render(); break;
+      case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
+      case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); break;
+      case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); break;
+      case 'exit-run': {
+        // 每日卷：先把回答记进本地的卷子（快照还没回来时，马上再开始这一科也能带上），再把没写的写掉
+        const run = S.run, rp = run && S.papers.find(x => x.id === run.paperId);
+        if (rp && isDaily(rp) && run.phase === 'answer') rp.responses = Object.assign({}, run.responses);
+        S.run = null; render(); await flushResponses(run); break;
+      }
 
-      case 'start-paper': S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: {}, results: {}, saved: {}, idx: 0, openSets: {} }; render(); window.scrollTo(0, 0); break;
+      case 'start-paper': { const sp = S.papers.find(x => x.id === b.dataset.id); S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: Object.assign({}, (sp && isDaily(sp) && sp.responses) || {}), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} }; render(); window.scrollTo(0, 0); break; }
       case 'paper-submit': {
         // 交卷即存：先写客观题的作答（已写过的跳过），再在卷子的 handedIn 记下我；失败时留在本页，可再点补写
         if (R.saving) break;
@@ -2260,8 +2789,11 @@ document.addEventListener('click', async ev => {
           for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
           R.phase = 'review'; R.idx = 0;
         }
-        R.saving = true; R.err = null; render(); window.scrollTo(0, 0);
+        R.saving = true; R.err = null; R.handing = true; render(); window.scrollTo(0, 0);
         try {
+          // 交卷前停掉自动存：清掉计时器、等在途的写入完成，交卷时一并把 responses 写成 null
+          clearTimeout(R.saveTimer); R.saveTimer = null;
+          if (R.saveP) await R.saveP.catch(() => {});
           const today = localToday(), mode = isDaily(p) ? 'daily' : 'paper';
           for (const id of p.exerciseIds) {
             const e = exById(id); if (!e || e.format === 'open' || R.saved[id]) continue;
@@ -2270,7 +2802,7 @@ document.addEventListener('click', async ev => {
             R.saved[id] = true;
           }
           const cur = S.papers.find(x => x.id === p.id) || p;
-          if (!(cur.handedIn && cur.handedIn[S.me])) await S.db.doc('papers/' + p.id).update({ handedIn: Object.assign({}, cur.handedIn, { [S.me]: nowLocal() }) });
+          if (!(cur.handedIn && cur.handedIn[S.me])) await S.db.doc('papers/' + p.id).update(Object.assign({ handedIn: Object.assign({}, cur.handedIn, { [S.me]: nowLocal() }) }, isDaily(p) ? { responses: null } : {}));
           R.handed = true;
         } catch (err) { R.err = dbErr(err); }
         finally { R.saving = false; }
@@ -2291,6 +2823,11 @@ document.addEventListener('click', async ev => {
       }
 
       case 'recognise': await recognise(); break;
+      case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } render(); } break;
+      case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
+      case 'mat-pick': if (!(S.recBusy || S.recPrep)) { S.recSet = b.dataset.id; render(); } break;
+      case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
+      case 'plog-clear': store.set(PLOG_KEY, '[]'); render(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
@@ -2314,18 +2851,25 @@ document.addEventListener('click', async ev => {
       case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
       case 'save-draft': if (await saveDraft(draftByKey(b.dataset.k))) { S.recMsg = null; S.saveMsg = null; } render(); break;
       case 'save-all': {
-        let n = 0;
-        for (const d of draftsInOrder()) { if (await saveDraft(d)) n++; }
-        const left = S.drafts.filter(x => !x.editId).length;
+        // 带「可能重复」提示的草稿不存，留在页面上；提示在点击时一次算好
+        let n = 0, dups = 0;
+        const flags = dupFlags();
+        for (const d of draftsInOrder()) { if (flags.has(d)) { dups++; continue; } if (await saveDraft(d)) n++; }
+        const left = S.drafts.filter(x => !x.editId).length - dups;
         S.recMsg = null;
-        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (left ? ` ${left} still incomplete; see the notes below.` : '') };
+        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (dups ? ` ${plural(dups, 'possible duplicate')} left for you to check.` : '') + (left ? ` ${left} still incomplete; see the notes below.` : '') };
         render(); break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
 
       case 'detail': S.detailId = b.dataset.id; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
-      case 'back-list': S.detailId = null; S.confirmDel = null; render(); break;
-      case 'edit': { const e = exById(b.dataset.id); S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
+      case 'back-list': {
+        const back = S.detailFrom === 'today';
+        S.detailId = null; S.confirmDel = null; S.detailFrom = null;
+        if (back) { S.tab = 'today'; store.set('arena.tab', S.tab); render(); window.scrollTo(0, S.todayScroll); } else render();
+        break;
+      }
+      case 'edit': { const e = exById(b.dataset.id); S.detailFrom = null; S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
       case 'ask-del': S.confirmDel = b.dataset.id; render(); break;
       case 'cancel-del': S.confirmDel = null; render(); break;
       case 'delete-ex': { const e = exById(b.dataset.id); await S.db.doc('exercises/' + b.dataset.id).delete(); if (e && e.setId) await cleanupSet(e.setId, e.id); S.detailId = null; S.confirmDel = null; render(); break; }
@@ -2340,18 +2884,16 @@ document.addEventListener('click', async ev => {
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
         const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
         await S.db.collection('papers').doc().set(doc);
-        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Check paper created.' }; render(); break;
+        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
       }
-      case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; render(); window.scrollTo(0, 0); break;
+      case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
-      case 'goto-ex': S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; S.drafts = S.drafts.filter(d => !d.editId); render(); window.scrollTo(0, 0); break;
-      case 'paper-delete': await S.db.doc('papers/' + b.dataset.id).delete(); S.confirmDel = null; render(); break;
+      case 'goto-ex':
+        // 从 Today 的新掌握来：记下来源与滚动位置，不丢编辑草稿；其他地方照旧丢掉编辑草稿
+        if (b.dataset.from === 'today') { S.detailFrom = 'today'; S.todayScroll = window.scrollY; } else { S.detailFrom = null; S.drafts = S.drafts.filter(d => !d.editId); }
+        S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; render(); window.scrollTo(0, 0); break;
+      case 'nm-subj': S.nmSubj[b.dataset.blk] = b.dataset.v; render(); break;
 
-      case 'save-settings': {
-        const v = readSettings({ dailyLimit: $('#set-limit').value, practiceDays: $('#set-days').value, papersPerWeek: $('#set-papers').value, defaultOwner: $('#set-owner').value }, S.me);
-        await S.db.doc('settings/' + S.me).set(v);
-        S.settingsMsg = { kind: 'ok', text: `Saved: up to ${plural(v.dailyLimit, 'question')} per batch; ${plural(v.practiceDays, 'practice day')} and ${plural(v.papersPerWeek, 'check paper')} a week; default owner ${userName(v.defaultOwner)}.` }; render(); break;
-      }
     }
   } catch (err) {
     const msg = dbErr(err);
@@ -2366,7 +2908,7 @@ document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset.ans != null && S.run) {
     // 只写作答并重画翻页条（题号随即变实心），不整页重画，以免打断输入
-    const e = runExs()[Number(t.dataset.ans.slice(1))]; if (e) S.run.responses[e.id] = t.value;
+    const e = runExs()[Number(t.dataset.ans.slice(1))]; if (e) { S.run.responses[e.id] = t.value; queueResponses(); }
     const pg = document.querySelector('.cardpager');
     if (pg) pg.outerHTML = cardPager(runMarks(runExs(), S.run.phase, S.run.responses, S.run.results, S.run.saved), S.run.idx, 'card-go');
   } else if (t.dataset.d) {
@@ -2376,6 +2918,11 @@ document.addEventListener('input', ev => {
     const sd = setDraftByKey(t.dataset.s); if (sd && !t.dataset.rerender) sd[t.dataset.f] = t.value;
   } else if (t.dataset.bind) {
     S[t.dataset.bind] = t.value;
+  } else if (t.dataset.matsearch) {
+    // 材料搜索：整页重画（列表与页码随之更新），再把焦点与光标放回搜索框
+    const pos = t.selectionStart;
+    S.matQuery = t.value; S.matPage = 1; render();
+    const el = $('#mat-q'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
   } else if (t.dataset.search) {
     // 搜索：整页重画（题数、Clear filters、翻页随之更新），再把焦点与光标放回搜索框
     const pos = t.selectionStart;
@@ -2386,7 +2933,22 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.dataset.photos) { addPhotos(Array.from(t.files || [])); t.value = ''; render(); return; }
+  if (t.id === 'set-owner' || t.id === 'set-limit') {
+    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值
+    try {
+      const v = readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value }, S.me);
+      await S.db.doc('settings/' + S.me).set(v);
+      S.settings = v; S.settingsMsg = { kind: 'ok' }; S.errMsg = null;
+    } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
+    render(); return;
+  }
+  if (t.dataset.photos) {
+    const fl = Array.from(t.files || []);
+    plog(`change on #${t.id}: ${fl.length} file(s)${fl.length ? ' ' + fl.map(fdesc).join(', ') : ''}`);
+    await addPhotos(fl); t.value = ''; render();
+    plog(`after render: ${document.querySelectorAll('.tray-item').length} thumbnail(s) in the DOM`);
+    return;
+  }
   if (t.dataset.d && t.dataset.rerender) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     d[t.dataset.f] = t.value;
@@ -2417,12 +2979,15 @@ document.addEventListener('change', async ev => {
   } catch (err) { S.errMsg = dbErr(err); render(); }
 });
 
-// 题组材料展开或收起时记下（作答页记在 S.run.openSets，默认收起；详情页记在 S.paperOpenSets，默认展开、收起记 false），重画与翻到同组其他卡时沿用
+// 题组材料与照片展开或收起时记下（材料：作答页记在 S.run.openSets，卷子详情页记在 S.paperOpenSets，都默认展开、收起记 false；照片按组记在 photoStore()，默认收起），重画与翻到同组或同一组照片的其他卡时沿用
 document.addEventListener('toggle', ev => {
   const d = ev.target;
+  if (d.classList && d.classList.contains('plog')) { S.plogOpen = d.open; return; }
+  if (d.classList && d.classList.contains('nm') && d.dataset.nkey) { if (d.open) S.nmOpen[d.dataset.nkey] = true; else delete S.nmOpen[d.dataset.nkey]; return; }
+  if (d.classList && d.classList.contains('photos') && d.dataset.pkey) { const st = photoStore(); if (st) { if (d.open) st[d.dataset.pkey] = true; else delete st[d.dataset.pkey]; } return; }
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
   const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;
-  if (S.run) { if (d.open) store[d.dataset.set] = true; else delete store[d.dataset.set]; } else store[d.dataset.set] = d.open;
+  store[d.dataset.set] = d.open;
 }, true);
 // 整行可点的卷子：Enter 键同点击
 document.addEventListener('keydown', ev => {
@@ -2524,64 +3089,210 @@ Reply with only a JSON object: {"sets": [...], "drafts": [...]}. Use "sets": [] 
 
 ${taxonomyText(subs)}`;
 }
+// 识别（Read with AI）的共用部分：失败原因、用时小段、进度提示、解析回复
+function readFail(err) {
+  const c = err && err.code;
+  return c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
+}
+function timingNote(tm) {
+  // 提示末尾的用时小段，用来看时间花在哪一段；没有的项不写
+  const s = ms => Math.round(ms / 1000) + ' s', parts = [];
+  if (tm.up != null) parts.push('upload ' + s(tm.up));
+  if (tm.first != null) parts.push('first text ' + s(tm.first));
+  if (tm.total != null) parts.push('total ' + s(tm.total));
+  return parts.length ? ` (${parts.join(' · ')})` : '';
+}
+function setRecMsg(kind, text) {
+  // 识别进行中只改提示这一行，不重画整页
+  S.recMsg = { kind, text };
+  const el = $('#rec-note');
+  if (el) { el.className = 'note ' + kind; el.textContent = text; } else render();
+}
+function readOptions(t0, tm) {
+  // 识别调用的选项：可中止（S.recCtl）；回复一边到达一边记首字时刻、数已读到的题
+  const ctl = new AbortController(); S.recCtl = ctl;
+  let shown = -1;
+  return {
+    modelTier: 'complex', signal: ctl.signal,
+    onText: ({ text }) => {
+      if (tm.first == null) tm.first = Date.now() - t0;
+      const n = countStems(text);
+      if (n !== shown) { shown = n; setRecMsg('', `Reading… ${plural(n, 'question')} found so far`); }
+    }
+  };
+}
+function parseReading(out) {
+  const objs = a => a.filter(x => x && typeof x === 'object');
+  if (Array.isArray(out)) return { drafts: objs(out), sets: [], fail: '' };
+  if (out && Array.isArray(out.drafts)) return { drafts: objs(out.drafts), sets: Array.isArray(out.sets) ? objs(out.sets) : [], fail: '' };
+  return { drafts: null, sets: [], fail: "Reading failed: the reply wasn't a list of questions." };
+}
 async function recognise() {
+  if (S.recSet) return recogniseMore();
   const photos = S.recPhotos.slice();
   const text = S.recText.trim();
   if (!photos.length && !text) { S.recMsg = { kind: 'err', text: 'Add a photo or paste the question text first.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
-  // 先传还没有 asset id 的照片；有一张没传上就停下，不识别，重试只传没传上的
-  const todo = photos.filter(p => !p.assetId);
-  if (todo.length) { S.recMsg = { kind: '', text: 'Uploading photos…' }; render(); }
-  for (const p of todo) {
-    try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
-    catch (err) { S.recBusy = false; S.recMsg = { kind: 'err', text: `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.` }; render(); return; }
+  const t0 = Date.now(), tm = {}, files = photos.map(p => p.file);
+  // 上一次识别成功、只是有照片没传上时，留下了结果；照片、文字都没变就只补传，不再识别
+  const sig = [text, photos.map(p => p.uid).join(',')].join('\u0001');
+  const pend = S.recPending && S.recPending.sig === sig ? S.recPending : null;
+  S.recPending = null;
+  // 上传与识别同时开始（识别只要原文件，asset id 在生成草稿时才用）；多张照片之间的上传按顺序，有一张没传上也接着传别的
+  const uploading = (async () => {
+    let bad = '';
+    for (const p of photos.filter(x => !x.assetId)) {
+      try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
+      catch (err) { bad = bad || `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.`; }
+    }
+    tm.up = Date.now() - t0;
+    return bad;
+  })();
+  let out = pend ? pend.out : null, fail = '', stopped = false;
+  if (pend) { S.recMsg = { kind: '', text: 'Uploading photos…' }; render(); }
+  else {
+    const opts = readOptions(t0, tm);
+    if (files.length) opts.images = files;
+    S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+    try { out = await S.sample.json(recognisePrompt('', text, files.length), opts); }
+    catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
+    S.recCtl = null;
   }
-  S.recMsg = { kind: '', text: 'Reading… this usually takes about half a minute.' }; render();
-  const imageIds = photos.map(p => p.assetId), files = photos.map(p => p.file);
-  let drafts = null, sets = [], fail = '';
-  try {
-    const out = await S.sample.json(recognisePrompt(S.recSubject, text, files.length), files.length ? { images: files, modelTier: 'complex' } : { modelTier: 'complex' });
-    if (Array.isArray(out)) drafts = out.filter(x => x && typeof x === 'object');
-    else if (out && Array.isArray(out.drafts)) { drafts = out.drafts.filter(x => x && typeof x === 'object'); sets = Array.isArray(out.sets) ? out.sets.filter(x => x && typeof x === 'object') : []; }
-    else fail = "Reading failed: the reply wasn't a list of questions.";
-  } catch (err) {
-    const c = err && err.code;
-    fail = c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
-  }
+  if (stopped) { S.recBusy = false; S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  const r = fail ? { drafts: null, sets: [], fail } : parseReading(out);
+  let bad = '';
+  if (r.drafts && r.drafts.length) bad = await uploading;
+  tm.total = Date.now() - t0;
+  const note = pend ? '' : timingNote(tm);
   S.recBusy = false;
-  if (drafts && drafts.length) {
+  if (bad) { S.recPending = { sig, out }; S.recMsg = { kind: 'err', text: bad + note }; render(); return; }
+  if (r.drafts && r.drafts.length) {
+    const { drafts, sets } = r, imageIds = photos.map(p => p.assetId);
     const setKeys = sets.map((x, i) => {
       const member = drafts.find(dd => dd.set === i);
-      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || S.recSubject, images: imageIds }));
+      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || '', images: imageIds }));
       S.setDrafts.push(sd);
       return sd.key;
     });
     for (const x of drafts) {
       const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
-      S.drafts.push(newDraft(Object.assign({}, x, { images: setKeys.length ? [] : imageIds, setRef: si === null ? '' : 'new:' + setKeys[si] })));
+      // 题组的材料照片挂在题组上；独立题挂这批照片（以后可按这批照片补录）
+      S.drafts.push(newDraft(Object.assign({}, x, { images: si === null ? imageIds : [], setRef: si === null ? '' : 'new:' + setKeys[si] })));
     }
-    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` };
+    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` + note };
     S.recText = ''; clearPhotos();
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' };
+    S.recMsg = { kind: 'err', text: (r.fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' + note };
     render();
   }
 }
 
-/* ---------- 导出 ---------- */
-async function exportAll() {
-  const now = nowLocal();
-  const data = exportData(S.exercises, S.sets, S.papers, S.settings, now, S.userIds);
-  const text = '# Exercise Arena export (YAML)\n' + toYaml(data) + '\n';
-  try {
-    await S.downloads.save({ filename: `arena-export-${now.slice(0, 10)}.yaml.txt`, data: text });
-    S.exportMsg = { kind: 'ok', text: `Handed to the browser to save: ${plural(S.exercises.length, 'exercise')}, ${plural(S.sets.length, 'question set')}, ${plural(S.papers.length, 'paper')}.` };
-  } catch (err) {
-    S.exportMsg = err && err.code === 'cancelled' ? null : { kind: 'err', text: `Export failed (${err && err.code || 'unknown'}).` };
+function morePrompt(set, recorded, hint) {
+  // 从已录的题组补录：材料（照片与文字）里还没录的题；按提示选题，没有提示就起草全部没录的；当时没做错的也起草，错因照样给最可能的一项
+  return `A parent in Singapore records questions for their daughter Sophia (Primary 5, PSLE next year) to redo later.
+Some questions from the material below are already recorded. Draft more questions from the same material that are NOT recorded yet.
+${hint ? `Which questions to draft (the parent's hint): """${hint}"""` : 'Draft every question in the material that is not recorded yet.'}
+Draft a question even if Sophia did not get it wrong; fill wrongAnswer only when her own answer is visible, else "".
+${set.images && set.images.length ? 'The attached photo(s) show the material.' : ''}
+Material title: ${set.title || '(untitled)'}
+Material text:
+"""
+${set.text || '(no text; see the photos)'}
+"""
+${parseList(set.wordBank).length ? `Word bank: ${parseList(set.wordBank).join('; ')}\n` : ''}Already recorded (do not draft these again):
+${recorded.length ? recorded.map((t, i) => `${i + 1}. ${t}`).join('\n') : '(none)'}
+
+When the question's number, blank or underlined word sits inside the material text (for example editing or cloze), its stem is the whole sentence from that text that contains it, copied exactly. Keep only this question's number and its blank or [[underlined word]]; in that sentence write every other blank as "…" and every other underlined word as plain text without its number.
+Subject: ${set.subject}.
+
+Draft fields:
+- subject: "${set.subject}"
+- topic: exactly one topic id from the list below
+- concept: a concept id listed under that topic, or null
+- qtype: a question-type id from the list, or null
+- format: "mcq" when numbered options are given; "pick" when the blank is answered by choosing a word from the word bank; "short" when the answer is one word, number or short phrase; otherwise "open"
+- stem: the question exactly as printed (only this question, not the whole material); for mcq leave the options out of the stem
+- options: the option texts in order for mcq, else []
+- mustUse: for sentence synthesis / transformation, the given word(s) the rewritten sentence must use (write split pairs as "Neither…nor"), else []
+- answer: mcq → letter of the correct option ("A" = option 1, ...); pick → the word from the word bank; short → the expected answer; open → a model answer a PSLE marker would accept
+- accepted: short → every acceptable answer including answer, else []
+- solution: an explanation an 11-year-old can follow, in exactly this format (each part on its own lines):
+  Key idea: one sentence naming what the question tests
+  Steps:
+  1. first step
+  2. next step
+  Watch out: the common mistake to avoid
+  Wrap the words that earn marks in [[double brackets]].
+- wrongAnswer: Sophia's own answer if it is visible, else ""
+- cause: your best guess of why she would get it wrong: "concept" (did not understand the idea), "misread" (misread the question), "careless" (calculation or copying slip), "incomplete" (missing keywords or wrong format)
+- source: the paper name and question number if visible, else ""
+Use the teacher's correction as the answer when one is visible; otherwise solve the question carefully yourself.
+
+Reply with only a JSON object: {"drafts": [...]}.
+
+${taxonomyText([set.subject])}`;
+}
+async function recogniseMore() {
+  // 来源是题组：题组的文字和照片都交给 AI；来源是一批共用照片的独立题：只交照片。照片用 /_blob/<id> 取成 Blob，按照片限额取；取不到或超限的跳过并在提示里说
+  const src = recSource();
+  if (!src) { S.recSet = ''; render(); return; }
+  S.recBusy = true; S.saveMsg = null;
+  const t0 = Date.now(), tm = {}, opts = readOptions(t0, tm);
+  S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+  const L = S.imgLimits, ids = (src.images || []).slice(), blobs = [];
+  let skipped = 0;
+  if (L) {
+    for (const id of ids) {
+      if (blobs.length >= L.maxCount) { skipped++; continue; }
+      try {
+        const r = await fetch(blobUrl(id));
+        if (!r.ok) throw new Error(String(r.status));
+        const bl = await r.blob();
+        if (L.maxInputBytes && bl.size > L.maxInputBytes) skipped++; else blobs.push(bl);
+      } catch (e) { skipped++; }
+    }
+  } else skipped = ids.length;
+  const recordedEx = src.kind === 'set' ? S.exercises.filter(e => e.setId === src.id).sort(cmpSetPos) : src.group.ids.map(id => S.exercises.find(e => e.id === id)).filter(Boolean);
+  const recorded = recordedEx.map(e => plain(e.stem) || '(photo only)');
+  const hint = S.recHint.trim();
+  let drafts = null, fail = '', stopped = false;
+  if (src.kind === 'photos' && !blobs.length) fail = "Couldn't load the photos of this group; nothing to read.";
+  else {
+    if (blobs.length) opts.images = blobs;
+    try {
+      const out = await S.sample.json(morePrompt(src, recorded, hint), opts);
+      const r = parseReading(out);
+      drafts = r.drafts; fail = r.fail;
+    } catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
   }
-  render();
+  S.recCtl = null;
+  S.recBusy = false;
+  if (stopped) { S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  tm.total = Date.now() - t0;
+  const note = timingNote(tm);
+  const photoNote = !skipped ? '' : src.kind === 'set' ? ` Couldn't use ${plural(skipped, 'photo')} of the set; ${skipped === ids.length ? 'used the text only' : 'used the rest'}.`
+    : blobs.length ? ` Couldn't use ${plural(skipped, 'photo')} of the group; used the rest.` : '';
+  if (drafts && drafts.length) {
+    for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { subject: src.subject, images: src.kind === 'photos' ? src.images.slice() : [], setRef: src.kind === 'set' ? src.id : '' })));
+    S.recMsg = { kind: 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${src.kind === 'set' ? (src.title || 'Untitled') : 'these photos'}". Check each one before saving; the answers were read or worked out by AI.${photoNote}${note}` };
+    S.recHint = '';
+    render();
+    const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    S.recMsg = { kind: 'err', text: (fail || 'No more questions found.') + photoNote + ' Adjust the hint and press Read with AI again.' + note };
+    render();
+  }
+}
+
+/* ---------- 修剪每日卷 ---------- */
+let pruned = false;
+function pruneDailyPapers() {
+  // 错题与卷子都到了才判（旧卷的「已交」要靠作答）；每次订阅只做一次，删不掉的忽略
+  if (pruned || !S.db) return;
+  pruned = true;
+  for (const p of staleDailyPapers(S.papers, mine(), S.me, localToday(), DAILY_KEEP_DAYS)) S.db.doc('papers/' + p.id).delete().catch(() => {});
 }
 
 /* ---------- 启动 ---------- */
@@ -2589,29 +3300,49 @@ async function boot() {
   render();
   if (!window.claude || !window.claude.use) { S.status = 'nodb'; render(); return; }
   const use = n => window.claude.use(n).catch(() => null);
-  const [db, assets, sample, downloads, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('downloads'), use('user')]);
+  const [db, assets, sample, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('user')]);
   const me = user ? (await user.me()).id : null;
   if (!db || !me) { S.status = 'nodb'; render(); return; }
   // S.db 只用来写，写入遇到 unavailable 自动重试；监听与读取仍用原来的 db
-  Object.assign(S, { db: retryingDb(db, ms => new Promise(r => setTimeout(r, ms)), Math.random, 2), assets, sample, downloads, user, me });
+  Object.assign(S, { db: retryingDb(db, ms => new Promise(r => setTimeout(r, ms)), Math.random, 2), assets, sample, user, me });
   S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
   try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}
   if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
-  let got = 0;
-  const ready = () => { if (++got >= 3 && S.status === 'loading') { S.status = 'ready'; render(); } else softRender(); };
+  // 就绪：设置、错题、卷子、题组各到一次快照；错题与卷子只订阅默认归属人的，默认归属人变了就重新订阅（DATA.md「加载」）
+  const got = { exercises: false, papers: false, sets: false };
   const fail = () => { S.status = 'nodb'; render(); };
-  db.collection('exercises').onSnapshot(snap => {
-    S.exercises = snap.docs.map(d => Object.assign({ id: d.id, attempts: [] }, d.data()));
-    ready(); loadNames();
-  }, fail);
-  db.collection('papers').onSnapshot(snap => {
-    S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
-    ready(); loadNames();
-  }, fail);
+  const ready = k => {
+    got[k] = true;
+    if (!(got.exercises && got.papers && got.sets)) { softRender(); return; }
+    if (S.status === 'loading') { S.status = 'ready'; render(); } else softRender();
+    pruneDailyPapers();
+  };
+  const rawCache = new WeakMap();   // 平台给的文档对象 → 页面用的错题对象；没变的文档是同一个对象，沿用它才能命中 viewFor 的缓存
+  let subs = [], subOwner;
+  const subscribeOwned = () => {
+    const owner = S.settings.defaultOwner;
+    if (subOwner !== undefined && owner === subOwner) return;
+    subOwner = owner; subs.forEach(u => u()); subs = [];
+    S.exercises = []; S.papers = []; got.exercises = got.papers = false; pruned = false;
+    if (S.status === 'ready') S.status = 'loading';
+    softRender();
+    subs.push(db.collection('exercises').where('owner', '==', owner).onSnapshot(snap => {
+      S.exercises = snap.docs.map(d => {
+        const raw = d.data(); let o = rawCache.get(raw);
+        if (!o || o.id !== d.id) { o = Object.assign({ id: d.id, attempts: [] }, raw); rawCache.set(raw, o); }
+        return o;
+      });
+      ready('exercises'); loadNames();
+    }, fail));
+    subs.push(db.collection('papers').where('owner', '==', owner).onSnapshot(snap => {
+      S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
+      ready('papers'); loadNames();
+    }, fail));
+  };
   db.collection('sets').onSnapshot(snap => {
     S.sets = snap.docs.map(d => Object.assign({ id: d.id, images: [] }, d.data()));
-    ready();
+    ready('sets');
   }, fail);
   db.collection('users').onSnapshot(snap => {
     S.userIds = snap.docs.map(d => d.id).sort((a, b) => (b === me) - (a === me) || a.localeCompare(b));
@@ -2628,6 +3359,7 @@ async function boot() {
   db.doc('settings/' + me).onSnapshot(snap => {
     const v = snap.exists ? snap.data() : null;
     S.settings = readSettings(v, me);
+    subscribeOwned();
     softRender();
   }, () => {});
 }

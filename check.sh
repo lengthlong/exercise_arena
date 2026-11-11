@@ -3,7 +3,7 @@
 cd "$(dirname "$0")" || exit 1
 k=.agents/skills/design-discuss/check.sh
 if [ ! -f "$k" ]; then
-  echo "本工作区缺 discuss-design 的 skill 链接：先用 design-init 补链接（scaffold.sh link）"
+  echo "本工作区缺 discuss-design 的受管副本：先用 design-init 恢复（scaffold.sh link）或升级"
   exit 1
 fi
 exec bash "$k"
