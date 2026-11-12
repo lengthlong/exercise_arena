@@ -1,10 +1,36 @@
-# 术语扫描：保留说明文字，保护 Markdown 的机器字面量；输出原文件与行号。
-# 每次读取一个文件。块边界先处理，再按段落处理可跨行的行内代码与链接。
+# Markdown 可见正文与链接扫描器：屏蔽代码块、行内代码与链接目标字面量。
+# 支持两种模式（-v mode=terms 默认，或 -v mode=links），支持单文件参数或 -v files_list=<文件列表> 单进程批处理。
 BEGIN {
-    while ((status = getline term < terms_file) > 0)
-        if (term != "") terms[++term_count] = term
-    close(terms_file)
-    if (status < 0) { broken = 1; exit 2 }
+    if (mode == "") mode = "terms"
+    if (mode == "terms") {
+        while ((status = getline term < terms_file) > 0)
+            if (term != "") terms[++term_count] = term
+        close(terms_file)
+        if (status < 0) { broken = 1; exit 2 }
+    }
+    if (files_list != "") {
+        while ((status = getline f < files_list) > 0)
+            if (f != "") ARGV[ARGC++] = f
+        close(files_list)
+        if (status < 0) { broken = 1; exit 2 }
+        if (ARGC <= 1) { empty_run = 1; exit 0 }
+    }
+}
+
+function reset_file_state() {
+    delete original
+    delete hidden
+    delete boundary
+    delete after
+    delete prose
+    delete references
+    delete list_columns
+    file_lines = 0
+    fence_char = ""; fence_size = 0
+    fence_outer_quotes = 0; fence_inner_quotes = 0; fence_indent = 0
+    open_paragraph = 0; previous_quotes = 0; list_depth = 0
+    paragraph = ""; paragraph_start = 0
+    removed_quotes = 0; container_ok = 0
 }
 
 function run_size(s, pos, ch,    n) {
@@ -14,11 +40,9 @@ function run_size(s, pos, ch,    n) {
 }
 
 # 保护区用空格替换，避免两侧的正文拼成一个不存在的词；换行保持不变。
-function mask(s,    i, out) {
-    out = ""
-    for (i = 1; i <= length(s); i++)
-        out = out (substr(s, i, 1) == "\n" ? "\n" : " ")
-    return out
+function mask(s) {
+    gsub(/[^\n]/, " ", s)
+    return s
 }
 
 function code_end(s, pos, size,    j, n) {
@@ -73,32 +97,69 @@ function target_end(s, pos,    j, ch, depth, quote, had_space) {
     return substr(s, j, 1) == ")" ? j : 0
 }
 
+function extract_destination(raw,    j, start, ch) {
+    j = 1
+    while (j <= length(raw) && substr(raw, j, 1) ~ /[ \t\n]/) j++
+    if (substr(raw, j, 1) == "<") {
+        start = j + 1
+        for (j = start; j <= length(raw); j++) {
+            ch = substr(raw, j, 1)
+            if (ch == "\\") { j++; continue }
+            if (ch == ">") break
+        }
+        return substr(raw, start, j - start)
+    }
+    raw = substr(raw, j)
+    for (j = 1; j <= length(raw); j++) {
+        ch = substr(raw, j, 1)
+        if (ch == "\\") { j++; continue }
+        if (ch ~ /[ \t\n]/) break
+    }
+    return substr(raw, 1, j - 1)
+}
+
 function reference_key(s) {
     gsub(/^[ \t\n]+|[ \t\n]+$/, "", s)
     gsub(/[ \t\n]+/, " ", s)
     return tolower(s)
 }
 
-function inline_text(s,    i, j, ch, n, end, depth, out, tail, label_start, label) {
-    out = ""; depth = 0
+function inline_text(s,    i, j, ch, n, end, depth, out, tail, label_start, label, dest, has_tick, has_bracket, has_url, has_angle, seg_start) {
+    has_tick = (index(s, "`") > 0)
+    has_bracket = (index(s, "[") > 0)
+    if (mode == "links") {
+        if (!has_bracket) return ""
+        has_url = 0; has_angle = 0
+    } else {
+        has_url = (index(s, "://") > 0 || index(s, "mailto:") > 0)
+        has_angle = (index(s, "<") > 0)
+        if (!has_tick && !has_bracket && !has_url && !has_angle) return s
+    }
+    out = ""; depth = 0; seg_start = 1
     for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
         if (ch == "\\") {
-            out = out substr(s, i, 2); i++; continue
+            i++; continue
         }
-        if (ch == "`") {
+        if (has_tick && ch == "`") {
             n = run_size(s, i, ch); end = code_end(s, i, n)
             if (end) {
-                out = out mask(substr(s, i, end - i + 1)); i = end; continue
+                if (mode != "links") out = out substr(s, seg_start, i - seg_start) mask(substr(s, i, end - i + 1))
+                i = end; seg_start = i + 1; continue
             }
-            out = out substr(s, i, n); i += n - 1; continue
+            i += n - 1; continue
         }
-        if (ch == "[") { depth++; label_start[depth] = i + 1 }
-        if (ch == "]" && depth > 0) {
+        if (has_bracket && ch == "[") { depth++; label_start[depth] = i + 1; continue }
+        if (has_bracket && ch == "]" && depth > 0) {
             label = substr(s, label_start[depth], i - label_start[depth])
             depth--; end = 0
-            if (substr(s, i + 1, 1) == "(") end = target_end(s, i + 1)
-            if (substr(s, i + 1, 1) == "[") {
+            if (substr(s, i + 1, 1) == "(") {
+                end = target_end(s, i + 1)
+                if (end && mode == "links") {
+                    dest = extract_destination(substr(s, i + 2, end - i - 2))
+                    if (dest != "") print cur_file "\t" dest
+                }
+            } else if (mode != "links" && substr(s, i + 1, 1) == "[") {
                 for (j = i + 2; j <= length(s); j++) {
                     if (substr(s, j, 1) == "\n") break
                     if (substr(s, j, 1) == "\\") { j++; continue }
@@ -111,17 +172,30 @@ function inline_text(s,    i, j, ch, n, end, depth, out, tail, label_start, labe
                 }
             }
             if (end) {
-                out = out ch mask(substr(s, i + 1, end - i)); i = end; continue
+                if (mode != "links") out = out substr(s, seg_start, i - seg_start + 1) mask(substr(s, i + 1, end - i))
+                i = end; seg_start = i + 1; continue
+            }
+            continue
+        }
+        if (has_angle && ch == "<") {
+            tail = substr(s, i)
+            if (match(tail, /^<[^[:space:]<>]+@[^[:space:]<>]+>/)) {
+                n = RLENGTH
+                out = out substr(s, seg_start, i - seg_start) mask(substr(s, i, n))
+                i += n - 1; seg_start = i + 1; continue
             }
         }
-        tail = substr(s, i)
-        if (match(tail, /^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^[:space:]<>]+/) ||
-            match(tail, /^mailto:[^[:space:]<>]+/) ||
-            match(tail, /^<[^[:space:]<>]+@[^[:space:]<>]+>/)) {
-            n = RLENGTH; out = out mask(substr(s, i, n)); i += n - 1; continue
+        if (has_url && ((ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z"))) {
+            tail = substr(s, i)
+            if (match(tail, /^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^[:space:]<>]+/) ||
+                match(tail, /^mailto:[^[:space:]<>]+/)) {
+                n = RLENGTH
+                out = out substr(s, seg_start, i - seg_start) mask(substr(s, i, n))
+                i += n - 1; seg_start = i + 1; continue
+            }
         }
-        out = out ch
     }
+    if (mode != "links") out = out substr(s, seg_start)
     return out
 }
 
@@ -140,15 +214,21 @@ function exempt(s,    start, tail, end, reason, slashes, j) {
     return 0
 }
 
-function scan_paragraph(    parts, count, i, t, line) {
+function scan_paragraph(    parts, count, i, t, line, masked) {
     if (paragraph == "") return
-    count = split(inline_text(paragraph), parts, "\n")
+    if (mode == "links") {
+        if (index(paragraph, "](") > 0) inline_text(paragraph)
+        paragraph = ""
+        return
+    }
+    masked = inline_text(paragraph)
+    count = split(masked, parts, "\n")
     for (i = 1; i <= count; i++) {
         line = paragraph_start + i - 1
         if (exempt(parts[i])) continue
         for (t = 1; t <= term_count; t++) {
             if (index(parts[i], terms[t])) {
-                print FILENAME ":" line ":" original[line]
+                print cur_file ":" line ":" original[line]
                 break
             }
         }
@@ -158,6 +238,8 @@ function scan_paragraph(    parts, count, i, t, line) {
 
 # 只展开行首制表符；相对缩进以四列制表位计算。
 function expand_indent(s,    i, col, ch, prefix) {
+    if (substr(s, 1, 1) != " " && substr(s, 1, 1) != "\t") return s
+    if (index(s, "\t") == 0) return s
     col = 0
     for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
@@ -251,16 +333,16 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
         hidden[line] = 1; open_paragraph = 0; return
     }
     if ((text ~ /^    / && !open_paragraph) ||
-        (FILENAME == context_file && original[line] ~ /^[ \t]*_Avoid_[ \t]*(:|：)/)) {
+        (mode == "terms" && cur_file == context_file && original[line] ~ /^[ \t]*_Avoid_[ \t]*(:|：)/)) {
         hidden[line] = 1; open_paragraph = 0; return
     }
     # 先收集有效定义，第二遍才处理行内引用，因此支持先引用、后定义。
-    if (!open_paragraph && match(text, /^ {0,3}\[[^]]+\]:/)) {
+    if (mode != "links" && !open_paragraph && match(text, /^ {0,3}\[[^]]+\]:/)) {
         definition = substr(text, 1, RLENGTH)
         label = definition; sub(/^ *\[/, "", label); sub(/\]:$/, "", label)
         rest = substr(text, RLENGTH + 1)
         continuation = 0
-        if (rest ~ /^[ \t]*$/ && line < NR) {
+        if (rest ~ /^[ \t]*$/ && line < file_lines) {
             base = list_depth > 0 ? list_columns[list_depth] : 0
             rest = container_text(original[line + 1], outer_quotes, base, inner_quotes)
             if (container_ok && rest !~ /^[ \t]*$/) continuation = 1
@@ -284,18 +366,25 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
     prose[line] = text
 }
 
-{ original[NR] = $0 }
-END {
-    if (!broken) {
-        for (line = 1; line <= NR; line++) prepare_line(line)
-        for (line = 1; line <= NR; line++) {
-            if (boundary[line] || hidden[line]) scan_paragraph()
-            if (hidden[line]) continue
-            if (paragraph == "") paragraph_start = line
-            else paragraph = paragraph "\n"
-            paragraph = paragraph prose[line]
-            if (after[line]) scan_paragraph()
-        }
-        scan_paragraph()
+function process_current_file(    line) {
+    for (line = 1; line <= file_lines; line++) prepare_line(line)
+    for (line = 1; line <= file_lines; line++) {
+        if (boundary[line] || hidden[line]) scan_paragraph()
+        if (hidden[line]) continue
+        if (paragraph == "") paragraph_start = line
+        else paragraph = paragraph "\n"
+        paragraph = paragraph prose[line]
+        if (after[line]) scan_paragraph()
     }
+    scan_paragraph()
+}
+
+FNR == 1 {
+    if (file_lines > 0) process_current_file()
+    reset_file_state()
+    cur_file = FILENAME
+}
+{ original[++file_lines] = $0 }
+END {
+    if (!broken && !empty_run && file_lines > 0) process_current_file()
 }

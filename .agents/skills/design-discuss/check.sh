@@ -65,11 +65,10 @@ else
   : > "$tmp.tops-sorted"
 fi
 
-# 按配置的 glob 列出设计文件（* 可跨目录，故 skills/**/*.md 也成立）
-design_files() {
-  yaml_list design > "$tmp.patterns" || return
-  : > "$tmp.found"
-  local f rel p p_flat
+# 缓存设计文件列表（* 可跨目录，故 skills/**/*.md 也成立）
+yaml_list design > "$tmp.patterns"
+: > "$tmp.found"
+if [ -s "$tmp.patterns" ] && [ -s "$tmp.all-files" ]; then
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     rel=${f#./}
@@ -83,8 +82,8 @@ design_files() {
       esac
     done < "$tmp.patterns"
   done < "$tmp.all-files"
-  sort -u "$tmp.found"
-}
+fi
+sort -u "$tmp.found" > "$tmp.design"
 
 # 工作区里所有纳入枚举的 md 实体文件（不跟符号链接），可再按参数排除若干顶层目录
 md_files() {
@@ -110,7 +109,7 @@ end='<!-- design-kernel:end -->'
 if [ ! -f CLAUDE.md ]; then
   echo "缺 CLAUDE.md"; fail=1
 else
-nb=$(grep_maybe -cxF "$begin" CLAUDE.md); ne=$(grep_maybe -cxF "$end" CLAUDE.md)
+  nb=$(grep_maybe -cxF "$begin" CLAUDE.md); ne=$(grep_maybe -cxF "$end" CLAUDE.md)
   if [ "$nb" -ne 1 ] || [ "$ne" -ne 1 ]; then
     echo "CLAUDE.md 的托管块标记应各出现一次（$begin / ${end}）"
     fail=1
@@ -124,8 +123,7 @@ nb=$(grep_maybe -cxF "$begin" CLAUDE.md); ne=$(grep_maybe -cxF "$end" CLAUDE.md)
   fi
 fi
 
-# ── 2. 术语违例 ─────────────────────────────────────────────────
-# context 缺省为旧工作区的根目录术语表；模板只决定新建工作区的默认值。
+# ── 2. 术语违例（单进程多文件 awk 批处理） ──────────────────────
 context=$(awk '/^context:/ { sub(/^context:[ ]*/, ""); sub(/[ ]*$/, ""); print; exit }' "$CONFIG")
 context=${context:-CONTEXT.md}
 case "$context" in /*|..|../*|*/../*|*/..) die "context 须是工作区内的相对路径：$context" ;; esac
@@ -133,38 +131,37 @@ context_file="./${context#./}"
 if [ ! -f "$context_file" ] || [ ! -r "$context_file" ]; then
   echo "缺少可读术语表：$context"; fail=1
 fi
-# 词表是 .discuss_design.yaml 的 terms：只收无条件违例的词。
 yaml_list terms > "$tmp.terms"
 if [ ! -r "$KERNEL_DIR/visible-text.awk" ]; then
   echo "术语处理器缺失或不可读：$KERNEL_DIR/visible-text.awk"
   fail=1
-elif [ -s "$tmp.terms" ]; then
-  design_files > "$tmp.design"
-  if [ -s "$tmp.design" ]; then
-    : > "$tmp.hits"
-    while IFS= read -r f; do
-      # ASCII 标记按字节处理；避免系统 awk 的多字节索引差异，中文词仍按原字节精确匹配。
-      if ! LC_ALL=C awk -v terms_file="$tmp.terms" -v context_file="$context_file" -f "$KERNEL_DIR/visible-text.awk" "$f" >> "$tmp.hits"; then
-        echo "术语处理器运行失败：$f"
-        fail=1
-      fi
-    done < "$tmp.design"
-    if [ -s "$tmp.hits" ]; then
-      echo "术语违例（词表见 .discuss_design.yaml 的 terms，定义见 ${context}）："
-      sed 's/^/  /' "$tmp.hits"
-      fail=1
-    fi
+elif [ -s "$tmp.terms" ] && [ -s "$tmp.design" ]; then
+  if ! LC_ALL=C awk -v mode=terms -v terms_file="$tmp.terms" -v context_file="$context_file" -v files_list="$tmp.design" -f "$KERNEL_DIR/visible-text.awk" > "$tmp.hits"; then
+    echo "术语处理器运行失败"
+    fail=1
+  elif [ -s "$tmp.hits" ]; then
+    echo "术语违例（词表见 .discuss_design.yaml 的 terms，定义见 ${context}）："
+    sed 's/^/  /' "$tmp.hits"
+    fail=1
   fi
 fi
 
-# ── 3. 记录不被引用 ─────────────────────────────────────────────
-# 讨论文件只被讨论文件引用；研究文件只被讨论与研究文件引用；publish/ 下的文件不被设计文件与 skill 引用。
+# ── 3. 记录不被引用（按数组分批调用 grep，不用 xargs） ──────────
 refs() { # $1 = 正则；其余 = 允许引用它的顶层目录
   local re="$1"; shift
   md_files "$@" > "$tmp.refs" || return
+  local batch=() f
   while IFS= read -r f; do
-    grep_maybe -nHE "$re" "$f" || return
+    [ -n "$f" ] || continue
+    batch+=("$f")
+    if [ "${#batch[@]}" -ge 200 ]; then
+      grep_maybe -nHE "$re" "${batch[@]}" || return
+      batch=()
+    fi
   done < "$tmp.refs"
+  if [ "${#batch[@]}" -gt 0 ]; then
+    grep_maybe -nHE "$re" "${batch[@]}" || return
+  fi
 }
 r=$(refs '(^|[^A-Za-z0-9_-])discuss/[0-9]' discuss publish)
 [ -n "$r" ] && { echo "引用了讨论文件（讨论是终点，结论要写进设计文件）："; echo "$r" | sed 's/^/  /'; fail=1; }
@@ -173,11 +170,9 @@ r=$(refs '(^|[^A-Za-z0-9_-])research/[A-Za-z0-9][A-Za-z0-9._-]*\.md' discuss res
 r=$(refs '(^|[^A-Za-z0-9_-])publish/[A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z]+' discuss publish)
 [ -n "$r" ] && { echo "引用了 publish/ 下的文件（发布物非权威）："; echo "$r" | sed 's/^/  /'; fail=1; }
 
-# ── 4. 死链 ─────────────────────────────────────────────────────
-# 只查配置 design 范围内的 md 与 .agents/skills/ 下的 md；跳过 discuss/、research/ 与 publish/。
-design_files > "$tmp.dead-design"
+# ── 4. 死链（屏蔽代码块与行内代码后提取行内链接，内建检查存在性） ─
 {
-  grep_maybe '\.md$' "$tmp.dead-design"
+  [ ! -s "$tmp.design" ] || grep_maybe '\.md$' "$tmp.design"
   while IFS= read -r f; do
     case "$f" in ./.agents/skills/*.md) printf '%s\n' "$f" ;; esac
   done < "$tmp.all-files"
@@ -188,44 +183,75 @@ while IFS= read -r f; do
   case "$f" in ./discuss/*|./research/*|./publish/*) continue ;; esac
   printf '%s\n' "$f" >> "$tmp.dead-files"
 done < "$tmp.dead-candidates"
-while IFS= read -r f; do
-  d=$(dirname "$f")
-  grep_maybe -oE '\]\([^)[:space:]]+\)' "$f" | sed -E 's/^\]\((.*)\)$/\1/' > "$tmp.targets"
-  while IFS= read -r t; do
-    case "$t" in *://*|mailto:*|\#*) continue ;; esac
-    t="${t%%#*}"
-    [ -z "$t" ] && continue
-    [ -e "$d/$t" ] || echo "  死链  $f -> $t"
-  done < "$tmp.targets"
-done < "$tmp.dead-files" > "$tmp.dead"
-if [ -s "$tmp.dead" ]; then echo "死链："; cat "$tmp.dead"; fail=1; fi
+if [ -s "$tmp.dead-files" ] && [ -r "$KERNEL_DIR/visible-text.awk" ]; then
+  if ! LC_ALL=C awk -v mode=links -v files_list="$tmp.dead-files" -f "$KERNEL_DIR/visible-text.awk" > "$tmp.links"; then
+    echo "死链扫描处理器运行失败"
+    fail=1
+  else
+    while IFS=$'\t' read -r f t; do
+      [ -n "$f" ] || continue
+      case "$t" in *://*|mailto:*|\#*) continue ;; esac
+      t="${t%%#*}"
+      [ -z "$t" ] && continue
+      d=${f%/*}
+      [ -e "$d/$t" ] || printf '  死链  %s -> %s\n' "$f" "$t"
+    done < "$tmp.links" > "$tmp.dead"
+    if [ -s "$tmp.dead" ]; then echo "死链："; cat "$tmp.dead"; fail=1; fi
+  fi
+fi
 
-# ── 5. 讨论状态头只用四个词 ─────────────────────────────────────
+# ── 5. 讨论状态头只用四个词（单进程 awk，每文件只取首个状态行） ─
 if [ -d discuss ]; then
+  : > "$tmp.discuss-files"
   for f in discuss/*.md; do
     [ -f "$f" ] || continue
-    grep_match -qE '^> 状态：\*\*(讨论中|待落盘|✅ 已完成|⛔ 已中止)' "$f" \
-      || { echo "讨论状态头不在四个词之内（讨论中 / 待落盘 / ✅ 已完成 / ⛔ 已中止）：$f"; fail=1; }
-    # 已有核销记录（去序号后以「核销」开头、「核销」不紧跟「表」的二级标题），状态头必须是 ✅ 或 ⛔。
-    # 「## 分批核销（……）」以「分批」开头，不算；分批落盘期间状态头保持「讨论中」。
-    grep_maybe -E '^## ([一二三四五六七八九十]+、)?核销' "$f" > "$tmp.writeoff-all"
-    grep_maybe -vE '^## ([一二三四五六七八九十]+、)?核销表' "$tmp.writeoff-all" > "$tmp.writeoff"
-    if [ -s "$tmp.writeoff" ]; then
-      status=$(grep_maybe -m1 '^> 状态' "$f")
-      case "$status" in
-        '> 状态：**✅ 已完成'*|'> 状态：**⛔ 已中止'*) ;;
-        *) echo "${f} 已有核销记录，状态头却不是 ✅ / ⛔：${status} —— 落盘做完了就把状态头改成 ✅ 已完成（日期）"; fail=1 ;;
-      esac
+    if [ ! -s "$f" ]; then
+      echo "讨论状态头不在四个词之内（讨论中 / 待落盘 / ✅ 已完成 / ⛔ 已中止）：$f"
+      fail=1
+    else
+      printf './%s\n' "$f" >> "$tmp.discuss-files"
     fi
   done
+  if [ -s "$tmp.discuss-files" ]; then
+    LC_ALL=C awk -v list="$tmp.discuss-files" '
+      BEGIN {
+        while ((s = getline f < list) > 0)
+          if (f != "") ARGV[ARGC++] = f
+        close(list)
+        if (s < 0) exit 2
+      }
+      function finish_doc(    disp, ok_head) {
+        if (cur == "") return
+        disp = cur; sub(/^\.\//, "", disp)
+        ok_head = (status_line ~ /^> 状态：\*\*(讨论中|待落盘|✅ 已完成|⛔ 已中止)/)
+        if (!has_status || !ok_head) {
+          print "讨论状态头不在四个词之内（讨论中 / 待落盘 / ✅ 已完成 / ⛔ 已中止）：" disp
+          bad = 1
+        } else if (has_writeoff && status_line !~ /^> 状态：\*\*(✅ 已完成|⛔ 已中止)/) {
+          print disp " 已有核销记录，状态头却不是 ✅ / ⛔：" status_line " —— 落盘做完了就把状态头改成 ✅ 已完成（日期）"
+          bad = 1
+        }
+      }
+      FNR == 1 {
+        finish_doc()
+        cur = FILENAME; has_status = 0; status_line = ""; has_writeoff = 0
+      }
+      !has_status && /^> 状态/ { has_status = 1; status_line = $0 }
+      /^## ((一|二|三|四|五|六|七|八|九|十)+、)?核销/ && $0 !~ /^## ((一|二|三|四|五|六|七|八|九|十)+、)?核销表/ { has_writeoff = 1 }
+      END {
+        finish_doc()
+        exit bad
+      }
+    ' || fail=1
+  fi
 fi
 
 # ── 6. 编号命名 ─────────────────────────────────────────────────
-for d in discuss research adr; do
+for d in discuss research adr publish; do
   [ -d "$d" ] || continue
   for f in "$d"/*.md; do
     [ -f "$f" ] || continue
-    b=$(basename "$f")
+    b=${f##*/}
     [ "$b" = "README.md" ] && continue
     case "$b" in
       [0-9][0-9][0-9][0-9]-*) ;;
@@ -236,7 +262,7 @@ for d in discuss research adr; do
   [ -n "$dup" ] && { echo "$d/ 编号重复：$(echo "$dup" | tr '\n' ' ')"; fail=1; }
 done
 
-# ── 7. 受管副本完整且与配置一致 ─────────────────────────────────
+# ── 7. 受管副本完整且与配置一致（批量 shasum） ──────────────────
 recorded=$(awk '/^toolkit:/ { sub(/^toolkit:[ ]*/, ""); print; exit }' "$CONFIG")
 managed_version=$(awk '/^managed:/ { on=1; next }
   on && /^  # toolkit: / { sub(/^  # toolkit: /, ""); print; exit }
@@ -261,32 +287,67 @@ for n in $want; do
   fi
 done
 
-# managed 每行是「类型 SHA-256 相对路径」；精确集合同时防止受管目录里多文件或少文件。
 yaml_list managed > "$tmp.managed"
 : > "$tmp.managed-paths"
+: > "$tmp.expected-files"
+managed_files=()
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   set -- $line
   [ "$#" -eq 3 ] || { echo "managed 项格式错误：$line"; fail=1; continue; }
   kind=$1; expected=$2; p=$3
-  printf '%s\n' "$expected" | grep_match -qE '^[0-9a-f]{64}$' ||
-    { echo "managed 哈希格式错误：$p"; fail=1; continue; }
+  case "$expected" in
+    *[!0-9a-f]*) echo "managed 哈希格式错误：$p"; fail=1; continue ;;
+  esac
+  [ "${#expected}" -eq 64 ] || { echo "managed 哈希格式错误：$p"; fail=1; continue; }
   printf '%s\n' "$p" >> "$tmp.managed-paths"
   case "$kind" in
     file)
       if [ ! -f "$p" ] || [ -L "$p" ]; then echo "受管文件缺失或类型错误：$p"; fail=1; continue; fi
-      actual=$(shasum -a 256 "$p" | awk '{ print $1 }') || die "无法计算受管文件哈希：$p"
+      managed_files+=("$p")
+      printf '%s %s\n' "$expected" "$p" >> "$tmp.expected-files"
       ;;
     link)
       if [ ! -L "$p" ]; then echo "受管链接缺失：$p"; fail=1; continue; fi
-      actual=$(printf '%s' "$(readlink "$p")" | shasum -a 256 | awk '{ print $1 }') || die "无法计算受管链接哈希：$p"
+      actual=$(printf '%s' "$(readlink "$p")" | shasum -a 256) || die "无法计算受管链接哈希：$p"
+      actual=${actual%% *}
+      [ "$actual" = "$expected" ] || { echo "受管内容与配置哈希不一致：$p"; fail=1; }
       ;;
     *) echo "managed 类型错误：$kind"; fail=1; continue ;;
   esac
-  [ "$actual" = "$expected" ] || { echo "受管内容与配置哈希不一致：$p"; fail=1; }
 done < "$tmp.managed"
+
+if [ "${#managed_files[@]}" -gt 0 ]; then
+  : > "$tmp.actual-shasum"
+  idx=0
+  while [ "$idx" -lt "${#managed_files[@]}" ]; do
+    chunk=("${managed_files[@]:$idx:200}")
+    shasum -a 256 "${chunk[@]}" >> "$tmp.actual-shasum" || die "无法计算受管文件哈希"
+    idx=$((idx + 200))
+  done
+  awk -v actual_file="$tmp.actual-shasum" '
+    BEGIN {
+      while ((getline line < actual_file) > 0) {
+        h = substr(line, 1, 64)
+        p = substr(line, 67)
+        actual[p] = h
+      }
+      close(actual_file)
+    }
+    {
+      exp_h = substr($0, 1, 64)
+      p = substr($0, 66)
+      if (actual[p] != exp_h) {
+        print "受管内容与配置哈希不一致：" p
+        bad = 1
+      }
+    }
+    END { exit bad }
+  ' "$tmp.expected-files" || fail=1
+fi
+
 sort "$tmp.managed-paths" > "$tmp.managed-sorted"
-if [ "$(uniq -d "$tmp.managed-sorted" | wc -l | tr -d ' ')" -ne 0 ]; then
+if [ -s "$tmp.managed-sorted" ] && [ -n "$(uniq -d "$tmp.managed-sorted")" ]; then
   echo "managed 存在重复路径"; fail=1
 fi
 : > "$tmp.actual-managed"
@@ -310,25 +371,23 @@ fi
 for l in .agents/skills/*; do
   [ -d "$l" ] || [ -L "$l" ] || continue
   [ -f "$l/SKILL.md" ] && [ -r "$l/SKILL.md" ] || { echo "skill 缺少可读 SKILL.md：$l"; fail=1; continue; }
-  n=$(basename "$l")
-  l=".claude/skills/$n"
-  if [ ! -L "$l" ] || [ "$(readlink "$l" 2>/dev/null)" != "../../.agents/skills/$n" ]; then
-    echo "$l 缺失或指向错误 —— 用 design-init 恢复入口"; fail=1
-  elif [ ! -f "$l/SKILL.md" ] || [ ! -r "$l/SKILL.md" ]; then
-    echo "$l 的目标不可读 —— 先恢复对应的 .agents skill"; fail=1
+  n=${l##*/}
+  cl=".claude/skills/$n"
+  if [ ! -L "$cl" ] || [ "$(readlink "$cl" 2>/dev/null)" != "../../.agents/skills/$n" ]; then
+    echo "$cl 缺失或指向错误 —— 用 design-init 恢复入口"; fail=1
+  elif [ ! -f "$cl/SKILL.md" ] || [ ! -r "$cl/SKILL.md" ]; then
+    echo "$cl 的目标不可读 —— 先恢复对应的 .agents skill"; fail=1
   fi
 done
 for l in .claude/skills/*; do
   [ -d "$l" ] || [ -L "$l" ] || continue
-  n=$(basename "$l")
+  n=${l##*/}
   if [ ! -L "$l" ] || [ "$(readlink "$l")" != "../../.agents/skills/$n" ] || [ ! -f ".agents/skills/$n/SKILL.md" ] || [ ! -r ".agents/skills/$n/SKILL.md" ]; then
     echo "$l 须链接到可读的 Agents 同名 skill"; fail=1
   fi
 done
 
 # ── 8. 地图列全顶层目录 ─────────────────────────────────────────
-# 地图取 CLAUDE.md 托管块结束标记之后的表格行（以 | 开头）；每个顶层目录 D 要以 `D/ 或 `D` 的写法出现在里面。
-# 略去点号开头的目录与内核已知的 adr、discuss、research、publish。托管块标记有问题时第 1 项已报，这里不重复。
 if [ ! -e .git ]; then
   echo "提示：不在 git 仓库里，跳过地图列全顶层目录的检查"
 elif [ -f CLAUDE.md ] && [ "$(grep_maybe -cxF "$begin" CLAUDE.md)" -eq 1 ] && [ "$(grep_maybe -cxF "$end" CLAUDE.md)" -eq 1 ]; then
@@ -348,7 +407,6 @@ cur=$(cat "$HOME/.agents/skills/design-init/VERSION" 2>/dev/null || true)
 if [ -n "$cur" ] && [ "$cur" != "$recorded" ]; then
   echo "提示：本机安装的是 ${cur}，本工作区用的是 ${recorded}；要换版本就用 design-init 升级本工作区"
 fi
-
 
 # ── 本工作区的扩展检查 ──────────────────────────────────────────
 if [ -f check.local.sh ]; then
