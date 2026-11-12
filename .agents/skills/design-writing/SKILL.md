@@ -5,7 +5,7 @@ description: 写或复审本工作区的设计文字（write / review design doc
 
 # design-writing
 
-本工作区是软件系统设计。各文件的一句话用途与权威见 `CLAUDE.md` 的地图。所有设计文字先按 `design-discuss` 的 `WRITING.md` 共守语义规则写，改写后按它核对实际稿；ADR 与术语表的专属写法也在该文件。这里规定其余设计文件的专属要求、表达与验证。
+本工作区是软件系统设计。各文件的一句话用途与权威见 `CLAUDE.md` 的地图。共守语义、设计与实现分工、面向人读的结构与表达（「一句话 + 图 + 编号要点 + 概念表」总述）、ADR 与术语表写法，按 `design-discuss` 的 `WRITING.md`。这里规定本工作区的文件边界、内容标准、方法与图格式。
 
 ## 各文件只写什么
 
@@ -24,14 +24,10 @@ description: 写或复审本工作区的设计文字（write / review design doc
 
 ## 表达方式
 
-用户的写作取向。
-
-1. **能画图就画，一律 PlantUML。** 概念与关系画类图，结构画组件图，交互画时序图；不用 mermaid 或 ASCII 图。研究笔记按 `design-research` 的骨架与本目录的 [RESEARCH-SECTIONS.md](./RESEARCH-SECTIONS.md) 画。
+1. **能画图就画，Markdown 文件里的图用 Mermaid。** 概念与关系画类图，结构画流程图/组件图，交互画时序图，不用 ASCII 图。研究笔记按 `design-research` 的骨架与本目录的 [RESEARCH-SECTIONS.md](./RESEARCH-SECTIONS.md) 适用节配图。发布到 Lark 时按启用集成转为 PlantUML。
 2. **按成熟方法组织。** 架构按 C4（System Context / Container / Component，交互用 Dynamic）；领域按 DDD（统一语言、不变式、限界上下文）；需要时用 arc42 等其他方法补齐。
-3. **给人看的总述按这个结构**（研究笔记按它自己的骨架）：概述（背景、目标）→ 方案（总览：Container 视图、领域视图、亮点 → 各核心对象的契约：数据形状、接口、工作方式 → 目录清单）→ 讨论 → 参考。要发布时按 `design-publish`。
-4. **文字要像人写的。** 结论先行，句子短，少嵌套括号，不堆术语。
 
 ## 改完之后
 
 - **按实际影响同步、跑 `./check.sh`**，见 `WRITING.md`。
-- **新增或改动的每个 PlantUML 图**，落盘验证时经启用集成的「图的校验」；没有启用提供它的集成时，按 `design-publish` 的能力退路跳过，并在讨论的核销里披露。
+- **新增或改动的每张图**，落盘验证时经启用集成的「图的校验」；没有启用提供它的集成时，按 `design-publish` 的能力退路跳过，并在讨论的核销里披露。
