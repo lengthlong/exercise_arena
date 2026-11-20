@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -750,6 +750,17 @@ assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.mastere
 // 更早的检验卷作答被 ladderInput 过滤：做对不动、做错回第 1 级
 prw = prl([prx('a', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right', 'paper'), prP('2026-10-14', 'right')]), prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), prP('2026-10-14', 'right')])]);
 assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]);   // a 2 → 3；b 1 → 2
+// 详情页选中那道题的走法：左梯的级 → 右梯的级，与两架梯子同一规则（paperLadders 逐题相加即两梯）
+const qc = e => { const c = L.questionClimb(e, 'uS', 'P'); return [c.from, c.to, c.kind]; };
+assert.deepStrictEqual(qc(prx('a', [ca('2026-10-12', 'right'), prP('2026-10-14', 'right')])), [2, 3, 'up']);
+assert.deepStrictEqual(qc(prx('a', [prP('2026-10-14', 'partial')])), [1, 1, 'same']);
+assert.deepStrictEqual(qc(prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right'), prP('2026-10-14', 'wrong')])), [3, 1, 'down']);
+assert.deepStrictEqual(qc(prx('c', ['2026-10-02', '2026-10-04', '2026-10-08'].map(d => ca(d, 'right')).concat([prP('2026-10-15', 'right')]))), [4, 5, 'up']);   // 第 4 级做对即掌握
+assert.deepStrictEqual(qc(prx('d', prm.concat([prP('2026-10-20', 'right')]))), [5, 5, 'same']);                                                              // 仍掌握：两架都站第 5 级
+assert.deepStrictEqual(qc(prx('e', prm.concat([prP('2026-10-20', 'wrong')]))), [1, 1, 'down']);                                                               // 已掌握又做错：左梯记 1 级，算下降
+// 检验卷：做对、部分对不动，做错回第 1 级
+assert.deepStrictEqual(qc(prx('f', [ca('2026-10-12', 'right'), ca('2026-10-14', 'right', 'paper', 'uS', 'P')])), [2, 2, 'same']);
+assert.deepStrictEqual(qc(prx('g', [ca('2026-10-12', 'right'), ca('2026-10-14', 'wrong', 'paper', 'uS', 'P')])), [2, 1, 'down']);
 // 保存前的重复提示：规范化后相同才算；数字里的点、逗号与括号不能丢
 const dupDraft = (o) => Object.assign({ subject: 'science', format: 'mcq', stem: 'Which of the following is a non-flowering plant?', options: ['hibiscus', 'fern', 'rice', 'mango'], editId: null }, o || {});
 assert.strictEqual(L.dupKey('science', 'Which is a [[fern]]?', []), L.dupKey('science', '  which is a  FERN ', []));   // 大小写、空白、[[ ]]、句末标点不算不同
