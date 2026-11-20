@@ -3,7 +3,7 @@
 - **Actor** User opening a match; eligible other users may be offline.
 - **Goal** Complete one automatic Lift match and inspect its result.
 - **Trigger** The user chooses to compete using their weekly balance.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); ready eligibility snapshots and at least two eligible entrants including the actor.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); ready eligibility snapshots and at least two eligible entrants including the actor.
 - **Success** Match start and its one round result are saved, and the user can inspect the result and Starboard. Failed result persistence is not success.
 
 ```mermaid
@@ -39,4 +39,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Games uses Progress for eligibility/rankings and Platform/data gateway for start/result writes. See [scenarios](../../model/arch/SCENARIO.md) S10, [runtime contracts](../../model/arch/arena/SPEC.md) C8 and [data contract](../../DATA.md).
+Games uses Progress for eligibility/rankings and Platform/data gateway for start/result writes. See [scenarios](../model/arch/SCENARIO.md) S10, [runtime contracts](../model/arch/arena/SPEC.md) C8 and [data contract](../DATA.md).

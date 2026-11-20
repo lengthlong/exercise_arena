@@ -1,4 +1,4 @@
-# 0002 Deliver an accepted Artifact
+# 0012 Deliver an accepted Artifact
 
 - **Actor** Operator with target access and separate publication authorization.
 - **Goal** Deliver the exact accepted page candidate to the intended Artifact.
@@ -19,11 +19,11 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The operator identifies the exact candidate revision/content identity and matching [operator/0003](./0003-accept-integrated-slice.md) evidence.
+1. The operator identifies the exact candidate revision/content identity and matching [0013](./0013-accept-integrated-slice.md) evidence.
 2. The operator confirms intended target, explicit publication authorization, artifact inventory and available recovery entry/source.
 3. The operator publishes only the accepted HTML through the established platform entry.
 4. The operator checks actual target identity, loading and affected behavior against the acceptance baseline.
-5. The operator records candidate, target, authority, checks and outcome under `record/deliver/`.
+5. The operator records candidate, target, authority, checks and outcome under `record/release/`.
 
 ## Extensions
 
@@ -35,4 +35,4 @@ sequenceDiagram
 
 ## Support trace
 
-All steps use [deploy contract](../../model/operate/deploy/SPEC.md); evidence requirements use [acceptance contract](../../model/verify/SPEC.md). Publication enables [user/0010](../user/0010-open-shared-arena.md), not cross-owner content sharing.
+All steps use [deploy contract](../model/operate/deploy/SPEC.md); evidence requirements use [acceptance contract](../model/verify/SPEC.md). Publication enables [0010](./0010-open-shared-arena.md), not cross-owner content sharing.

@@ -3,7 +3,7 @@
 - **Actor** User changing their own User settings.
 - **Goal** Select a content owner and subject-batch size.
 - **Trigger** The user wants a different library or practice batch size.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md).
+- **Prerequisites** [0010](./0010-open-shared-arena.md).
 - **Success** The setting write is acknowledged and the page uses the effective settings in a ready, correct owner scope.
 
 ```mermaid
@@ -37,4 +37,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Session/settings coordinates Platform/data gateway and page readiness; Progress reads the effective scope. See [scenarios](../../model/arch/SCENARIO.md) S1/S11, [runtime contracts](../../model/arch/arena/SPEC.md) C1/C9 and [data contract](../../DATA.md).
+Session/settings coordinates Platform/data gateway and page readiness; Progress reads the effective scope. See [scenarios](../model/arch/SCENARIO.md) S1/S11, [runtime contracts](../model/arch/arena/SPEC.md) C1/C9 and [data contract](../DATA.md).

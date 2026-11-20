@@ -11,7 +11,7 @@ This guide states the workflow, map, rules and terms. Skills in `.agents/skills/
 
 ### Journey-driven design
 
-Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks integrated behavior against journey success conditions and `model/verify/SPEC.md`, and delivery deploys the accepted version. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
+Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks integrated behavior (deploying to an `OFFLINE` environment when needed) against journey success conditions and `model/verify/SPEC.md`, and release deploys to an `ONLINE` environment when applicable and announces the verified version to users. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
 
 ```mermaid
 flowchart LR
@@ -20,7 +20,7 @@ flowchart LR
   D -. Freeze for handoff .-> M
   M --> I[Implement & test]
   I -. Record .-> A[Slice acceptance]
-  A -. Record .-> V[Delivery]
+  A -. Record .-> V[Release]
   M -. Publish .-> P[doc/]
 ```
 
@@ -32,8 +32,7 @@ flowchart LR
 | guide | `.discuss_design/config.yaml` | Version, `scan`, integrations, manifest | Kernel owns `toolkit`, `managed`; rest workspace-owned |
 | guide | `.agents/skills/`, `.claude/skills/` | Task procedures | Commit managed copies and matching `.claude/skills/` symlinks |
 | guide | `check.sh`, `.discuss_design/checker.sh`, `.discuss_design/visible-text.awk`, `check.local.sh` | Checks and local hook | First three managed; `check.local.sh` workspace-owned; exit 0 passes |
-| journey | `journey/user/` | User goals and steps | Authoritative; `INDEX.md`, own numbering, initiator owns body |
-| journey | `journey/operator/` | Operator goals and steps | Authoritative; own `INDEX.md` and numbering, same ownership |
+| journey | `journey/` (`USER.md`, `OPERATOR.md`, `NNNN-*.md`) | User and operator goals and steps | Authoritative; flat directory, role indexes, single global numbering |
 | model | `model/domain/GLOSSARY.md` | Term definitions (English & Chinese names) | Fixed location |
 | model | `model/domain/DOMAIN.md` | Domain structure and invariants | Authoritative |
 | model | `model/arch/CONTAINER.md` | Actors, containers, runtime placement | Authoritative |
@@ -42,7 +41,7 @@ flowchart LR
 | model | `model/arch/<container>/SCENARIO.md` | Intra-container interactions | Optional; name parent scenario refined |
 | model | `model/arch/<container>/SPEC.md` | Contracts, shapes, failure boundaries | One owner per contract; split under `spec/` as needed |
 | model | `model/operate/INDEX.md` | Active work groups and contract links | Add as needed |
-| model | `model/operate/<group>/SPEC.md` | Support contract and boundaries | Authoritative; split under `spec/`; deploy covers artifacts |
+| model | `model/operate/<group>/SPEC.md` | Support contract and boundaries | Authoritative; split under `spec/`; `deploy` covers artifacts, `OFFLINE`/`ONLINE` environments and release announcements |
 | model | `model/verify/SPEC.md` | Acceptance environments, coverage, exemptions | Authoritative; cites journey success conditions |
 | model | `model/adr/NNNN-*.md` | Lasting trade-offs and rationale | Authoritative |
 | impl | `impl/` | Source, builds, contract tests | Implements paired model; map subpaths below |
@@ -52,7 +51,7 @@ flowchart LR
 | record | `record/discuss/NNNN-*.md` | Decisions and write-off | Freezes on completion or abort |
 | record | `record/implement/YYYYMMDD-*.md` | Upstream rows, paired entries, tests | Freezes when implementation ends |
 | record | `record/verify/YYYYMMDD-*.md` | Baseline, upstream records, verdicts | Freezes when acceptance ends |
-| record | `record/deliver/<version>[-<environment>][-<sequence>].md` | Candidate, target, verification | Freezes when delivery ends |
+| record | `record/release/<version>[-<environment>][-<sequence>].md` | Candidate, target, release notes, verification | Freezes when release ends |
 | doc | `doc/NNNN-<topic>.*` | Reader hubs with two sync baselines | Sync both ways; design edits go through discussion |
 
 - Read `model/domain/GLOSSARY.md`, relevant ADRs, and both sides of a mapped pair before changing either. Journeys and `model/` files are authoritative design; create directories as needed and name model files by responsibility. A root `README.md` belongs to the workspace.
@@ -63,7 +62,7 @@ flowchart LR
 
 1. **Discuss new design trade-offs. Change `journey/`, `model/`, `impl/`, `operate/` and `verify/` for those decisions only after the user confirms.** The agent supplies evidence and the user decides.
    - Before confirmation, write only discussion and research files.
-   - Confirmation authorizes implementing the confirmed design: discussion writes journey, model and discussion files and freezes for handoff, and implementation may continue in the same session without re-confirming. Obtain separate confirmation for delivery and irreversible external actions.
+   - Confirmation authorizes implementing the confirmed design: discussion writes journey, model and discussion files and freezes for handoff, and implementation may continue in the same session without re-confirming. Obtain separate confirmation for `ONLINE` deploys, releases and irreversible external actions.
    - Trace new model elements to journeys or system scenarios and raise untraced elements as questions. Process reviews, local trade-offs, mechanical edits and authorized maintenance need no invented journeys.
    - Four kinds of work may proceed within existing authorization:
      - Mechanical edits (renames, link repairs, formatting, `doc/` edits/syncs, `design-init` upgrades/recovery).
@@ -80,7 +79,8 @@ flowchart LR
 
 - **Design** covers decisions across journeys, models, implementation, operational support and acceptance.
 - **Journey** describes one person's goal, trigger, main success steps, extensions and success conditions (agents act within delegation; the person decides and confirms).
-- **User and operator** are overlapping target-system responsibilities: a user achieves a goal and receives value; an operator enables delivery, operation and recovery. Neither confers design or production authorization.
+- **User and operator** are overlapping target-system responsibilities: a user achieves a goal and receives value; an operator enables deployment, release, operation and recovery. Neither confers design or production authorization.
+- **Deploy vs. release:** **Deploy** places an artifact into an environment—an `OFFLINE` environment for QA or `verify/` tools, or an `ONLINE` environment for live users; **release** announces a new verified version of the solution to users.
 - **Handoff** passes frozen discussion design rows and the current model to implementation, which traces impact through the workspace map and returns design gaps with evidence.
 - **Write-off** applies, verifies and commits confirmed design edits and records results in the discussion file.
 - **Freeze** ends edits to a completed or aborted record; a discussion freezes the research it consumes.
@@ -98,7 +98,8 @@ flowchart LR
 | operate | `operate/README.md` | 实际工具索引，对应 `model/operate/INDEX.md` | 工具现状；约定边界以模型为准，条目扩展交实现 |
 | operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
 | operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
-| verify | `verify/README.md` | 实际验收条目，对应 `model/verify/SPEC.md` | 本地命令同上；运行时 walkthrough 需授权测试环境/数据，现有覆盖描述待实现校正 |
+| verify | `verify/README.md` | 实际验收条目与证据层级，对应 `model/verify/SPEC.md` | 模拟运行时与授权运行时两层；授权运行时每个发布候选一次，需授权 `OFFLINE` 测试环境/数据，尚未运行 |
+| verify | `verify/fake-platform-smoke.js` | 模拟运行时用例（假平台上跑真实页面，按旅程编号），对应 `model/verify/SPEC.md` 的边界类 | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]`；只证明页面行为，不证明平台边界 |
 
 其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管维护与发布，`verify/` 管验收入口。
 

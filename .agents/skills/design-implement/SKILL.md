@@ -12,7 +12,7 @@ Implement the current model. Frozen discussion rows identify what changed, accep
 1. Preserve contracts, data shapes and container boundaries. Return design gaps or new trade-offs to discussion with evidence.
 2. Record internal implementation choices individually in the commit message and implementation record.
 3. Write only scoped source, operational tools, acceptance entries and their workspace-map rows.
-4. Run `./check.sh` and registered implementation tests. Acceptance entries may be run for debugging, but formal acceptance and delivery belong to their own stages.
+4. Run `./check.sh` and registered implementation tests. Acceptance entries may be run for debugging, but formal acceptance and release belong to their own stages.
 
 ## Workflow
 

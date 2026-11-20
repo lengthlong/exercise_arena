@@ -3,7 +3,7 @@
 - **Actor** User accessing the selected owner's library.
 - **Goal** Keep recorded exercises and material accurate.
 - **Trigger** The user finds content to inspect, correct or delete.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); acknowledged content and required membership reads.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); acknowledged content and required membership reads.
 - **Success** The deliberate edit/delete is acknowledged and visible. Edits preserve owner, creation timestamps and attempts; valid set members remain consistent. Any deferred set cleanup is reported separately.
 
 ```mermaid
@@ -29,7 +29,7 @@ sequenceDiagram
 
 ## Extensions
 
-- **3a. The intended change is a saved judgment, not content.** Use [user/0009](./0009-correct-own-judgment.md).
+- **3a. The intended change is a saved judgment, not content.** Use [0009](./0009-correct-own-judgment.md).
 - **3b. Ownership transfer is requested.** It is not part of this editor or an added feature; changing Default owner grants access without transferring content.
 - **4a. A bank edit would remove a member's correct answer.** Reject the set save and identify affected questions. Correct their answers through Exercise editing before retrying; no automatic rewriting/rejudging/ladder reset.
 - **4b. Ownership or complete membership is uncertain.** Block destructive bank changes. An unresolved legacy set cannot be edited or receive new links; ordinary valid Exercise edits may preserve a compatible unchanged legacy reference, owner and subject.
@@ -41,4 +41,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Exercise library coordinates gateway writes, Session membership and Progress history reads. See [scenarios](../../model/arch/SCENARIO.md) S4, [runtime contracts](../../model/arch/arena/SPEC.md) C3, [domain](../../model/domain/DOMAIN.md) and [data contract](../../DATA.md).
+Exercise library coordinates gateway writes, Session membership and Progress history reads. See [scenarios](../model/arch/SCENARIO.md) S4, [runtime contracts](../model/arch/arena/SPEC.md) C3, [domain](../model/domain/DOMAIN.md) and [data contract](../DATA.md).
