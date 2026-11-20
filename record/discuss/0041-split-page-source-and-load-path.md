@@ -94,10 +94,10 @@ flowchart LR
     T --> L --> K --> G --> V --> A --> B
     Src -->|"build: ordered concatenation"| H["impl/arena.html<br/>one deliverable file"]
     H --> Art["Artifact (unchanged deploy flow)"]
-    L --> Test["logic.test.js loads logic/* in order"]
+    H --> Test["logic.test.js and the smoke read the built file<br/>(LOGIC markers kept)"]
 ```
 
-If the user chooses option A of Q1 (recommended below): `impl/src/` holds the source split by the `COMPONENT.md` contexts; a dependency-free Node build script concatenates it, in a fixed order, into `impl/arena.html`, which stays the single published file; the build has a `--check` mode that fails when the committed `impl/arena.html` is stale. Load order is the dependency direction: taxonomy → pure logic (no DOM, no `S`) → UI kit/state → gateway → context views → action registry → `boot()`. A context may use a lower layer, never a higher one or a sibling's private helpers; shared helpers move down. The 62-case `switch` becomes one dispatcher over a registry that each context fills.
+Chosen (Q1 = A): `impl/src/` holds the source split by the `COMPONENT.md` contexts; a dependency-free Node build script concatenates it, in a fixed order, into `impl/arena.html`, which stays the single published file; the build has a `--check` mode that fails when the committed `impl/arena.html` is stale. Load order is the dependency direction: taxonomy → pure logic (no DOM, no `S`) → UI kit/state → gateway → context views → action registry → `boot()`. A context may use a lower layer, never a higher one or a sibling's private helpers; shared helpers move down. The 62-case `switch` becomes one dispatcher over a registry that each context fills.
 
 User-visible changes: none intended (behavior preserving); faster readiness if Q2 is accepted.
 
