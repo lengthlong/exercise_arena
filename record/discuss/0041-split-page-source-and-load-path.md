@@ -1,7 +1,7 @@
-# 0040 Split the page source and review the load path
+# 0041 Split the page source and review the load path
 
 > status: in-progress (2026-11-20)
-> location: branch `develop`, baseline `f987efe` (`develop`)
+> location: branch `develop`, baseline `96f460b` (`develop`); renumbered from 0040 on 2026-11-20 after `origin/develop` took 0040 for the verify-phase review, and merged onto toolkit v0.44.0
 
 ## Background and goal
 
@@ -109,22 +109,7 @@ Fixes (contract-preserving, details in E2): start the settings/exercise/paper/se
 | A (recommended) | Include them | Small behavior-preserving edits to `boot()`/`<head>`; benefit can only be measured at acceptance |
 | B | Split only | Keeps the two sequential round-trips |
 
-**Q3 What safety net should guard the refactor?** (user decides, adds a verify entry) — decided: B, no new test (user, 2026-11-20). With no DOM test, the build must be behavior-preserving by construction (concatenation only) and the first real check is the manual walkthrough on a test Artifact.
-
-No automated test executes DOM handlers; the 62 `data-act` cases and all views are covered only by manual walkthrough (`model/verify/SPEC.md`).
-
-| Option | Approach | Cost |
-|---|---|---|
-| A (recommended) | Add an optional Playwright smoke script with a fake `window.claude` (fake db/user/assets/sample): visit every tab, click each registered action once, fail on console errors; runs on the built page. Declared as a substitute that proves only "no crash, key DOM present" | Needs the preinstalled Playwright/Chromium (not Node-only); not part of the two registered checks; no live writes |
-| B | Only `./check.sh`, `logic.test.js` and the existing manual walkthrough | No new dependency; a broken handler after the split would surface only in the published page |
-
-## Agent decisions
-
-**Q4 Source modules and rules** (effective upon confirmation) Modules follow `COMPONENT.md` contexts and the E3 seams; pure logic is split into several files by theme and stays DOM-free so `logic.test.js` loads them in order into one VM context (same assertions). `COMPONENT.md` states the layering rule and the action-registry contract; exact file names and the build script internals are delegated to implementation. Declined: ES modules (would need `import/export` rewrite of shared globals and break the VM test extraction for no load gain); one file per view function (too fine, no ownership gain).
-
-**Q5 Generated file is committed** (effective upon confirmation) `impl/arena.html` stays committed so the exact published candidate is inspectable and hashable, as `deploy SPEC` requires; `impl/src/` is authoritative and the staleness check keeps them equal. Declined: not committing the output (publication would require a build first and candidate identity would depend on tool versions). Applies only if Q1 is A.
-
-**Q6 ADR** (effective upon confirmation) Record the lasting trade-off (split source, single published file, why not minified or multi-file now) in a new ADR 0005, and reword the "no required source split" lines in `COMPONENT.md`.
+**Q3 What safety net should guard the refactor?** Decided: B, no new test (user, 2026-11-20). Premise corrected after the merge (2026-11-20): when Q3 was asked, no automated test ran the page's handlers. `origin/develop` has since added `verify/fake-platform-smoke.js` (discussion 0040 verify review, ADR 0005): it runs the unmodified `impl/arena.html` in headless Chromium against an in-memory db/user fake, about 25 s for all cases, selectable by journey. Under Q1 option A the build output is still `impl/arena.html`, so that smoke runs unchanged on the built page and is the safety net; no new test is needed, which matches the user's choice B. Its gaps stay: no case for user journeys 0003 (take a check paper), 0005 (match), 0006 (settings), 0009 (own-judgment override), the progress projections of 0004, multiple protected papers, and owner switch before save, so a split that touches those views leans on manual walkthrough on the test Artifact. Under Q1 option D the smoke would have to run against the multi-file build (lazy files served by a local server), which is extra work; flagged to the user with Q1.
 
 **Q7 Probe the host with a throwaway test Artifact?** Decided: yes (user, 2026-11-20: "Yes, publish the probe"; scope: private, no data, no production target). Done: private probe published at https://claude.ai/artifact/TLHfxVv1tKthUutfvGtJ4m (declares only `user`; reads and writes no data; delete it after use). The results appear on the page; they are not readable from this session, so they are pending the user's read-back. Manual evidence already in hand (Artifact page contract): the frame allows `fetch()` of files published alongside the page by relative URL; external scripts are limited to a CDN allowlist and own-file `<script src>` is not stated either way. The probe tests: T1 static `<script src>`, T2/T3 dynamic injection of a 1 KB and an 86 KB file (the size of the lazy contexts), T4 `fetch` of the same file, T5 inline injection of fetched text, T6 Blob-URL script, T7 `new Function`, T8 `claude.use("user")`, plus per-file resource timing and CSP violations, and a reload to show cache behavior. Original question text: (user decides, external action) A private page with one relative script, one dynamically injected script and one `window.claude.use` call, no data, to answer E4/E5 unknowns (do siblings load, dynamic injection works, per-request cost). Publishing sends content to an external service, so it needs your explicit go-ahead; not done.
 
@@ -136,10 +121,10 @@ Drafted after Q1–Q3 are decided; the plan below assumes the recommendations.
 | # | Question | Target | Change | Verification | Actual result and verification |
 |---|---|---|---|---|---|
 | 1 | Q1, Q4 | `model/arch/arena/COMPONENT.md` | Replace "no required source split" with the source-module layering and action-registry rule | `./check.sh` | pending |
-| 2 | Q1, Q5, Q6 | `model/adr/0005-*.md` | New ADR: split source, one built published file, rejected alternatives | `./check.sh` | pending |
+| 2 | Q1, Q5, Q6 | `model/adr/0006-*.md` | New ADR: split source, one built published file, rejected alternatives | `./check.sh` | pending |
 | 3 | Q1, Q5 | `model/operate/maintain/SPEC.md` | Registered checks include the build staleness check | `./check.sh` | pending |
 | 4 | Q1, Q5 | `model/operate/deploy/SPEC.md` | Artifact source is the built `impl/arena.html` generated from `impl/src/`; identity is the built file | `./check.sh` | pending |
-| 5 | Q1, Q3 | `model/verify/SPEC.md` | Logic suite loads split logic files; no smoke test (Q3 = B) | `./check.sh` | pending |
+| 5 | Q1, Q3 | `model/verify/SPEC.md` | Logic suite loads split logic files; existing simulated-runtime smoke runs unchanged on the built `impl/arena.html`; no new test (Q3 = B) | `./check.sh` | pending |
 | 6 | Q2 | `model/arch/arena/SPEC.md` (C1) | State that readiness depends on identity, settings and first snapshots only; registration/limits are concurrent | `./check.sh` | pending |
 | 7 | Q1–Q5 | `CLAUDE.md` workspace map | Add `impl/src/`, build script rows; adjust `impl/arena.html` row to "generated" | `./check.sh` | pending |
 | 8 | — | `journey/` | Unchanged | — | n/a |
