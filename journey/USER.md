@@ -27,7 +27,7 @@ flowchart LR
     Progress -. Correct own judgment .-> Override["0009 Override"]
     Progress -. Optional .-> Match["0005 Match"]
     Settings["0006 Configure"] -. Scope and batch size .-> Daily
-    Deliver["operator/0002 Deliver"] --> Access
+    Deliver["0012 Deliver"] --> Access
 ```
 
 Solid edges describe prerequisites; existing records/papers may satisfy them. Dashed edges are optional/feedback paths. An authenticated user may access another owner's library without changing actor identity or transferring content.
@@ -38,4 +38,4 @@ Scope only, not attainment or delivery status.
 
 | Slice | Included steps and extensions | Excluded | Prerequisites and substitutes | Cross-role dependencies |
 |---|---|---|---|---|
-| First usable loop | 0010 access/readiness; 0001 complete recording path; 0002 complete daily main path and applicable failure/self-judgment extensions | 0003-0009 as separate goals; no explicit configuration beyond prerequisite defaults; no full cross-session written-answer recovery | Authorized platform account and test data; ready library; default settings; no local-logic substitute for runtime writes | operator/0001 aligned implementation; operator/0003 integrated acceptance; operator/0002 separate authorized delivery enables access |
+| First usable loop | 0010 access/readiness; 0001 complete recording path; 0002 complete daily main path and applicable failure/self-judgment extensions | 0003-0009 as separate goals; no explicit configuration beyond prerequisite defaults; no full cross-session written-answer recovery | Authorized platform account and test data; ready library; default settings; no local-logic substitute for runtime writes | 0011 aligned implementation; 0013 integrated acceptance; 0012 separate authorized delivery enables access |

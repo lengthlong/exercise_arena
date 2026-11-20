@@ -495,7 +495,7 @@ function check_record_ref(file, item,    kind, words, name, id, target, outcome)
         }
         return
     }
-    if (kind == "deliver" || (kind == "implement" && id ~ /^#[0-9]+$/))
+    if (kind == "release" || kind == "deliver" || (kind == "implement" && id ~ /^#[0-9]+$/))
         target = "record/verify/" name ".md"
     else target = "record/implement/" name ".md"
     if (!(target in record_file)) record_error(file, "Upstream record does not exist: " name " (expected " target ")")

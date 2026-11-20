@@ -1,4 +1,4 @@
-# 0003 Accept an integrated slice
+# 0013 Accept an integrated slice
 
 - **Actor** Operator executing acceptance; the same person may also maintain or deliver.
 - **Goal** Establish whether an identified candidate satisfies the scoped journey success conditions.
@@ -23,7 +23,7 @@ sequenceDiagram
 2. The operator selects journey steps, extensions and affected component/contract boundaries.
 3. The operator establishes an authorized test candidate, platform capabilities, actors and test-data scope through the deploy contract.
 4. The operator executes required entries, distinguishing local logic checks from actual runtime integration observations.
-5. The operator records results and verdict under `record/verify/`; accepted candidates may proceed to separately authorized [operator/0002](./0002-publish-artifact.md).
+5. The operator records results and verdict under `record/verify/`; accepted candidates may proceed to separately authorized [0012](./0012-publish-artifact.md).
 
 ## Extensions
 
@@ -35,4 +35,4 @@ sequenceDiagram
 
 ## Support trace
 
-[Acceptance contract](../../model/verify/SPEC.md) owns coverage/verdicts. [Deploy contract](../../model/operate/deploy/SPEC.md) supplies the test candidate/environment; no new operational work group is added.
+[Acceptance contract](../model/verify/SPEC.md) owns coverage/verdicts. [Deploy contract](../model/operate/deploy/SPEC.md) supplies the test candidate/environment; no new operational work group is added.

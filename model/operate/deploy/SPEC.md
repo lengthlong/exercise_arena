@@ -1,6 +1,6 @@
 # Deploy support contract
 
-- **Journeys / steps** operator/0003 3 supplies a test candidate; operator/0002 1-5 delivers an accepted candidate.
+- **Journeys / steps** 0013 3 supplies a test candidate; 0012 1-5 delivers an accepted candidate.
 - **Operator and authorization** Target-capable account holder/operator. Test writes need named test scope; production publication needs separate explicit user authorization. Page delivery does not authorize database repair.
 - **Environment and dependencies** Identified source candidate, compatible Artifact runtime capabilities, authorized test/production target and test data, matching acceptance evidence for production.
 
@@ -45,11 +45,11 @@ The intended production URL recorded by the source header is [Exercise Arena Art
 ## Publish an accepted page
 
 - **Prerequisites and scope** Confirm exact accepted candidate and matching verification record, intended target, target access and separate publication authorization. Identify prior source/recovery options before writing.
-- **Success** Target identity, candidate and affected post-publication behavior match acceptance; record delivery under `record/deliver/`.
+- **Success** Target identity, candidate and affected post-publication behavior match acceptance; record delivery under `record/release/`.
 - **Failure / stop** Missing evidence/authority stops publication. Upload failure, wrong target and failed target behavior are distinct failures; never assume upload alone or prior publication comments prove delivery.
 - **Verification / recovery** Open actual target and inspect identity/loading/affected journeys. After a failed upload/check, inspect actual state; the old version is not assumed to remain. Restoration needs an available prior candidate/version, a usable entry and established authorization; platform rollback is unverified.
 - **Implementation** [Current manual deploy entry](../../../operate/deploy/README.md); no automated deployment or verified rollback tool is registered. Its expanded candidate/target/recovery steps require downstream alignment.
 
 ## Records and external boundaries
 
-Acceptance results go to `record/verify/`; delivery goes to `record/deliver/`. Do not commit credentials, child question/photo data or field logs. No live deployment, rollback or ownership migration is performed by changing this contract.
+Acceptance results go to `record/verify/`; release goes to `record/release/`. Do not commit credentials, child question/photo data or field logs. No live deployment, rollback or ownership migration is performed by changing this contract.

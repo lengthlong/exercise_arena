@@ -1,4 +1,4 @@
-# 0001 Maintain an aligned change
+# 0011 Maintain an aligned change
 
 - **Actor** Operator with repository access and authorized design or contract-preserving maintenance scope.
 - **Goal** Produce a change aligned with journeys, models, data contracts and executable rules.
@@ -23,7 +23,7 @@ sequenceDiagram
 2. The operator reads affected journeys, domain/runtime/DATA contracts and both sides of the workspace map.
 3. The operator makes the authorized implementation/maintenance change.
 4. The operator runs final checker and registered logic tests after changes and inspects affected behavior within authorized local scope.
-5. The operator records the baseline, changed pairs, tests and unresolved gaps under `record/implement/`, then hands the candidate to [operator/0003](./0003-accept-integrated-slice.md).
+5. The operator records the baseline, changed pairs, tests and unresolved gaps under `record/implement/`, then hands the candidate to [0013](./0013-accept-integrated-slice.md).
 
 ## Extensions
 
@@ -34,4 +34,4 @@ sequenceDiagram
 
 ## Support trace
 
-Steps 1-5 use [maintain contract](../../model/operate/maintain/SPEC.md). Integrated acceptance is owned by [acceptance contract](../../model/verify/SPEC.md); delivery is a separate goal.
+Steps 1-5 use [maintain contract](../model/operate/maintain/SPEC.md). Integrated acceptance is owned by [acceptance contract](../model/verify/SPEC.md); delivery is a separate goal.

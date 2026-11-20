@@ -11,11 +11,11 @@ git rev-parse HEAD
 sha256sum impl/arena.html
 ```
 
-## Supply an acceptance candidate (operator/0003 step 3)
+## Supply an acceptance candidate (0013 step 3)
 
 Upload the identified `impl/arena.html` only to an authorized **test** Artifact with named test data, never to the production Artifact to obtain acceptance evidence. If no test Artifact or test data scope exists, runtime acceptance stays unverified. Cleanup of test data needs its own explicit authorization.
 
-## Publish an accepted page (operator/0002)
+## Publish an accepted page (0012)
 
 Only after matching acceptance evidence for the same candidate and explicit publication authorization:
 
@@ -23,6 +23,6 @@ Only after matching acceptance evidence for the same candidate and explicit publ
 2. Note the intended production target from the source header and what prior source is available for restoration; the old version is not assumed to survive an upload.
 3. Publish `impl/arena.html` through the Claude Artifact entry.
 4. Open the actual target and check identity, loading and the affected journeys against the acceptance baseline.
-5. Record candidate, target, authority, checks and outcome under `record/deliver/`.
+5. Record candidate, target, authority, checks and outcome under `record/release/`.
 
 Publishing the page does not authorize production data repair or ownership migration.

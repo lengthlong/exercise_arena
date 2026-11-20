@@ -1,6 +1,6 @@
 # Maintain support contract
 
-- **Journey / steps** operator/0001 1-5.
+- **Journey / steps** 0011 1-5.
 - **Operator and authorization** Repository maintainer applying frozen design scope or authorized contract-preserving maintenance. New semantics return to discussion. No production writes/publication.
 - **Environment and dependencies** Local checkout, Node.js, checker, paired model/source/entry files and identified baseline.
 
@@ -10,7 +10,7 @@
 - **Actions** Apply the authorized change and inspect affected behavior; internal implementation choices remain within settled contracts.
 - **Success** Scoped changes align with contracts; final registered checks pass; an implementation record states baseline, changed pairs, tests and remaining gaps.
 - **Failure / stop** Failed checks do not authorize changing a settled rule. New boundary/design gaps stop affected work and return to discussion.
-- **Verification / recovery** Re-run after fixes. Local evidence is not integrated acceptance; hand off candidate and record to operator/0003 under [acceptance SPEC](../../verify/SPEC.md).
+- **Verification / recovery** Re-run after fixes. Local evidence is not integrated acceptance; hand off candidate and record to 0013 under [acceptance SPEC](../../verify/SPEC.md).
 - **Implementation** Checker/source tests exist; [operate maintain entry](../../../operate/maintain/README.md) currently supplies local commands, not proof that all runtime contracts are implemented.
 
 ## Registered local checks
