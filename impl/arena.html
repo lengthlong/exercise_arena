@@ -1,6 +1,6 @@
 <!--
   Exercise Arena — 练习场页面（实现）。
-  数据契约：DATA.md；纯逻辑的规则见 app/logic.test.js。
+  数据契约：DATA.md；纯逻辑的规则见 impl/logic.test.js。
   发布网址：https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh
   能力：db、assets、sample（images）、user（profile）。
   运行时契约：0.2.90（第 73 版起；此前 0.2.77）。
@@ -496,7 +496,7 @@ const TAX = /*TAXONOMY:BEGIN*/{"english":{"layers":[["V","动词","Verbs"],["W",
 </script>
 
 <script>
-/* LOGIC:BEGIN — 纯函数：按用户的视图与归属人、复习阶梯、判对、每日清单、抽题、看板、计划与回顾、设置、金币与比赛（断言见 app/logic.test.js） */
+/* LOGIC:BEGIN — 纯函数：按用户的视图与归属人、复习阶梯、判对、每日清单、抽题、看板、计划与回顾、设置、金币与比赛（断言见 impl/logic.test.js） */
 const GAPS = [0, 1, 2, 4, 7];
 const SUBJECTS = [['english', 'English'], ['math', 'Math'], ['science', 'Science']];
 const SUBJ = Object.fromEntries(SUBJECTS.map(s => [s[0], { en: s[1] }]));

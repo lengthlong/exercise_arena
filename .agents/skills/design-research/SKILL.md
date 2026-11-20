@@ -1,26 +1,27 @@
 ---
 name: design-research
-description: 研究外部对象并写成 `research/` 笔记（research）：仓库、产品、方法、参考作品，供讨论取证。用于：用户给出研究主题；用户从已有笔记的细题里挑题深挖。
+description: Research an external subject and record the findings under record/research. Use for a repository, product, method, reference work or a deeper question from a prior note.
 ---
 
 # design-research
 
-> 研究外部对象并沉淀为 `research/NNNN-<topic>.md` 现状摘要，供讨论取证；笔记随消费它的讨论冻结，不被设计文件引用。
->
-> 动笔前先读同版本 `design-discuss/WRITING.md` 与本工作区 `design-writing`。
+Write a point-in-time account in `record/research/NNNN-<subject-and-question>.md` for discussion to consume. Load `design-writing` first.
 
-## 核心原则
+## Rules
 
-1. **只写那个时点的现状结论**：正文直接给判断与结构，不写阅读流水或源码考古；文末「来源定位」集中记录影响裁决的关键结论及其一手出处（仓库记 `commit + 文件/符号`，网页记 `链接 + 抓取日期`，受限处如实说明）。
-2. **一轮研究一份文件，冻结后只增不改**：`research/NNNN-<对象与查了什么>.md` 在消费它的讨论冻结前可增补改写，冻结后不再改动；后续需新事实则另开新编号笔记并注明推翻了旧稿哪些断言。
-3. **执行与分段按任务弹性选择**：
-   - **读源方式**：体量集中时主 agent 可直接读一手源；体量大或由多个独立子系统组成时，按 [BRIEF.md](./BRIEF.md) 并行派只读后台 subagent。
-   - **一次成稿 vs 两段深挖**：研究问题具体明确时，直接一次查透成稿；主题宽泛、需探索方向时，先出「概览 + 提议的细题」请用户挑题，再按选定细题增补 `D1, D2…` 并同步更新摘要与来源定位。
-   - **骨架裁剪**：骨架见 [NOTE-SKELETON.md](./NOTE-SKELETON.md)（插入本工作区 `RESEARCH-SECTIONS.md` 的专属节）。**对当前对象不适用的节或未展开的「第二部分 · 深挖」直接删去，不留空标题**；适用但查不到关键事实的，明确记入「未核实」与「来源定位」。
+1. Lead with findings and structure. Collect key conclusions and primary references in Source locations, with commit and file or symbol for code, or link and observation date for websites. State access limits.
+2. Prefer original code, specifications and direct observations. Name conflicts and follow primary evidence.
+3. Put applicable unknowns in Unverified. Omit irrelevant sections.
 
-## 步骤
+## Workflow
 
-1. **定对象与基线**：确认入口（本地路径 / URL）、抓取日期与基线（commit / 版本 / `—`），检索 `research/` 相关旧笔记供对照。
-2. **取证读源**：以最一手来源为准（源码、原始规范、实测优于二手转述，冲突时点明）；按规模自选直读或按 [BRIEF.md](./BRIEF.md) 派并行 subagent。
-3. **统稿落盘**：主 agent 结合本工作区设计视角亲写「摘要」（含与本工作区的同/异标注）并回源核对关键判断，汇总文末「来源定位」，跑通检查。开放式调研在此将摘要与候选细题交用户挑选。
-4. **按需深挖**（当用户挑选细题时）：查清选定细题后写入 `## D1. <细题>`，修正概览中被推翻的判断，把新结论合入「摘要」与文末「来源定位」。
+1. Establish the subject, entry point, observation date and commit or version. Search earlier notes for relevant findings.
+2. Read focused sources yourself. For large or independent subsystems, delegate read-only research in parallel using the briefs.
+3. Answer a focused question in one pass. For broad exploration, first present an overview and proposed deeper questions. Expand selected questions under `## D1. <question>` and revise any overview claims superseded by evidence.
+4. Draft from the note skeleton. Write the summary yourself, comparing with the workspace glossary and map. Verify material findings at the source, collect references and run `./check.sh`.
+5. Send findings to discussion when they inform design. The note is committed and freezes with the discussion that consumes it. New evidence after freeze gets a new note identifying the older claims it supersedes.
+
+| File | When to use |
+|---|---|
+| [assets/note.md](assets/note.md) | Research note skeleton. |
+| [assets/briefs.md](assets/briefs.md) | Delegated read-only research briefs. |

@@ -3,58 +3,87 @@
 为 P5 学生 Sophia 设计一个练习场（Exercise Arena）：录入她的错题（文字或照片），按复习阶梯重做，用检验卷确认是否掌握。
 
 <!-- design-kernel:begin -->
-## 内核
+## Kernel
 
-本段由 discuss-design 托管，与本仓版本的 `design-discuss/KERNEL.md` 逐字一致（`./check.sh` 核对，勿手改，用 `design-init` 升级）。专属内容写在本段之后。
+discuss-design manages this block from the workspace's recorded version (`./check.sh` verifies its hash; use `design-init` to upgrade or `link` to restore). Put workspace-specific content below.
 
-本工作区按「研究 → 讨论 → 发布」做设计：
+This guide states the workflow, map, rules and terms. Skills in `.agents/skills/` and the global `design-init` hold procedures; load each skill when its description applies. Choose the language of your conversation, workspace prose and publications.
 
-### 内核文件
+### Journey-driven design
 
-| 位置 | 回答 | 权威 |
-|---|---|---|
-| 配置 `context` 文件（缺省 `CONTEXT.md`） | 术语定义（术语表） | 设计 |
-| `adr/NNNN-*.md` | 为什么这么定 | 设计；取舍论证只写这里 |
-| `.agents/skills/design-writing/` | 设计写法、研究看什么 | 本工作区写法权威 |
-| `.discuss_design.yaml` | 版本、模板、检查范围、违例词、集成与受管清单 | 配置 |
-| `.agents/skills/` 中的内核与启用集成 | 所用版本受管副本，随仓提交 | 内核；不在工作区里改 |
-| `check.sh`、`check.local.sh` | 机械检查 | 退出码 0 才通过 |
-| `discuss/NNNN-*.md` | 一轮讨论的过程、裁决与核销 | 记录；完成后冻结 |
-| `research/NNNN-*.md` | 某时点外部对象的现状 | 记录；随消费它的讨论冻结 |
-| `publish/NNNN-<topic>.*` | 外部目标在本仓的中枢及双基线 | 非权威；双向同步；由它改设计须经讨论 |
+Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks integrated behavior against journey success conditions and `model/verify/SPEC.md`, and delivery deploys the accepted version. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
 
-`context` 写仓内相对路径，缺省 `CONTEXT.md`；`managed` 由 `design-init` 维护。`AGENTS.md` 软链到 `CLAUDE.md`；`.agents/skills/<名>` 均有 `.claude/skills/<名>` 相对软链。用户 skill 不因 `design-` 前缀归工具包接管。目录用到再建。
+```mermaid
+flowchart LR
+  J[Journeys & triggers] --> M[Model & operate contracts]
+  R[Research] -. Evidence .-> D[Discussion]
+  D -. Freeze for handoff .-> M
+  M --> I[Implement & test]
+  I -. Record .-> A[Slice acceptance]
+  A -. Record .-> V[Delivery]
+  M -. Publish .-> P[doc/]
+```
 
-### 守则
+### Standard map
 
-1. **新设计经落盘才改。** 新设计取舍走讨论与核销确认；确认前只写讨论与研究文件。以下四类直接执行（不扩大既有授权）：
-   - **机械改动**：无新裁决的改名、修链接、格式整理，`publish/` 编辑与同步，以及 `design-init` 升级与恢复副本。
-   - **直接指示改流程文件**：本文件、`.agents/skills/design-writing/`、`check.sh`、`check.local.sh`、`.discuss_design.yaml`；提交前检索防冲突。
-   - **已授权的实现维护**：核销或指令授权内的方案落实、恢复既定行为的 bug 修复与保契约重构，直接完成并验证；触及地图配对实现时先核对配对设计，改契约或取舍回讨论。
-   - **已授权的日常运行**：按已裁约定明确的输出、状态及范围写入（仓内外由设计定），不自动改设计、源码或流程文件。
-2. **冻结的记录不改，记录不被引用。** 唯一例外：分支合并撞讨论编号时改后合入那份的编号。讨论只被讨论引用；研究与 `publish/` 文件不被设计文件与 skill 引用（指目录导航可），事实写进正文。
-3. **本文件只写地图、守则、词与指路**，不写设计事实与做法细节。
-4. **设计与实现改完跑 `./check.sh`**，退出码 0 才算完。只提交本次路径（暂存区有别项时先 `git add` 再 `git commit -- <路径>`；混入难分离改动停下问用户；`.DS_Store` 与临时文件不入库）；是否 push 视工作区而定。日常运行按已裁约定验证保存。
+| Category | Location | What it answers | Authority / maintenance |
+|---|---|---|---|
+| guide | `CLAUDE.md`, `AGENTS.md` | Workflow, map, rules, terms | `AGENTS.md` links `CLAUDE.md`; managed block hash-verified |
+| guide | `.discuss_design/config.yaml` | Version, `scan`, integrations, manifest | Kernel owns `toolkit`, `managed`; rest workspace-owned |
+| guide | `.agents/skills/`, `.claude/skills/` | Task procedures | Commit managed copies and matching `.claude/skills/` symlinks |
+| guide | `check.sh`, `.discuss_design/checker.sh`, `.discuss_design/visible-text.awk`, `check.local.sh` | Checks and local hook | First three managed; `check.local.sh` workspace-owned; exit 0 passes |
+| journey | `journey/user/` | User goals and steps | Authoritative; `INDEX.md`, own numbering, initiator owns body |
+| journey | `journey/operator/` | Operator goals and steps | Authoritative; own `INDEX.md` and numbering, same ownership |
+| model | `model/domain/GLOSSARY.md` | Term definitions (English & Chinese names) | Fixed location |
+| model | `model/domain/DOMAIN.md` | Domain structure and invariants | Authoritative |
+| model | `model/arch/CONTAINER.md` | Actors, containers, runtime placement | Authoritative |
+| model | `model/arch/SCENARIO.md` | Inter-container interactions | Authoritative |
+| model | `model/arch/<container>/COMPONENT.md` | Responsibilities inside one container | Short name from container list; create as needed |
+| model | `model/arch/<container>/SCENARIO.md` | Intra-container interactions | Optional; name parent scenario refined |
+| model | `model/arch/<container>/SPEC.md` | Contracts, shapes, failure boundaries | One owner per contract; split under `spec/` as needed |
+| model | `model/operate/INDEX.md` | Active work groups and contract links | Add as needed |
+| model | `model/operate/<group>/SPEC.md` | Support contract and boundaries | Authoritative; split under `spec/`; deploy covers artifacts |
+| model | `model/verify/SPEC.md` | Acceptance environments, coverage, exemptions | Authoritative; cites journey success conditions |
+| model | `model/adr/NNNN-*.md` | Lasting trade-offs and rationale | Authoritative |
+| impl | `impl/` | Source, builds, contract tests | Implements paired model; map subpaths below |
+| operate | `operate/` (`operate/README.md`) | Tools, config, runbooks | Lists active groups; group READMEs link contracts; map below |
+| verify | `verify/` (`verify/README.md`) | Journey-based acceptance entries | Written by implementation, run by acceptance; map below |
+| record | `record/research/NNNN-*.md` | Point-in-time external research | Freezes with consuming discussion |
+| record | `record/discuss/NNNN-*.md` | Decisions and write-off | Freezes on completion or abort |
+| record | `record/implement/YYYYMMDD-*.md` | Upstream rows, paired entries, tests | Freezes when implementation ends |
+| record | `record/verify/YYYYMMDD-*.md` | Baseline, upstream records, verdicts | Freezes when acceptance ends |
+| record | `record/deliver/<version>[-<environment>][-<sequence>].md` | Candidate, target, verification | Freezes when delivery ends |
+| doc | `doc/NNNN-<topic>.*` | Reader hubs with two sync baselines | Sync both ways; design edits go through discussion |
 
-### 词
+- Read `model/domain/GLOSSARY.md`, relevant ADRs, and both sides of a mapped pair before changing either. Journeys and `model/` files are authoritative design; create directories as needed and name model files by responsibility. A root `README.md` belongs to the workspace.
+- Extend this map below the managed block with one row per relevant `impl/`, `operate/` or `verify/` subpath, retained existing source directory, workspace skill or other workspace-owned path—naming its paired design, test/acceptance/deploy commands, authority in a conflict and plain category (`impl`, `operate`, `verify`, `guide`). `./check.sh` checks top-level coverage.
+- Records carry status, location and upstream references, freeze when their stage ends, and drive pending handoffs from the baseline tree; skills define formats and `./check.sh` validates them.
 
-- **讨论**：一轮取证、提问、裁决与核销，记在 `discuss/NNNN-<topic>.md`。
-- **裁决**：用户对设计问题的决定。证据归 agent，裁决归用户。
-- **登记表**：讨论顶部每题一行的现行裁决。
-- **核销表**：每条裁决改哪个文件、改什么；用户确认即落盘授权。
-- **落盘**：按核销表改文件、验证、提交并在讨论核销。
-- **冻结**：讨论标 `✅ 已完成` 或 `⛔ 已中止` 后不再改，消费的研究随之冻结；过时不算缺陷。
-- **留白**：刻意不定的设计点，只标位置与边界。
+### Rules
 
-### 做什么，读什么
+1. **Discuss new design trade-offs. Change `journey/`, `model/`, `impl/`, `operate/` and `verify/` for those decisions only after the user confirms.** The agent supplies evidence and the user decides.
+   - Before confirmation, write only discussion and research files.
+   - Confirmation authorizes implementing the confirmed design: discussion writes journey, model and discussion files and freezes for handoff, and implementation may continue in the same session without re-confirming. Obtain separate confirmation for delivery and irreversible external actions.
+   - Trace new model elements to journeys or system scenarios and raise untraced elements as questions. Process reviews, local trade-offs, mechanical edits and authorized maintenance need no invented journeys.
+   - Four kinds of work may proceed within existing authorization:
+     - Mechanical edits (renames, link repairs, formatting, `doc/` edits/syncs, `design-init` upgrades/recovery).
+     - Direct user instructions to change this guide, `check.sh`, `check.local.sh` or `.discuss_design/config.yaml` (check for conflicts first).
+     - Authorized implementation maintenance (apply frozen rows or settled contracts, restore established behavior, or refactor preserving contracts; send contract/boundary changes to discussion and report internal choices individually).
+     - Authorized routine operations (write only outputs and state covered by an agreed operation).
+2. **Frozen records stay as written.** Only downstream and peer records may reference individual records; journeys, models and skills may refer only to `record/` or `doc/` directories and must state needed facts themselves. The sole freeze exception is renumbering an incoming discussion on merge collision.
+3. **Keep this guide to workflow, map, rules and terms.** Put procedures in skills and design facts in authoritative files.
+4. **After changing a model, implementation, operational support or acceptance entry, run `./check.sh` and the registered tests in the workspace map.** Both must pass.
+   - Commit only scoped paths (ask if existing changes cannot be separated), exclude `.DS_Store` and temporary files, and follow workspace push rules.
+   - Verify and save routine operations per their contracts. Keep field logs, credentials, incident examples and operational results out of the repo unless a journey agrees.
 
-- 受管副本随仓提交，clone 后可直接讨论和检查；缺失损坏用 `design-init` 的 `link` 按所记版本恢复，新建、恢复或升级时本机须装对应版本。
-- 产出证据、选项或裁决（讨论、评审、复审、方案比选、研究落地）→ 先读 `design-discuss`。
-- 写、改或复审设计文字（含研究笔记与面向人的总述）→ 先读 `design-discuss` 的 `WRITING.md`，其余读本工作区 `design-writing`。
-- 研究外部对象 → `design-research`。
-- 发布与同步 `publish/` → `design-publish` 及 `.discuss_design.yaml` 启用的集成 skill。
-- 读设计：先读指定术语表与相关 ADR，再按块后地图；改地图配对一侧时同读另一边。
-- 改进做法：地图改块后；写法改 `design-writing`；内核守则、流程、检查与内置模板回工具包仓开讨论改。
+### Terms
+
+- **Design** covers decisions across journeys, models, implementation, operational support and acceptance.
+- **Journey** describes one person's goal, trigger, main success steps, extensions and success conditions (agents act within delegation; the person decides and confirms).
+- **User and operator** are overlapping target-system responsibilities: a user achieves a goal and receives value; an operator enables delivery, operation and recovery. Neither confers design or production authorization.
+- **Handoff** passes frozen discussion design rows and the current model to implementation, which traces impact through the workspace map and returns design gaps with evidence.
+- **Write-off** applies, verifies and commits confirmed design edits and records results in the discussion file.
+- **Freeze** ends edits to a completed or aborted record; a discussion freezes the research it consumes.
 <!-- design-kernel:end -->
 
 ## 本工作区的地图
@@ -63,11 +92,13 @@
 
 | 位置 | 回答 | 权威 |
 |---|---|---|
-| `CONTEXT.md` | 领域术语是什么（由配置 `context` 指定） | 设计 |
-| `DATA.md` | 页面的 `db` 存什么、怎样写：字段、派生字段、写入规则、归类体系的来源、留白 | 设计 |
-| `app/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；须符合 `DATA.md` 与测试断言 |
-| `app/logic.test.js` | 页面规则，写成对页面纯逻辑（`LOGIC:BEGIN…END`）的断言 | 实现；页面行为的权威 |
+| model | `model/domain/GLOSSARY.md` | 领域术语是什么 | 设计 |
+| model | `DATA.md` | 页面的 `db` 存什么、怎样写：字段、派生字段、写入规则、归类体系的来源、留白 | 设计 |
+| model | `model/adr/*.md` | 为什么这么定 | 设计 |
+| impl | `impl/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；须符合 `DATA.md` 与测试断言 |
+| impl | `impl/logic.test.js` | 页面规则，写成对页面纯逻辑（`LOGIC:BEGIN…END`）的断言 | 实现；页面行为的权威 |
+| guide | `.agents/skills/arena-writing/` | 本工作区的设计写法、研究看什么 | 设计 |
 
-分工：术语表管概念的定义（含其中的数字），`DATA.md` 管数据，页面行为以 `app/logic.test.js` 的断言为准；一处改了，另一处在同一轮一起改。
+分工：术语表管概念的定义（含其中的数字），`DATA.md` 管数据，页面行为以 `impl/logic.test.js` 的断言为准；一处改了，另一处在同一轮一起改。
 
-读设计：术语先读 `CONTEXT.md`，涉及取舍再读相关 ADR；改页面或数据前先读 `DATA.md`，改页面规则前先读 `app/logic.test.js`。写或改 ADR 时，除 `WRITING.md` 外也按 `design-writing` 的「设计文件只写现状」。
+读设计：术语先读 `model/domain/GLOSSARY.md`，涉及取舍再读 `model/adr/`；改页面或数据前先读 `DATA.md`，改页面规则前先读 `impl/logic.test.js`。写或改 ADR 时，除 `WRITING.md` 外也按 `arena-writing` 的「设计文件只写现状」。

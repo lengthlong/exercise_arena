@@ -1,6 +1,6 @@
 # 数据契约
 
-练习场页面的 `db` 里存什么、怎样写。页面（`app/arena.html`）与用 `ArtifactData` 改数据的 agent 都按这里读写；数据比代码活得久，旧数据要能照常读。改字段、写入方式或派生规则时先改这里。
+练习场页面的 `db` 里存什么、怎样写。页面（`impl/arena.html`）与用 `ArtifactData` 改数据的 agent 都按这里读写；数据比代码活得久，旧数据要能照常读。改字段、写入方式或派生规则时先改这里。
 
 所有日期是设备本地日期，写成 `YYYY-MM-DD`；时刻是设备本地时间，写成 `YYYY-MM-DDTHH:mm`。用户 id 一律存平台 `id()` 的原值。
 
@@ -125,7 +125,7 @@
 
 ## 派生字段
 
-一位用户对一道错题的阶梯（`step`、`due`、`mastered`、`wrongCount`、`lastAttemptAt`），由 `createdAt` 与该用户的作答（`by` 等于其 id）中 `mode` 不是 `"paper"` 的全部作答（即每日重做）、加 `mode` 为 `"paper"` 且 `result` 为 `"wrong"` 的作答，按顺序依次推出（页面里的 `deriveState`，断言在 `app/logic.test.js`），页面渲染时现算、不存；页面可在内存里按文档对象缓存算好的结果，平台换了文档对象（文档变了）就重算，缓存不写库（页面里的 `viewFor`）。没有作答时为起点，对所有用户相同：
+一位用户对一道错题的阶梯（`step`、`due`、`mastered`、`wrongCount`、`lastAttemptAt`），由 `createdAt` 与该用户的作答（`by` 等于其 id）中 `mode` 不是 `"paper"` 的全部作答（即每日重做）、加 `mode` 为 `"paper"` 且 `result` 为 `"wrong"` 的作答，按顺序依次推出（页面里的 `deriveState`，断言在 `impl/logic.test.js`），页面渲染时现算、不存；页面可在内存里按文档对象缓存算好的结果，平台换了文档对象（文档变了）就重算，缓存不写库（页面里的 `viewFor`）。没有作答时为起点，对所有用户相同：
 
 ```text
 step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttemptAt = null
@@ -139,7 +139,7 @@ step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttempt
 
 **补录来源**不存：补录来源除了题组，还有一类——不属于题组（没有 `setId`）、`images` 完全相同（id 与顺序都相同）且 `subject` 相同的一批错题，由页面渲染时现算；只有一道题的也算（页面里的 `photoGroups`）。同一次识别里，题组的成员不挂照片，不属于题组的错题挂这一批照片。
 
-**可能重复**不存：一张新草稿（不含编辑已录错题的草稿）与订阅范围内的已录错题、或同批排在它前面的草稿（次序按页面里的 `draftsInOrder`），科目相同、题干规范化后相同、题干不为空，就带这个提示；选择题还要选项（去掉空项）逐项规范化后相同。规范化：转小写；去掉 `[[` 与 `]]`；去掉引号与全部空白；去掉 `. , ; : ! ?`，但夹在两个数字之间的 `.` 与 `,` 保留（`3.5`、`1,000`）；括号与运算符号保留。与已录错题和与前面的草稿都相同时，报已录的（页面里的 `findDuplicate`、`dupKey`，断言在 `app/logic.test.js`）。页面渲染时现算，不存。
+**可能重复**不存：一张新草稿（不含编辑已录错题的草稿）与订阅范围内的已录错题、或同批排在它前面的草稿（次序按页面里的 `draftsInOrder`），科目相同、题干规范化后相同、题干不为空，就带这个提示；选择题还要选项（去掉空项）逐项规范化后相同。规范化：转小写；去掉 `[[` 与 `]]`；去掉引号与全部空白；去掉 `. , ; : ! ?`，但夹在两个数字之间的 `.` 与 `,` 保留（`3.5`、`1,000`）；括号与运算符号保留。与已录错题和与前面的草稿都相同时，报已录的（页面里的 `findDuplicate`、`dupKey`，断言在 `impl/logic.test.js`）。页面渲染时现算，不存。
 
 ## 加载
 
@@ -162,7 +162,7 @@ step = 1, due = createdAt + 1 天, mastered = false, wrongCount = 1, lastAttempt
 
 ## 归类体系
 
-三个科目的专题、概念、题型 id 与中英名称内嵌在 `app/arena.html` 的 `TAX`（`TAXONOMY:BEGIN…END` 之间），以它为准。
+三个科目的专题、概念、题型 id 与中英名称内嵌在 `impl/arena.html` 的 `TAX`（`TAXONOMY:BEGIN…END` 之间），以它为准。
 
 - 科学、数学取自两张知识图：科学 `https://claude.ai/artifact/28476983-ebca-49fd-b882-f428e4e45012`（MOE 2023 大纲），数学 `https://claude.ai/artifact/8ujg7zbHmtuCPqTVMs3hvK`（MOE 2021 大纲）。练习场只取 id 与名称，讲解留在知识图里；知识图更新后要重新提取。概念与题型链接到 `<知识图链接>#<id>`；claude.ai 外壳是否把 `#` 传给页面未实测。
 - 英文体系由 agent 按新加坡小学英文语法与 PSLE 英文卷二的结构起草，未对照 MOE 大纲或 SEAB 考纲原文。

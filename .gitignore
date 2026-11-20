@@ -3,3 +3,4 @@
 !/.agents/skills/design-writing
 /.claude/skills/design-*
 !/.claude/skills/design-writing
+# design-init force-adds exact managed paths. The rules below ignore the design- prefix by default.

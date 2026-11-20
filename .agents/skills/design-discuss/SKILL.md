@@ -1,74 +1,49 @@
 ---
 name: design-discuss
-description: 讨论并裁决设计问题（discuss / review / decide）：取证、给选项与推荐、请用户裁决，再把裁决落进文件、验证、提交。用于：要做设计决定或比较方案；评审、复审设计或流程；把研究结论落到设计里。
+description: Examine and decide design trade-offs. Use for new designs, changes, design and workflow reviews, research follow-up, scope slices, and design gaps returned from implementation or acceptance.
 ---
 
 # design-discuss
 
-> 凡产出证据、选项或裁决的设计工作按本流程执行；免讨论直行的四类情形以 `CLAUDE.md` 守则第 1 条为准。
->
-> 流程按复杂度分**轻量路径**与**标准路径**两档，写设计文字先读 [WRITING.md](./WRITING.md) 与本工作区 `design-writing`。
+The agent gathers evidence and proposes a target model. The user decides genuine trade-offs and confirms the write-off plan. Apply confirmed changes to journeys and models (including operation contracts) and record the write-off. Freezing hands the design rows and current model to `design-implement`, which identifies affected implementation paths and tests. Read implementation for evidence only.
 
-## 路径分档
+## Rules
 
-| 路径 | 适用条件 | 走法 |
-|---|---|---|
-| **轻量路径** | 1–2 个局部决定、影响面单一清晰，且用户未要求独立复审 | 第 1–4 步首轮合并完成（给证据、推荐与对应拟改清单），免第 5 步独立 subagent（主 agent 自查）；用户选定项与已展示拟改清单一致时，记下确认直接走第 7–8 步；若改选其他选项或追加改变目标文件的条件，先补确认更新后的清单 |
-| **标准路径** | 多题、跨模块契约、核心取舍，或拿不准轻重 / 用户点名复审 | 完整走第 1–8 步，第 5 步派新上下文独立复审 subagent |
+1. Cite primary sources for material evidence, identify unknowns and their impact, and surface agent-selected trade-offs individually at confirmation.
+2. Record decisions on their numbered questions and put settled or explicitly provisional choices in the plan. Record user confirmation before writing design files. Keep changes, commits and actual verification current before stopping or committing in batches.
+3. Run a fresh-context independent review before asking the user to confirm a full discussion. Obtain separate confirmation before irreversible external actions.
+4. Reopen the affected question if new semantics appear or evidence invalidates a premise; preserve unaffected decisions.
 
-处于只读模式（如 Plan mode）时，可先正常完成取证分析与问答；在写入讨论文件与核销表前（标准路径第 5 步前、轻量路径第 7 步前）请用户切出只读模式落盘讨论文件。
+## Workflow
 
-## 八步
+For a new checkout or handover, use `design-next` first. Resume a brief interruption from the current record.
 
-1. **建讨论文件** `discuss/NNNN-<topic>.md`（时序编号）：写明目的（区分总体目标与本轮可独立验证的具体交付范围）、输入（只列同主题未完成讨论）与顶部登记表；用户已明确的内容直接记录，不重复问。
-   完成：状态 `讨论中（日期）`，交付范围与完成标准明确。
-2. **取证与提议**，按依赖排序：
-   - 核实关键技术前提并注明来源（文档 / 代码 / 用户告知 / 实测）；须靠探针或运行实测核实的前提写明验证时机与回退方案（实测推翻前提时回第 3 步）；无法核实的标未知与影响。
-   - 触及地图配对的设计与实现时两边同查，核对行为、契约与数字；发现具体重复或多处同步负担时，一并评估并提议合并或移交实现/测试承载。
-   - 已裁结果优先存入权威文件，允许经确认落盘带留白的设计或 skill 草稿；延后某项交付须说明实际未决依赖。
-   完成：每条关键证据有明确来源或未知边界。
-3. **提问与裁决**：
-   - 互不阻塞的独立问题可同轮合并提问（2–4 题），有上下游依赖的问题按依赖串行追问；正文记录证据、选项与裁决（含改裁），每次变动同步顶部登记表。
-   - 收到裁决后主动推进余题；范围变化时按 [DISCUSSION-FILE.md](./DISCUSSION-FILE.md) 保留未受影响项、只重裁受影响项。
-   - 术语定案当轮写下完整中英定义与 `_Avoid_`。明确无需改文件的讨论直接标 `✅ 已完成（日期）` 并本地提交，结束流程。
-   完成：登记表无「待裁」行，暂缓与留白写明。
-4. **起草核销表**：在 `## 核销表` 节按裁决列出目标文件与改动/验证计划（保留此计划列供追溯）；核对本轮承诺交付与地图配对另一边的同步处置；含实现改动时列出测试、类型/语法检查与运行实测；生产迁库、线上发布等外部不可逆动作单列并注明执行前单独确认。禁止借核销表夹带未裁新决定。
-   完成：每条已裁与承诺交付均有目标行或明确的暂缓/不改处置。
-5. **独立复审**（标准路径执行；轻量路径主 agent 自查跳过）：
-   - 按 [REVIEW-BRIEF.md](./REVIEW-BRIEF.md) 派新上下文只读 subagent（优先选比主 agent 更强的可用模型，不可用时用同级独立模型并说明），给用户原始诉求摘要、讨论文件与仓库，不给对话。
-   - 主 agent 回源核验发现并记入复审节：机械遗漏直接修入核销表；当前设计在背景、问题、目标或逻辑上的实质疑点回第 3 步；改进或更简替代方案同时满足三项（服务本轮问题目标、相对当前方案有优势且代价可接受、改变实质取舍；代价是否可接受本身未决时一并交用户）才回第 3 步，其余简短记下理由。
-   - 重写核销表后主 agent 自查；改动大时在第 6 步问用户是否再派增量复审。
-   完成：发现已核验，重写行已自查。
-6. **请用户确认**：对话里给出精简确认摘要（一句话范围 + 改动文件与要点 + 未验证项与需单独确认的不可逆操作边界，不贴整张长表），状态改 `待落盘（日期）`。收到确认后、改其他文件前，先把确认记录写进讨论文件 `## 核销表` 节。
-   完成：用户已确认且已记入讨论文件。
-7. **落盘与验证**：
-   - 按表修改文件，对照 `WRITING.md` 与 `design-writing` 核对保真并同步影响面；出现裁决外的新语义或实测推翻前提时回第 3 步。
-   - 跑 `./check.sh`、实现测试/实测与启用集成的图校验；写回过外部目标的中枢重抓并更新文件头。
-   - 含多次提交或中途停下前，先把已完成改动、commit 与实测结果记入 `## 核销表`（或 `## 分批核销`），供跨会话接手。
-   完成：`./check.sh` 退出码 0，要求的实现验证与图校验通过（缺能力按退路跳过并在第 8 步披露）。
-8. **核销与提交**：
-   - 在原表就地补填「实际结果与验证」列，整轮完成时将节标题改为 `## 核销（日期）`（去序号后以「核销」开头且不紧跟「表」），披露未验证项，状态头改 `✅ 已完成（日期）` 并冻结。
-   - 按 `CLAUDE.md` 守则第 4 条提交目标文件、本轮讨论及消费的研究文件，提交说明引用讨论编号；提交后用 `git show HEAD:discuss/<本轮文件>` 读前几行确认状态头为 `✅ 已完成（日期）`。
-   完成：commit 已建且 `git show` 核对状态头无误。
+1. **Open the discussion:** Create `record/discuss/NNNN-<topic>.md` from `assets/discussion.md` stating background, goal, exclusions, constraints and affected journeys or system scenarios. Ask only for material context only the user knows.
+2. **Verify evidence:** Check current behavior and assumptions against journeys, models, ADRs, implementation and primary sources (put external research in `record/research/`). Separate facts, inferences and unknowns; for measurable assumptions, state when to verify and how to recover if disproved.
+3. **Derive the target model** with `references/design-method.md`:
+   - Pick a clear best option yourself and show its rationale and declined alternatives; tell the user promptly about choices that shape later decisions or externally visible behavior.
+   - Ask independent questions together and base questions before dependent ones.
+   - Keep interface contracts, data shapes and failure boundaries in the model; mark delegated internal implementation choices explicitly.
+   - If discussion ends with no file changes, record the conclusion and close it.
+4. **Draft the write-off plan:** Summarize what changes in the target model. Under `<!-- write-off-plan -->`, map each decision to its journey or model change (one file or section per row; include deferred or unchanged items as applicable), verification (`./check.sh` and manual checks) and actual result. Record the handoff on freeze.
+5. **Run independent review:** Send `assets/review-brief.md` to a fresh-context read-only sub-agent (prefer a stronger model if available and record the choice). Verify each finding at the source, fix mechanical omissions, reopen only impacted decisions for new semantics, reopen for an alternative only if all three thresholds hold, and record reasons for declining other findings. Offer incremental review after reconsideration using the same brief with incremental scope.
+6. **Confirm before writing:** Present the goal, target model (with a diagram when helpful), review conclusion, each agent decision, files to change, verification gaps, separate irreversible actions and implementation authorization on freeze. Ask design questions and confirmation separately, carrying forward explicit prior authorization. Record the confirmation excerpt, date, scope and conditions, mark agent choices confirmed, and set `pending-write-off`.
+7. **Write off and freeze:** Apply the plan with `design-writing`. Run `./check.sh` and validate new or changed diagrams with the enabled integration (or disclose the gap). Record actual results and verification, replace `<!-- write-off-plan -->` with `<!-- write-off -->`, and set `completed`. Commit scoped design, discussion and consumed research with the discussion ID. Freezing hands off implementation, which can continue in the same session.
 
-## 工具包的事
+**Light path:** For one or two localized choices with a clear single impact area and no requested review, omit the plan and review and combine modeling with confirmation. Keep a header, brief goal, and per-question evidence, decision, decision maker, proposed change and actual result. Reconfirm if the user's choice alters the proposed edit. Use the full path when uncertain.
 
-内核、集成 skill 与内置模板属于 `discuss-design` 工具包，工作区提交的是受管副本。讨论中发现问题出在工具包自身时，本轮记「不改：属于工具包，去工具包仓开讨论」并留清证据，不改本地受管副本。
+For toolkit problems, record the evidence and open the change in the toolkit repository. Versioned workspace copies are managed by upgrade or link.
 
-## 讨论文件约定
+## Working with the user
 
-- **登记表**：紧跟状态头，列 `题 / 状态（待裁 · 已裁 · 被取代 → 取代者）/ 现行裁决 / 详见`。
-- **状态头**：`> 状态：**<词>（日期）**`，词仅限 `讨论中` / `待落盘` / `✅ 已完成` / `⛔ 已中止`；仅在暂停、分批落盘、中止、事后更正四种情形后接 `—— 说明`（见 [DISCUSSION-FILE.md](./DISCUSSION-FILE.md)）。
-- **结论归宿**：持续生效的规则按地图落入设计文件，取舍理由进 `adr/`；否决项记在讨论里（需长期防重提的写进相关 ADR）。分批落盘、暂停恢复、中止交接、由发布物改设计或复审他人落盘见 [DISCUSSION-FILE.md](./DISCUSSION-FILE.md)。
+- The agent verifies accessible facts and proposes a recommendation and costs. The user decides genuine preference, priority or risk trade-offs, relevant unknowns only they know, contradictions with settled design, scope expansions and irreversible actions.
+- Keep one independently revisable choice per question and label who decided or recommended it. Keep simple questions short and compare viable alternatives for complex ones.
+- Keep a specified example or established convention set intact by default; ask about conflicts, answer user questions before resuming, and return disproved assumptions or contradictions with evidence.
+- Favor simpler solutions, existing mechanisms and deferrals that preserve structure. Reserve mandatory rules for known failures, machine-consumed formats and authorization boundaries.
 
-## 和用户协作
-
-1. **证据归你，裁决归用户。** 能查的事实自己核实，删既有规则须有行为证据；事实、推断（注依据）与设计选择分开写。给出真实可行的选项、推荐与代价，不凑选项数；有指定参考样板或成套约定时默认整体沿用，只问冲突或需偏离的真实取舍并逐项核对例外。
-2. **按依赖与复杂度弹性提问。** 一道登记行对应一项可独立裁决/改裁的决定；互不阻塞的题同轮合并问，有依赖的先问底层；篇幅随复杂度伸缩，清晰简短即可，复杂题再配具体例子或对比表。
-3. **只对实质未决问题追问，实质顾虑随时提。** 补充已清楚就直接记录推进；反问先答再看有无待裁项；发现矛盾、叠加风险或前提证伪时，无论是否已裁都列明证据提请重裁。
-
-## 推荐取向
-
-1. **简单优先**：概念更少、维护更少、不堵扩展；能推迟且不影响结构的推荐留白。
-2. **现成的能做就不重做**：优先复用现成工具、外部系统或已有 skill。
-3. **概念从严**：不为解释方便造概念；废弃设计从设计文件删净。
+| File | When to use |
+|---|---|
+| [assets/discussion.md](assets/discussion.md) | Discussion header, markers, questions and write-off format. |
+| [references/design-method.md](references/design-method.md) | Goal, journey-driven modeling and comparison. |
+| [assets/review-brief.md](assets/review-brief.md) | Independent reviewer instructions. |
+| [references/rare-cases.md](references/rare-cases.md) | Batches, pause and resumption, abort, changed scope and incoming reviews. |

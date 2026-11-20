@@ -1,46 +1,51 @@
 ---
 name: design-publish
-description: 发布设计并与外部文档双向同步（publish / sync）。用于：把设计发成给人看的文档或更新它；把平台上别人的修改合回来；`publish/` 下的文件与设计或目标不一致时。具体平台的操作在启用的集成 skill 里。
+description: Publish design to a reader-facing document and sync both ways. Use to publish or update a design document, incorporate reader edits, or reconcile a hub with the design or external target.
 ---
 
 # design-publish
 
-> 面向人读的外部发布物称为**目标**，它在工作区里的对应文件 `publish/NNNN-<topic>.<ext>` 称为**中枢**。`NNNN` 是四位时序编号，同一目录内不重复；其中的 markdown 由 `./check.sh` 检查（`README.md` 除外）。中枢用于双向同步，非设计权威，不被设计文件与 skill 引用。
->
-> 本 skill 定义同步模型与能力退路；具体平台命令由 `.discuss_design.yaml` 的 `integrations` 启用对应集成 skill 提供。写或改写文档先读同版本 `design-discuss/WRITING.md` 与本工作区 `design-writing`。
+The external publication is the target; its workspace counterpart is the hub in `doc/NNNN-<topic>.<ext>`. Use the integration skill enabled under `integrations` in `.discuss_design/config.yaml` for platform operations, and load `design-writing` for prose edits.
 
-启停集成后运行 `design-init` 的 `link` 同步受管副本，并将配置与受管改动一同提交；换工具包版本走 `upgrade`（先处理暂存区及升级触碰路径的改动）。平台密钥放平台工具自身配置，不入仓库。
+## Rules
 
-## 中枢格式
+1. Obtain user confirmation before writing to the external target. Preserve comments and formatting; explain any loss before requesting confirmation for full replacement.
+2. Compare locally against committed inputs. Check relevant hub and design paths with `git status --porcelain --untracked-files=all -- <paths>`, listing staged, unstaged and untracked inputs for the user to handle or authorize committing. Ignore unrelated drafts and preserve working state.
+3. Keep credentials in the platform tool's own configuration.
 
-1. **文件头三行引用块**：
-   - `> 目标：<链接>`（未发布写 `未发布`）
-   - `> 与目标：<版本标记> · <日期>`（中枢与目标上次一致的位置，如 revision、修改时间或哈希；未发布写 `未发布`）
-   - `> 与设计：commit <X> · <日期>`（中枢与设计一致的基线 commit；首次未核对写 `未对照`；独立材料不跟设计同步写 `不同步`）
-2. **正文**：初存保留抓取原貌（仅做集成声明的「重抓后的改写」）；后续新写或改写按 `WRITING.md` 人本结构与本工作区 `design-writing` 组织，不存平台评论，已有未动段落不强行追溯重写。
+## Hub format
 
-## 四个同步方向
+Use a unique chronological four-digit number. Keep only hubs and an optional `README.md` in `doc/`. The checker validates Markdown hubs.
 
-同步前只检查**本次参与比较的中枢与设计文件**是否有暂存、未暂存或未跟踪改动（`git status --porcelain --untracked-files=all -- <本次路径>`）；有则列出路径请用户先处理或授权提交，无关路径草稿不阻断，不自动 stash。所有比对在本地基于已提交内容进行。
+```markdown
+> target: <link>
+> target-base: <revision, timestamp or hash> · <date>
+> design-base: commit <X> · <date>
+```
 
-1. **中枢 ↔ 目标（双向免讨论）**：
-   - `未发布` 先新建发布并回填文件头。
-   - **目标 → 中枢**：按 `与目标` 基线版本与当前最新版比出远端修改，合入中枢。
-   - **中枢 → 目标**：用定点写回只改变动块（避免整篇覆盖冲掉他人评论）；两边都改过时以 `与目标` 版本为共同起点合并。写回后重抓覆盖中枢并更新 `与目标`。
-2. **设计 ↔ 中枢（前移 `与设计` 前须双向核对内容差异）**：
-   - **设计 → 中枢（免讨论）**：核对基线 commit 与当前输入 commit 间的设计内容变化，写入中枢。
-   - **中枢 → 设计（须经讨论）**：中枢存在涉及设计的实质修改时，开 `design-discuss` 裁决落盘后再前移 `与设计`。`未对照` 首次同步或 `不同步` 改为同步时，开讨论做首次全文对照。每个方向完成后各自提交。
+Use `unpublished` for both target fields before publication, `uncompared` for a design base pending first comparison, and `unsynced` for an independent document. Use one header format per hub. If a coordinate is missing, unrecognized, ambiguous or conflicting, stop before writing and report it. Save the initial fetched body with only the integration's declared transformations, preserve untouched paragraphs, and keep platform comments on the platform.
 
-## 集成操作与能力退路
+## Sync directions
 
-每个集成 skill 开头声明所支持的操作；缺可选操作时按右列退路执行，并在核销中注明：
+- **Target to hub:** Compare the target baseline with the latest revision and merge reader changes into the hub.
+- **Hub to target:** Publish first for an unpublished hub and populate its fields; otherwise patch changed blocks (using the target baseline as common ancestor when both sides changed). Refetch after writing, replace the hub body with the normalized readback and advance `target-base`.
+- **Design to hub:** Compare changes from `design-base` to the current design and update the hub (no discussion required).
+- **Hub to design:** Take substantive design changes through `design-discuss`, including the first full comparison or switching an independent document to sync. Check both directions before advancing `design-base`.
 
-| 操作 | 要求 | 做什么 | 缺该项时的能力退路 |
-|---|---|---|---|
-| 发布 | 必备 | 在目标平台新建文档并返回链接 | — |
-| 抓取当前 | 必备 | 取目标最新正文 | — |
-| 版本标记 | 必备 | 返回判断目标是否变化的标记 | — |
-| 按版本抓取 | 可选 | 取目标指定历史版本的正文 | 取 git 中上次更新 `与目标` 时的中枢提交作共同起点 |
-| 定点写回 | 可选 | 只改目标里变动的块 | 先合回远端改动，告知整篇覆盖会丢失评论与排版，经用户确认后整篇覆盖 |
-| 重抓后的改写 | 可选 | 将抓回格式转为工作区写法（如图与引用） | 原样保存不改写 |
-| 图的校验 | 可选 | 校验设计或中枢中的图可正常渲染 | 跳过校验，在核销中披露未验证 |
+Target-to-hub and hub-to-target edits follow this workflow directly. Commit each completed direction separately. After changing `integrations` in `.discuss_design/config.yaml`, run `design-init` `link` and commit config and managed updates together.
+
+## Integration capabilities
+
+| Operation | Required | Fallback when absent |
+|---|---|---|
+| Create target and return link | Yes | — |
+| Fetch current body | Yes | — |
+| Get revision marker | Yes | — |
+| Fetch historical body | No | Use the Git hub commit that last updated the target baseline as common ancestor |
+| Patch changed blocks | No | Merge target changes first, disclose comment and formatting loss, and confirm whole-document replacement |
+| Normalize reread content | No | Save as fetched |
+| Validate diagrams | No | Skip and disclose in write-off |
+
+| File | When to use |
+|---|---|
+| [references/legacy.md](references/legacy.md) | Hub uses legacy Chinese headers or its `design-base` predates earlier layout renames. |
