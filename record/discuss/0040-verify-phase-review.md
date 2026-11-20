@@ -1,19 +1,20 @@
 # 0040 Verify phase review
 
 > status: in-progress (2026-11-20)
-> location: branch `develop`, baseline `f987efe` (`develop`)
+> location: branch `develop`, baseline `b640595` (`develop`)
+
+Revised 2026-11-20: the first draft was written on `f987efe`. When pushing, `origin/develop` turned out to hold parallel work (acceptance records, a fake-platform smoke entry, delivery records 91 and 92). It was merged without conflict (`e0c6598`) and the background, E1-E2 and the plan below were corrected against it; E3 and Q6 are new.
 
 ## Background and goal
 
 User request: "review and refine the 'verify' phase for this app: what shall we do in verify, and how we do it efficiently?" The user then decided Q1-Q2 below, asked to open this discussion, and asked that it also settle whether and when real-platform acceptance runs (Q4).
 
-Pain at baseline `f987efe`:
+Pain at baseline `b640595` (E3 lists the sources):
 
-- No acceptance record exists: `record/verify/` and `record/deliver/` are absent, while the page has been published 88 times.
-- [model/verify/SPEC.md](../../model/verify/SPEC.md) lists nine entry rows and about ten required changed-boundary cases, but `verify/README.md` registers only two rows, and none of the runtime entries exists.
-- `verify/README.md` claims the local checks cover "All journey logic", which the SPEC itself denies; its "manual page walkthrough" has no steps and targets the published page, which operator/0003 extension 3a forbids as a sandbox.
-- Every real-platform check needs an authorized test Artifact and data, so a slice is slow to accept and nothing runs between slices.
-- The SPEC mixes lasting contract with slice-specific cases from discussion 0039 and a status sentence ("current source/tests have not implemented ...") that goes stale.
+- The practice already ran ahead of the contract. A fake-platform smoke entry exists and four acceptance records exist, one of them on a private test Artifact with its own database. Yet [model/verify/SPEC.md](../../model/verify/SPEC.md) is unchanged: it knows no simulated tier, still says command/lifecycle acceptance "requires actual authorized runtime evidence", and still carries slice-specific cases from discussion 0039 and a status sentence ("current source/tests have not implemented ...") that went stale.
+- `verify/README.md` now labels the fake-platform smoke "a substitute, not integrated acceptance", which the user's Q2 decision reverses for page-side boundaries.
+- Delivery 92 was published without matching acceptance, by the user's explicit waiver. The waiver is honest, but nothing in the contract says what a candidate needs to avoid one: neither the sizing nor the once-per-candidate real-platform run is defined, so each slice re-decides what to run.
+- `./check.sh` exits 1 on the current `origin/develop` tip, independent of this discussion (E3, Q6). Delivery 92 also records that the checker could not run in its session container (mawk, E2).
 
 Goal: define what verify does, which evidence tiers count, how to size a run, and when the real platform is needed, so acceptance is cheap per slice and honest about what only the real platform can prove.
 
@@ -74,6 +75,18 @@ Recommendation: A. It keeps the per-slice loop local and fast, and still gates d
 
 Evidence: the container is ephemeral; a new session reproduces the failure after a stale package index (`apt-get update` was needed before `apt-get install gawk`). Option A (recommended): propose a setup script `apt-get update && apt-get install -y gawk` through the environment tool; the user approves it there. Option B: document the prerequisite only. Cost of A: one approved environment edit.
 
+**Q6 What to do about the failing checker on frozen delivery record 92?** (pending user decision)
+
+Evidence: E3. The record is frozen; the guide allows only discussion renumbering as a freeze exception, and `.discuss_design/checker.sh` is managed (hash-verified), so neither side can be edited here without breaking a rule. Rule 4 of the guide requires `./check.sh` to pass after any change.
+
+| Option | Approach | Cost |
+|---|---|---|
+| A (recommended) | Leave record 92 as written; record the evidence here, raise the waiver case in the toolkit repository (a waived delivery needs a representable upstream), and until then treat this one reported error as a known pre-existing failure, run and report `./check.sh` with it listed | No rule bent; the checker stays red for every future change |
+| B | Edit record 92 to drop or change its upstream line | Fixes the checker; rewrites a frozen record, which the guide forbids without your explicit exception |
+| C | Make a local, hash-breaking change to the managed checker | Fixes it locally; drifts from the toolkit, undone by the next upgrade |
+
+Recommendation: A, with your explicit say-so for B if you prefer a green checker now.
+
 ## Write-off plan
 <!-- write-off-plan -->
 
@@ -86,17 +99,22 @@ Design rows only; entries and harness are implementation work after freeze.
 | 3 | Q4 | `model/operate/deploy/SPEC.md` | The test candidate is supplied once per delivery candidate | `./check.sh` | pending |
 | 4 | Q3 | `model/operate/maintain/SPEC.md` | Environment: GNU or macOS awk required; mawk fails | `./check.sh` | pending |
 | 5 | Q2 | `model/adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md` | Record the trade-off: simulated platform for page-side acceptance, real platform only for platform boundaries before delivery | `./check.sh` | pending |
-| 6 | Handoff | implementation | Build the harness and entries under `verify/` (command, journey selection, exit code), rewrite `verify/README.md` as a journey-step to entry to tier map with authorized-runtime steps and a synthetic test-data scope, note the awk prerequisite in `operate/maintain/README.md`, update the guide map; first acceptance record follows | `./check.sh`, registered tests | deferred to implementation |
+| 6 | Handoff | implementation | Extend `verify/fake-platform-smoke.js` into journey-selectable entries (command, journey selection, exit code) for the SPEC's boundary classes, covering the paths README lists as uncovered; rewrite `verify/README.md` as a journey-step to entry to tier map, drop the "substitute, not acceptance" wording, give the authorized-runtime run concrete steps and a synthetic test-data scope; `operate/maintain/README.md` already notes the awk prerequisite as of `b640595` (confirm wording); update the guide map | `./check.sh`, registered tests | deferred to implementation |
+| 7 | Q6 | none in this workspace unless the user chooses B | Option A: no file change; record the toolkit report | none | pending |
 
 ## Evidence
 
 ### E1 The page's platform surface is small and a fake runs it
 
-Source: `impl/arena.html` boot (`window.claude.use` for `db`, `assets`, `sample`, `user`; `db.collection().where().onSnapshot`, `db.doc().get/set/update/delete`; `assets.upload`; `sample.json`, `sample.limits`; `user.me`). Spike (scratch only, not in the repo): about thirty lines of in-memory fake plus pre-installed headless Chromium booted the unmodified page with zero page errors and rendered the empty Today screen. Inference: seeded fixtures plus fault injection can drive the journeys. Unknown: whether the fake covers every call used in the recording and match paths (the spike did not exercise them) and whether a private test Artifact has a db isolated from production; verify both when building the harness and the first authorized run, and treat an unproven substitution boundary as `unverified`.
+Source: `impl/arena.html` boot (`window.claude.use` for `db`, `assets`, `sample`, `user`; `db.collection().where().onSnapshot`, `db.doc().get/set/update/delete`; `assets.upload`; `sample.json`, `sample.limits`; `user.me`). Spike (scratch only, not in the repo): about thirty lines of in-memory fake plus pre-installed headless Chromium booted the unmodified page with zero page errors and rendered the empty Today screen. Inference: seeded fixtures plus fault injection can drive the journeys. Superseded by E3 for the "does it work" part: the repository's `verify/fake-platform-smoke.js` already does this and acceptance record `20261120-first-loop-test-artifact` shows a separate private test Artifact with its own database was used. Remaining unknown: whether the fake covers the match, retention and photo paths (README names them as not covered).
 
 ### E2 `./check.sh` failure on Linux
 
 Source: command output in this session. `./check.sh` exited 2 ("REcompile() panic ... Broken link scan failed") under mawk 1.3.4-20240123; the failing patterns are in `.discuss_design/visible-text.awk` (lines 157, 180, 207 and others). After `apt-get update && apt-get install -y gawk`, `./check.sh` printed "Checks passed" (exit 0) and the logic suite printed "all logic tests passed". The checker header assumes the macOS awk. Unknown: whether newer mawk releases fix it.
+
+### E3 What `origin/develop` already holds
+
+Sources: `verify/README.md`, `verify/fake-platform-smoke.js` (`node verify/fake-platform-smoke.js impl/arena.html`, needs `playwright`), and the `record/implement/`, `record/verify/` and `record/deliver/` directories (six implementation records, four acceptance records, two delivery records at `b640595`). Facts: the simulated tier and a real-test-Artifact acceptance have both been run, so the design here ratifies and sizes existing practice rather than inventing it. The test-Artifact acceptance judged some conditions from database state only, because the user reported no on-screen observations; conditions without a database trace stayed unverified. The latest delivery (version 92) rests on the user's explicit waiver of acceptance; its `## Upstream` lists the previous delivery, while the checker expects an acceptance record, so `./check.sh` fails at `origin/develop` tip `b640595` with "Upstream record does not exist" for that delivery record. Both delivery records are completed and therefore frozen. Inference: the template lists covered acceptance records as upstream; with no acceptance there was nothing valid to list. Unknown: whether the toolkit intends waived deliveries to be representable.
 
 ## Agent decisions
 
