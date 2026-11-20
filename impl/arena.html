@@ -734,13 +734,81 @@ function leftMix(todo, leftIds) {
 function makeDailyPaper(list, uid, owner, today, fmt, subject, madeAt) {
   // 每日卷：一个科目，按当天清单的顺序，只给 uid 做；madeAt 是生成时刻
   return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today, madeAt: madeAt || null,
-    subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
+    subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id), handedIn: {} };   // handedIn 写 {}：新卷明确还没人交，不走旧卷的「有作答即已交」推断（DATA.md papers）
 }
 function openDailyPaper(papers, view, uid, subject) {
   // 这一科给我、我还没交的每日卷里最新的一张（madeAt，否则 createdAt；再按 id）：再开始这一科的重做时，新卷从它带上已填的回答；旧式混合卷（subject 为 null）不取
   const key = p => String(p.madeAt || p.createdAt || '');
   return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid))
     .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+function protectedDailyPapers(papers, view, uid, subject) {
+  // 受保护的未交每日卷：给我的、有科目、我还没交确认、但已有我的已存作答；最新的在前（madeAt 否则 createdAt，再按 id）。旧卷没有 handedIn，有作答即视为已交，不在此列；只有没有我的已存作答的未交草稿才允许被新批次取代
+  const key = p => String(p.madeAt || p.createdAt || '');
+  return papers.filter(p => isDaily(p) && p.for === uid && p.subject && (!subject || p.subject === subject) && !handedInAt(p, view, uid) && paperProgress(p, view).done > 0)
+    .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)));
+}
+function replaceableDailyPapers(papers, view, uid, subject) {
+  // 这一科给我的未交、且没有我的已存作答的每日卷：开始新批次时被取代（旧式混合卷 subject 为 null 不取）
+  return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid) && paperProgress(p, view).done === 0);
+}
+function recoverRun(paper, view) {
+  // 受保护卷的恢复状态：已存作答还原成回答与判定并标为已存（之后不再按空缓冲重判）；其余回答取卷上暂存的 responses
+  const responses = {}, results = {}, saved = {};
+  for (const [id, v] of Object.entries(paper.responses || {})) if (typeof v === 'string' && v) responses[id] = v;
+  for (const r of paperAttempts(paper, view)) if (r.ex && r.attempt) { responses[r.id] = String(r.attempt.response || ''); results[r.id] = r.attempt.result; saved[r.id] = true; }
+  return { responses, results, saved };
+}
+function paperAssessment(paper, view, uid) {
+  // 已交与评定完整是两回事：评定完整是卷上仍在的每道题都有我的已存判定；没有剩余题是空卷，不算完整；派生，不存
+  const pr = paperProgress(paper, view);
+  return { handedIn: !!handedInAt(paper, view, uid), judged: pr.done, total: pr.total, pending: pr.total - pr.done, complete: pr.total > 0 && pr.done === pr.total, empty: pr.total === 0 };
+}
+function previewCheck(preview, previewOwner, scopeOwner, exs) {
+  // 检验卷创建前：预览属于当前归属人范围，且每道题仍在当前内容库（同归属人）；否则要重新预览，不把旧题 id 与新 owner 合写
+  if (!preview || !preview.length) return { ok: false, reason: 'empty', ids: [] };
+  if (!sameOwner(previewOwner, scopeOwner)) return { ok: false, reason: 'scope', ids: [] };
+  const byId = new Map(exs.map(e => [e.id, e]));
+  const gone = preview.filter(e => { const c = byId.get(e.id); return !c || !sameOwner(c.owner, scopeOwner); }).map(e => e.id);
+  return gone.length ? { ok: false, reason: 'missing', ids: gone } : { ok: true, reason: '', ids: preview.map(e => e.id) };
+}
+function setOwnership(set, exs) {
+  // 题组归属状态：'legacy' 无已存 owner；'conflict' 有 owner、但可见成员的 owner 与它不同；'owned' 有效。只读判断，不推断也不写入 owner
+  if (!set || typeof set.owner !== 'string' || !set.owner.trim()) return 'legacy';
+  if (exs.some(e => e.setId === set.id && !sameOwner(e.owner, set.owner))) return 'conflict';
+  return 'owned';
+}
+function checkSetLink(set, subject, owner, exs) {
+  // 新建或改变错题对题组的引用：题组必须存在、归属有效、与错题同归属人、同科目（原有兼容引用不走这里）
+  if (!set) return { ok: false, reason: 'missing' };
+  const o = setOwnership(set, exs);
+  if (o !== 'owned') return { ok: false, reason: o };
+  if (!sameOwner(set.owner, owner)) return { ok: false, reason: 'owner' };
+  if (set.subject !== subject) return { ok: false, reason: 'subject' };
+  return { ok: true, reason: '' };
+}
+function cleanupDecision(set, members, goneId, exs) {
+  // 最后成员清理：只在题组归属有效、且新读到的完整当前成员（members，读失败为 null）除去刚移出的之外为空时才删；其余保留，reason 说明为何保留
+  if (!set) return { del: false, reason: 'gone' };
+  if (setOwnership(set, exs) !== 'owned') return { del: false, reason: 'ownership' };
+  if (!Array.isArray(members)) return { del: false, reason: 'membership' };
+  if (members.some(m => m.id !== goneId)) return { del: false, reason: 'members' };
+  return { del: true, reason: '' };
+}
+function bankEdit(oldBank, newBank, members) {
+  // 词表改动：只加词、重排不会破坏答案；删词须有完整当前成员（members，读失败为 null）才能判断，不确定就阻止；lost 是答案不在新词表里的成员选词题
+  const keep = new Set(newBank.map(normAnswer));
+  const removed = oldBank.filter(w => !keep.has(normAnswer(w)));
+  if (!removed.length) return { destructive: false, blocked: false, lost: [] };
+  if (!Array.isArray(members)) return { destructive: true, blocked: true, lost: [] };
+  return { destructive: true, blocked: false, lost: members.filter(x => x.format === 'pick' && !keep.has(normAnswer(x.answer))) };
+}
+function setPatch(base, form) {
+  // 题组材料编辑只写用户真改了的字段（对打开表单时的 base 比），不回写 owner、subject、createdAt，也不把旧表单里没改的词表写回去
+  const norm = f => ({ title: String(f.title || '').trim(), text: String(f.text || '').trim(), source: String(f.source || '').trim(), images: Array.isArray(f.images) ? f.images.slice() : [], wordBank: parseList(f.wordBank) });
+  const a = norm(base), b = norm(form), out = {};
+  for (const k of Object.keys(b)) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out[k] = b[k];
+  return out;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -1426,7 +1494,8 @@ const S = {
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, detailFrom: null, todayScroll: 0, nmSubj: {}, nmOpen: {}, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
-  settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
+  settingsMsg: null, errMsg: null, notice: null,   // errMsg：写数据出错，显示在当前标签页最上方；notice：错题已改好、但题组清理等后续没做时的提示
+  paperPreviewOwner: null,   // 检验卷预览时的默认归属人；创建前要与当前范围核对
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
 };
@@ -1480,9 +1549,38 @@ function nextPos(setId) {
   pendingPos[setId] = m + 1;
   return m + 1;
 }
+async function readMembers(setId) {
+  // 一道题组当前全部成员（不限归属人）：用查询新读一次，不靠按归属人订阅的快照；平台不支持、被拒或失败时返回 null，调用处按「无法确认」保留或阻止
+  try {
+    const q = S.db.collection('exercises').where('setId', '==', setId);
+    if (!q || typeof q.get !== 'function') return null;
+    const snap = await q.get();
+    if (!snap || !Array.isArray(snap.docs)) return null;
+    return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  } catch (err) { return null; }
+}
+const KEPT_SET = { ownership: "its ownership isn't recorded or conflicts (legacy set)", membership: "the page couldn't confirm that no other question uses it", failed: "removing it failed" };
 async function cleanupSet(setId, goneId) {
+  // 最后成员清理：条件见 cleanupDecision；保留不算失败，错题的变化已成功，另行提示一句，不批量清别的题组、不删照片
   if (!setId) return;
-  if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
+  const set = setById(setId), members = set ? await readMembers(setId) : null;
+  const d = cleanupDecision(set, members, goneId, S.exercises);
+  let why = d.reason;
+  if (d.del) { try { await S.db.doc('sets/' + setId).delete(); return; } catch (err) { why = 'failed'; } }
+  if (KEPT_SET[why]) S.notice = `The question set was kept because ${KEPT_SET[why]}.`;
+}
+function draftLinkError(d) {
+  // 保存前核对草稿对题组的引用：新建或改变的引用要与题组同归属人、同科目；原有兼容引用（编辑时不变）保留；部分保存的新题组按其已存归属核对，不静默分享、复制或改归属
+  const ref = String(d.setRef || ''), owner = d.editId ? d.owner : recOwner();
+  if (!ref) return '';
+  if (ref.startsWith('new:')) {
+    const sd = setOfDraft(d);
+    return sd && sd.savedId && !sameOwner(sd.savedOwner, owner) ? 'This question set was already saved for a different owner. Discard it and record these questions again under the intended owner.' : '';
+  }
+  if (d.editId && ref === d.origSetId) return '';
+  const c = checkSetLink(setById(ref), d.subject, owner, S.exercises);
+  if (c.ok) return '';
+  return { missing: 'The question set is no longer available.', legacy: "This question set has no recorded owner yet (older data), so new questions can't be added to it.", conflict: "This question set's owner conflicts with its questions, so new questions can't be added to it.", owner: 'This question set belongs to a different owner. Switch back to that library or record these questions as a new set.', subject: 'The question set has a different subject.' }[c.reason] || 'The question set cannot be used.';
 }
 // 照片展开或收起记在哪：作答页 S.run.openPhotos，卷子详情 S.paperOpenPhotos；按这组照片（id 用逗号连起来）记，翻到有同一组照片的题时沿用；别处不记
 function photoStore() { return S.run ? (S.run.openPhotos = S.run.openPhotos || {}) : (S.tab === 'papers' && S.paperView) ? S.paperOpenPhotos : null; }
@@ -1541,6 +1639,7 @@ function render() {
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
   else if (S.status === 'nodb') h += `<div class="panel"><p class="h2">Data unavailable</p><p class="muted">Sign in with an invited Claude account, then open this page again. The exercises and answers live in this page's database, which can only be read and written after signing in.</p></div>`;
   else if (S.errMsg && !S.run) h += `<p class="note err">${esc(S.errMsg)}</p>`;
+  if (S.status === 'ready' && S.notice && !S.run) h += `<p class="note">${esc(S.notice)}</p>`;
   if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
@@ -1611,11 +1710,19 @@ function todayBlock(today, redo, cps, todo, view) {
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
+  const prot = protectedDailyPapers(S.papers, view, S.me);
+  if (prot.length) {
+    // 已存了作答、但没交成的每日卷：不论此刻有没有到期题都列出，点开恢复；该科处理前不开新批次
+    h += `<div class="today-papers"><p class="h3">Unfinished hand-ins</p><p class="muted small">Part of these papers is already saved. Finish one before starting a new batch in the same subject.</p><div class="list">${prot.map(p => {
+      const pr = paperProgress(p, view);
+      return `<button type="button" class="item" data-act="recover-daily" data-id="${esc(p.id)}"><span class="t">${paperTag(p)} ${esc(pname(p))}</span><span class="side"><span class="num">${pr.done}/${pr.total} saved</span></span><span class="meta"><span>started ${fmtDate(p.createdAt)}</span></span></button>`;
+    }).join('')}</div></div>`;
+  }
   if (cps.length) {
     // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
     h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => {
-      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
-      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
+      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me), asm = paperAssessment(p, view, S.me);
+      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}${handed && asm.pending ? ` · ${asm.pending} to judge` : ''}</span></span>`;
       const body = `<span class="t">${paperTag(p)} ${esc(pname(p))}</span>${side}<span class="meta"><span>set ${fmtDate(p.createdAt)}</span></span>`;
       return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
     }).join('')}</div></div>`;
@@ -1927,8 +2034,9 @@ function renderPaperRun() {
     // 得分立即显示，一行：客观题交卷即判，主观题自评存好后算进；对错分布看翻页条的颜色
     const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? '<span class="small muted">Mark your written answers</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
+    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? `<span class="small muted">Handed in, not fully assessed: mark your ${plural(toMark, 'written answer')}</span>` : R.handed ? '<span class="small muted">Fully assessed</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
   }
+  if (R.phase === 'answer' && R.recovered) h += `<p class="note">Recovered: ${plural(Object.keys(R.saved).length, 'answer')} already saved. Hand in again to finish saving the rest.</p>`;
   if (R.phase === 'answer' && R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
     h += `<div class="note err">${R.warn.must.map(w => `<div>${esc(w)}</div>`).join('')}${R.warn.missing.length ? `<div>No answer yet: questions ${R.warn.missing.map(n => `<button type="button" class="linkbtn" data-act="card-go" data-v="${n - 1}">${n}</button>`).join(', ')}.</div>` : ''}<div>You can fix them, or hand in anyway.</div></div>`;
@@ -2320,7 +2428,7 @@ function renderDetail() {
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
-    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
+    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span>${setOwnership(qs, S.exercises) === 'owned' ? `<button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button>` : ''}</div>${setOwnership(qs, S.exercises) === 'owned' ? '' : `<p class="note">This question set has no confirmed owner yet (older data). You can still practise and edit its questions, but the shared material can't be edited and new questions can't be added until its ownership is repaired.</p>`}`;
   }
   h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
@@ -2446,6 +2554,9 @@ function renderPaperSheet(paperId) {
   const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
   // 摘要：左上角返回、类型标签、分数一行，卷名与交卷时刻在下一行
   let h = `<div class="progress sheet-top">${back}${paperTag(p)}<div class="grow"></div><span class="score num">${sc.right}/${sc.total}</span><div class="sum-name"><span class="h3 ellip">${esc(pname(p))}</span><span class="small muted ellip">Handed in ${esc(when)}</span></div></div>`;
+  const asm = paperAssessment(p, mine(), S.me);
+  if (asm.empty) h += `<p class="note">No questions are left on this paper, so there is nothing to assess.</p>`;
+  else if (asm.handedIn && !asm.complete) h += `<p class="note">Handed in, but not fully assessed: ${plural(asm.pending, 'question')} on this paper ${asm.pending === 1 ? 'has' : 'have'} no saved judgment yet.</p>`;
   if (!rows.length) return h;
   const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
@@ -2677,6 +2788,12 @@ async function flushResponses(R) {
   if (R.saveP) await R.saveP.catch(() => {});
   if (R.dirty && !R.handing) await saveResponses(R);
 }
+function openRecovery(p) {
+  // 恢复一张受保护的未交每日卷：已存作答还原为回答与判定（标为已存），回到作答页，再点 Hand in 只补写缺的作答与交卷确认
+  const rr = recoverRun(p, mine());
+  S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: rr.responses, results: rr.results, saved: rr.saved, idx: 0, openSets: {}, openPhotos: {}, recovered: true };
+  render(); window.scrollTo(0, 0);
+}
 async function writeAttempts(e, attempts) {
   // e 是原文档，attempts 是所有人的全部作答；阶梯按人现算，不写派生字段
   await S.db.doc('exercises/' + e.id).update({ attempts });
@@ -2697,7 +2814,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2723,8 +2840,12 @@ document.addEventListener('click', async ev => {
         // 每次都按这一科此刻的一批（先没做过的、再最久没用的）新组一张；带上这一科最新那张没交的每日卷上、新卷也有的题的回答；写好新卷后删掉本人这一科所有没交的每日卷；没有到期题就不组卷
         const today = localToday(), subj = b.dataset.subject;
         if (!SUBJ[subj]) break;
-        const view = mine(), last = openDailyPaper(S.papers, view, S.me, subj);
-        const olds = S.papers.filter(x => isDaily(x) && x.for === S.me && x.subject === subj && !handedInAt(x, view, S.me));
+        const view = mine();
+        // 这一科有已存我作答的未交卷：先恢复最近一张，其余在 Today 的未完成列表里；处理完才开新批次，绝不取代或删除它
+        const prot = protectedDailyPapers(S.papers, view, S.me, subj);
+        if (prot.length) { openRecovery(prot[0]); break; }
+        const last = openDailyPaper(S.papers, view, S.me, subj);
+        const olds = replaceableDailyPapers(S.papers, view, S.me, subj);
         const list = subjectBatch(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit, subj);
         if (!list.length) { render(); break; }
         const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
@@ -2738,6 +2859,7 @@ document.addEventListener('click', async ev => {
         S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: Object.assign({}, carried), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} };
         render(); window.scrollTo(0, 0); break;
       }
+      case 'recover-daily': { const rp = S.papers.find(x => x.id === b.dataset.id); if (rp) openRecovery(rp); break; }
       case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
       case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); break;
       case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); break;
@@ -2762,7 +2884,7 @@ document.addEventListener('click', async ev => {
             if (must.length || missing.length) { R.warn = { must, missing }; R.warned = true; render(); window.scrollTo(0, 0); break; }
           }
           R.warn = null;
-          for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
+          for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open' && !R.saved[id]) R.results[id] = judgeAuto(e, R.responses[id] || ''); }   // 已存的作答不按（可能为空的）缓冲重判
           R.phase = 'review'; R.idx = 0;
         }
         R.saving = true; R.err = null; R.handing = true; render(); window.scrollTo(0, 0);
@@ -2809,17 +2931,29 @@ document.addEventListener('click', async ev => {
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
       case 'drop-set': { const k = b.dataset.s; for (const d of S.drafts) if (d.setRef === 'new:' + k) d.setRef = ''; S.setDrafts = S.setDrafts.filter(x => x.key !== Number(k)); render(); break; }
       case 'drop-simg': { const sd = setDraftByKey(b.dataset.s); sd.images.splice(Number(b.dataset.i), 1); render(); break; }
-      case 'edit-set': { const x = setById(b.dataset.id); S.setEdit = Object.assign(newSetDraft(x), { key: 'edit', id: x.id, createdAt: x.createdAt, test: x.test }); render(); break; }
+      case 'edit-set': {
+        const x = setById(b.dataset.id);
+        if (!x || setOwnership(x, S.exercises) !== 'owned') break;
+        const sd = newSetDraft(x);
+        S.setEdit = Object.assign(sd, { key: 'edit', id: x.id, base: { title: sd.title, text: sd.text, source: sd.source, images: sd.images.slice(), wordBank: sd.wordBank } }); render(); break;
+      }
       case 'cancel-set': S.setEdit = null; render(); break;
       case 'save-set': {
-        const E = S.setEdit;
+        // 只写真改了的字段（不回写 owner、subject、createdAt）；删词要先新读完整当前成员，读不到或有别的归属人的成员就阻止，答案会掉出词表也不存
+        const E = S.setEdit, cur = setById(E.id);
+        if (!cur || setOwnership(cur, S.exercises) !== 'owned') { E.error = "This question set's ownership isn't recorded or conflicts, so it can't be edited yet."; render(); break; }
         if (!E.text.trim() && !E.images.length) { E.error = 'Add material text or at least one photo.'; render(); break; }
-        const bank = parseList(E.wordBank);
-        const lost = S.exercises.filter(x => x.setId === E.id && x.format === 'pick' && !bank.some(w => normAnswer(w) === normAnswer(x.answer)));
-        if (lost.length) { E.error = "Can't save: these word-pick answers aren't in the new word bank — " + lost.map(x => `"${plain(x.stem) || x.answer}" (answer ${x.answer})`).join(', ') + '. Change the word bank or these questions first.'; render(); break; }
-        const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), wordBank: bank, createdAt: E.createdAt || localToday() };
-        if (E.test) doc.test = true;
-        await S.db.doc('sets/' + E.id).set(doc);
+        const patch = setPatch(E.base, E);
+        if (!Object.keys(patch).length) { S.setEdit = null; render(); break; }
+        if (patch.wordBank) {
+          const oldBank = parseList(cur.wordBank);
+          const members = bankEdit(oldBank, patch.wordBank, null).destructive ? await readMembers(E.id) : null;
+          const ck = bankEdit(oldBank, patch.wordBank, members);
+          if (ck.blocked) { E.error = "Can't remove words right now: the page couldn't confirm which questions use this set. Try again later, or only add or reorder words."; render(); break; }
+          if (members && members.some(m => !sameOwner(m.owner, cur.owner))) { E.error = "Can't remove words: some questions using this set belong to a different owner."; render(); break; }
+          if (ck.lost.length) { E.error = "Can't save: these word-pick answers aren't in the new word bank — " + ck.lost.map(x => `"${plain(x.stem) || x.answer}" (answer ${x.answer})`).join(', ') + '. Change the word bank or these questions first.'; render(); break; }
+        }
+        await S.db.doc('sets/' + E.id).update(patch);
         S.setEdit = null; render(); break;
       }
       case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
@@ -2853,14 +2987,17 @@ document.addEventListener('click', async ev => {
       case 'paper-preview': {
         const P = S.paperForm;
         S.paperPreview = paperLayout(drawPaper(paperPool(), { subject: P.subject, topics: P.topics, count: Math.max(1, Math.min(50, Number(P.count) || 10)) }));
+        S.paperPreviewOwner = S.settings.defaultOwner;
         S.paperMsg = null; render(); break;
       }
       case 'paper-create': {
         const P = S.paperForm, today = localToday();
+        const chk = previewCheck(S.paperPreview, S.paperPreviewOwner, S.settings.defaultOwner, S.exercises);
+        if (!chk.ok) { S.paperPreview = null; S.paperPreviewOwner = null; S.paperMsg = { kind: 'err', text: chk.reason === 'empty' ? 'Preview the draw first.' : 'The library changed since the preview (a different owner, or some questions are gone). Please preview again.' }; render(); break; }
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
-        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
+        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: chk.ids, owner: S.settings.defaultOwner, handedIn: {} };
         await S.db.collection('papers').doc().set(doc);
-        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
+        S.paperPreview = null; S.paperPreviewOwner = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
       }
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
@@ -2974,6 +3111,8 @@ document.addEventListener('keydown', ev => {
 async function saveDraft(d) {
   const r = draftToDoc(d);
   if (r.error) { d.error = r.error; return false; }
+  const le = draftLinkError(d);
+  if (le) { d.error = le; return false; }
   d.error = '';
   try {
     let setId = null;
@@ -2983,8 +3122,9 @@ async function saveDraft(d) {
         sd.subject = sd.subject || d.subject;
         if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = 'The question set still needs material text or a photo.'; return false; }
         const ref = S.db.collection('sets').doc();
-        await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
-        sd.savedId = ref.id;
+        const setOwner = d.editId ? d.owner : recOwner();
+        await ref.set({ owner: setOwner, subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
+        sd.savedId = ref.id; sd.savedOwner = setOwner;
       }
       setId = sd.savedId;
     } else if (d.setRef) setId = d.setRef;
@@ -3299,7 +3439,7 @@ async function boot() {
     const owner = S.settings.defaultOwner;
     if (subOwner !== undefined && owner === subOwner) return;
     subOwner = owner; subs.forEach(u => u()); subs = [];
-    S.exercises = []; S.papers = []; got.exercises = got.papers = false; pruned = false;
+    S.exercises = []; S.papers = []; S.paperPreview = null; S.paperPreviewOwner = null; got.exercises = got.papers = false; pruned = false;
     if (S.status === 'ready') S.status = 'loading';
     softRender();
     subs.push(db.collection('exercises').where('owner', '==', owner).onSnapshot(snap => {
