@@ -1,127 +1,175 @@
-// 假平台冒烟入口（替代品，不是平台验收）：用内存里的假 db/user 在无头 Chromium 里打开 impl/arena.html，
-// 走讨论 0039 落实的处理器：受保护每日卷恢复、新卷交卷确认初始化、题组清理、题组链接校验、检验卷预览校验、材料编辑。
-// 另覆盖验收 20261120-first-loop-after-0039 #4（读取失败的呈现）、#8（旧题组补录入口）与 #11（卷上已删题的明示）。
-// 用法：node verify/fake-platform-smoke.js impl/arena.html（需要可 require 的 playwright 与 Chromium）。
-// 它只证明页面代码在假平台约定下的行为；真实 db 查询、身份、AI/照片、并发与发布需要授权的测试 Artifact（见 verify/README.md）。
+// 模拟平台验收入口（声明的替代品，证据层级见 model/verify/SPEC.md）：用内存里的假 db/user 在无头 Chromium 里打开 impl/arena.html，
+// 每个用例从同一份种子重新开一页，带旅程编号，可按旅程挑着跑。它只证明页面代码在假平台约定下的行为；
+// 真实 db 查询、身份、AI/照片、真实 db 上的部分写入恢复需要授权的 OFFLINE 测试 Artifact（见 verify/README.md）。
+// 用法：node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008] [--list]
+//   不带 --journeys 跑全部（发布候选必须全跑）；--list 只列用例与旅程。需要可 require 的 playwright 与 Chromium。
 const assert = require('assert'); const path = require('path');
-const { chromium } = require('playwright');
-const target = path.resolve(process.argv[2] || 'impl/arena.html');
+const args = process.argv.slice(2);
+const flag = n => { const i = args.indexOf(n); return i < 0 ? null : (args[i + 1] || ''); };
+const wanted = flag('--journeys') ? flag('--journeys').split(',').map(s => s.trim()).filter(Boolean) : null;
+const target = path.resolve(args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--journeys') || 'impl/arena.html');
 const today = new Date(); const pad = n => String(n).padStart(2, '0');
 const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-const T = iso(today), Y = iso(new Date(today - 86400000 * 3));
-const seed = {
+const ago = n => iso(new Date(today - 86400000 * n));
+const T = iso(today), Y = ago(3);
+const ex = (id, o) => Object.assign({ owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q' + id, answer: 'a', accepted: ['a'], options: [], images: [], createdAt: Y, attempts: [] }, o);
+const baseSeed = () => ({
   users: { uS: { joinedAt: Y } },
   settings: {},
   sets: { SO: { owner: 'uS', subject: 'english', title: 'Owned set', text: 'passage', images: [], wordBank: ['a', 'b'], createdAt: Y }, SL: { subject: 'english', title: 'Legacy set', text: 'old passage', images: [], wordBank: [], createdAt: Y } },
   exercises: {
-    e1: { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q1', answer: 'z', accepted: ['z'], options: [], images: [], createdAt: Y, attempts: [{ by: 'uS', date: T, mode: 'daily', paperId: 'DP1', response: 'z', result: 'right', judgedBy: 'auto', at: T + 'T08:00' }] },
-    e2: { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q2', answer: 'y', accepted: ['y'], options: [], images: [], createdAt: Y, attempts: [] },
-    e3: { owner: 'uS', subject: 'english', topic: 'x', format: 'pick', stem: 'Q3 [[a]]', answer: 'a', options: [], images: [], createdAt: Y, setId: 'SO', setPos: 1, attempts: [] },
-    e4: { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q4', answer: 'w', accepted: ['w'], options: [], images: [], createdAt: Y, setId: 'SL', setPos: 1, attempts: [] },
+    e1: ex('1', { answer: 'z', accepted: ['z'], stem: 'Q1', attempts: [{ by: 'uS', date: T, mode: 'daily', paperId: 'DP1', response: 'z', result: 'right', judgedBy: 'auto', at: T + 'T08:00' }] }),
+    e2: ex('2', { answer: 'y', accepted: ['y'], stem: 'Q2' }),
+    e3: ex('3', { format: 'pick', stem: 'Q3 [[a]]', accepted: undefined, setId: 'SO', setPos: 1 }),
+    e4: ex('4', { answer: 'w', accepted: ['w'], stem: 'Q4', setId: 'SL', setPos: 1 }),
   },
   papers: { DP1: { kind: 'daily', for: 'uS', owner: 'uS', subject: 'english', title: 'English redo', createdAt: T, madeAt: T + 'T07:30', topics: [], count: 2, exerciseIds: ['e1', 'e2'], handedIn: {}, responses: { e2: 'y' } } },
   matches: {},
+});
+
+// 假平台：只实现页面用到的 db/user；故障靠 window.__fail* 注入（__failRead、__failIdentity、__failUsers、__failWrite、__failDelete）
+const initFake = ([seed]) => {
+  const data = JSON.parse(JSON.stringify(seed)); const subs = []; let n = 0;
+  const notify = () => subs.forEach(f => f());
+  const snapDoc = (c, id) => ({ id, data: () => JSON.parse(JSON.stringify(data[c][id])) });
+  const rows = (c, f, v) => Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id));
+  const q = (c, f, v) => ({
+    onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => cb({ docs: rows(c, f, v) }); subs.push(fire); setTimeout(fire, 0); return () => {}; },
+    async get() { return { docs: rows(c, f, v) }; },
+    where(ff, op, vv) { return q(c, ff, vv); },
+  });
+  const doc = (c, id) => ({ id,
+    async get() { if (window.__failUsers && c === 'users') throw new Error('users unavailable'); const d = (data[c] || {})[id]; return { exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }; },
+    async set(v) { (data[c] = data[c] || {})[id] = JSON.parse(JSON.stringify(v)); notify(); },
+    async update(v) {
+      const f = window.__failWrite;   // { n: 失败次数, code, calls, match?: 只对以此开头的 'collection/id' 失败 }
+      if (f && f.n > 0 && (!f.match || (c + '/' + id).startsWith(f.match))) { f.n--; f.calls++; const e = new Error('injected'); e.code = f.code; throw e; }
+      Object.assign(data[c][id], JSON.parse(JSON.stringify(v))); notify();
+    },
+    async delete() { if (window.__failDelete) throw new Error('delete failed'); delete data[c][id]; notify(); },
+    onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => { const d = (data[c] || {})[id]; cb({ exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }); }; subs.push(fire); setTimeout(fire, 0); return () => {}; } });
+  const db = { collection: c => Object.assign(q(c), { doc: id => doc(c, id || 'auto' + (++n)) }), doc: p => { const [c, id] = p.split('/'); return doc(c, id); } };
+  window.__data = data; window.__db = db;
+  window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => { if (window.__failIdentity) throw new Error('no identity'); return { id: 'uS' }; }, profiles: async () => ({}) } : null };
 };
-(async () => {
-  const b = await chromium.launch(); const pg = await b.newPage();
-  const errs = []; pg.on('pageerror', e => errs.push('pageerror ' + e.message)); pg.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
-  const initFake = ([seed]) => {
-    const data = JSON.parse(JSON.stringify(seed)); const subs = []; let n = 0;
-    const notify = () => subs.forEach(f => f());
-    const snapDoc = (c, id) => ({ id, data: () => JSON.parse(JSON.stringify(data[c][id])) });
-    const q = (c, f, v) => ({
-      onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => cb({ docs: Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id)) }); subs.push(fire); setTimeout(fire, 0); return () => {}; },
-      async get() { return { docs: Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id)) }; },
-      where(ff, op, vv) { return q(c, ff, vv); },
-    });
-    const doc = (c, id) => ({ id,
-      async get() { if (window.__failUsers && c === 'users') throw new Error('users unavailable'); const d = (data[c] || {})[id]; return { exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }; },
-      async set(v) { (data[c] = data[c] || {})[id] = JSON.parse(JSON.stringify(v)); notify(); },
-      async update(v) { if (window.__failWrite && window.__failWrite.n > 0) { window.__failWrite.n--; window.__failWrite.calls++; const e = new Error('injected'); e.code = window.__failWrite.code; throw e; } Object.assign(data[c][id], JSON.parse(JSON.stringify(v))); notify(); },
-      async delete() { delete data[c][id]; notify(); },
-      onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => { const d = (data[c] || {})[id]; cb({ exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }); }; subs.push(fire); setTimeout(fire, 0); return () => {}; } });
-    const db = { collection: c => Object.assign(q(c), { doc: id => doc(c, id || 'auto' + (++n)) }), doc: p => { const [c, id] = p.split('/'); return doc(c, id); } };
-    window.__data = data; window.__failGet = false;
-    const realGet = db.collection('exercises').get;
-    window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => { if (window.__failIdentity) throw new Error('no identity'); return { id: 'uS' }; }, profiles: async () => ({}) } : null };
-    window.__db = db;
-  };
-  await pg.addInitScript(initFake, [seed]);
-  await pg.goto('file://' + target); await pg.waitForTimeout(500);
-  const out = {};
-  const txt = async () => (await pg.locator('#app').innerText());
+
+const cases = [];
+const add = (name, journeys, fn, opts) => cases.push({ name, journeys, fn, opts: opts || {} });
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ---- 0002 每日重做 ----
+add('daily-protected-recovery-and-handin', ['0002'], async c => {
+  const { pg, txt, assertOk } = c;
   let t = await txt();
-  out.todayHasRecovery = /unfinished hand-ins/i.test(t) && /1\/2 saved/.test(t);
-  // start-daily for english must recover, not replace
+  assertOk('Today lists the protected unfinished paper', /unfinished hand-ins/i.test(t) && /1\/2 saved/.test(t));
   await pg.locator('[data-act="start-daily"]').first().click().catch(() => {});
   await pg.waitForTimeout(200); t = await txt();
-  out.recoveredBanner = /Recovered: 1 answer already saved/.test(t);
-  out.paperStillThere = await pg.evaluate(() => !!window.__data.papers.DP1);
-  out.paperCountAfterStart = await pg.evaluate(() => Object.keys(window.__data.papers).length);
-  // hand in (answer for e2 is carried from stored responses); marker should be written, attempts for e2 added
+  assertOk('start recovers the paper instead of replacing it', /Recovered: 1 answer already saved/.test(t) && await pg.evaluate(() => !!window.__data.papers.DP1 && Object.keys(window.__data.papers).length === 1));
   await pg.locator('button:has-text("Hand in")').first().click(); await pg.waitForTimeout(300);
-  let again = pg.locator('button:has-text("Hand in anyway")'); if (await again.count()) { await again.first().click(); await pg.waitForTimeout(300); }
-  out.markerWritten = await pg.evaluate(() => !!(window.__data.papers.DP1.handedIn || {}).uS);
-  out.e1AttemptsUnchanged = await pg.evaluate(() => window.__data.exercises.e1.attempts.length === 1);
-  out.e2AttemptSaved = await pg.evaluate(() => window.__data.exercises.e2.attempts.filter(a => a.paperId === 'DP1').length === 1);
-  const click = async (act, data) => { await pg.evaluate(([act, data]) => { const b = document.createElement('button'); b.dataset.act = act; for (const k in data) b.dataset[k] = data[k]; document.body.appendChild(b); b.click(); b.remove(); }, [act, data || {}]); await pg.waitForTimeout(250); };
+  const again = pg.locator('button:has-text("Hand in anyway")'); if (await again.count()) { await again.first().click(); await pg.waitForTimeout(300); }
+  assertOk('hand-in writes the marker and only the missing attempt', await pg.evaluate(() => !!(window.__data.papers.DP1.handedIn || {}).uS && window.__data.exercises.e1.attempts.length === 1 && window.__data.exercises.e2.attempts.filter(a => a.paperId === 'DP1').length === 1));
+});
+
+add('daily-marker-write-fails-then-recovers', ['0002'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  await pg.locator('[data-act="start-daily"]').first().click(); await pg.waitForTimeout(200);
+  await pg.evaluate(() => { window.__failWrite = { n: 99, code: 'permission-denied', calls: 0, match: 'papers/' }; });   // 只让卷子上的确认标记写失败，作答照常写
+  await pg.locator('button:has-text("Hand in")').first().click(); await pg.waitForTimeout(300);
+  const again = pg.locator('button:has-text("Hand in anyway")'); if (await again.count()) { await again.first().click(); await pg.waitForTimeout(300); }
+  assertOk('attempt saved, marker missing, paper kept', await pg.evaluate(() => window.__data.exercises.e2.attempts.filter(a => a.paperId === 'DP1').length === 1 && !(window.__data.papers.DP1.handedIn || {}).uS && !!window.__data.papers.DP1));
+  assertOk('the failure is reported on the page', await pg.evaluate(() => !!(S.run && S.run.err)) && !/handed in\b.*saved\b/i.test(await txt()));
   await click('exit-run'); await click('tab', { v: 'today' });
-  // owned set SO: delete last member through the real handler -> set removed (fresh membership read succeeds)
+  assertOk('after leaving, Today still shows the unfinished paper with every answer saved', /unfinished hand-ins/i.test(await txt()) && /2\/2 saved/.test(await txt()));
+  await pg.evaluate(() => { window.__failWrite = null; });
+  await click('recover-daily', { id: 'DP1' });
+  await pg.locator('button:has-text("Hand in")').first().click(); await pg.waitForTimeout(300);
+  assertOk('retry writes only the marker', await pg.evaluate(() => !!(window.__data.papers.DP1.handedIn || {}).uS && window.__data.exercises.e2.attempts.filter(a => a.paperId === 'DP1').length === 1));
+});
+
+add('daily-paper-with-deleted-question', ['0002'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  await pg.evaluate(async () => {
+    const d = window.__data.papers.DP1.createdAt;
+    window.__data.exercises.e1.attempts.push({ by: 'uS', date: d, mode: 'daily', paperId: 'DP9', response: 'z', result: 'right', judgedBy: 'auto', at: d + 'T09:00' });
+    window.__data.papers.DP9 = { kind: 'daily', for: 'uS', owner: 'uS', subject: 'english', title: 't', createdAt: d, madeAt: d + 'T09:30', topics: [], count: 2, exerciseIds: ['e1', 'gone9'], handedIn: {} };
+    await window.__db.doc('users/uS').update({});
+  });
+  await pg.waitForTimeout(300);
+  await click('recover-daily', { id: 'DP9' });
+  const t = await txt();
+  assertOk('missing question is shown and the rest is recovered', /1 question on this paper was deleted/.test(t) && /Recovered: 1 answer already saved/.test(t));
+}, { seed: s => { s.papers.DP1.handedIn = { uS: T + 'T08:30' }; } });
+
+// ---- 0002/0004 保留期 ----
+const retentionSeed = s => {
+  const mk = (id, o) => { s.papers[id] = Object.assign({ kind: 'daily', for: 'uS', owner: 'uS', subject: 'english', title: id, topics: [], count: 1, exerciseIds: ['e2'], responses: null }, o); };
+  s.papers.DP1.handedIn = { uS: T + 'T08:30' };
+  mk('OLD31', { createdAt: ago(31), handedIn: { uS: ago(31) + 'T10:00' } });
+  mk('EDGE30', { createdAt: ago(30), handedIn: { uS: ago(30) + 'T10:00' } });
+  mk('NEW29', { createdAt: ago(29), handedIn: { uS: ago(29) + 'T10:00' } });
+  mk('OLDOPEN', { createdAt: ago(40), handedIn: {} });
+  mk('OLDOTHER', { createdAt: ago(40), for: 'uO', handedIn: { uO: ago(40) + 'T10:00' } });
+  s.papers.OLDCHECK = { owner: 'uS', madeBy: 'uS', subject: 'english', title: 'check', createdAt: ago(40), topics: [], count: 1, exerciseIds: ['e2'], handedIn: { uS: ago(40) + 'T10:00' } };
+  s.exercises.e2.attempts = [{ by: 'uS', date: ago(31), mode: 'daily', paperId: 'OLD31', response: 'y', result: 'right', judgedBy: 'auto', at: ago(31) + 'T10:00' }];
+};
+add('retention-prunes-only-old-handed-in-daily-papers', ['0002', '0004'], async c => {
+  const { pg, assertOk } = c;
+  await pg.waitForTimeout(400);
+  const left = await pg.evaluate(() => Object.keys(window.__data.papers).sort());
+  assertOk('only the daily paper handed in more than 30 days ago is deleted (' + left + ')', !left.includes('OLD31') && ['EDGE30', 'NEW29', 'OLDOPEN', 'OLDOTHER', 'OLDCHECK', 'DP1'].every(k => left.includes(k)));
+  assertOk('attempts on the deleted paper survive', await pg.evaluate(() => window.__data.exercises.e2.attempts.some(a => a.paperId === 'OLD31')));
+}, { seed: retentionSeed });
+add('retention-failed-delete-is-ignored', ['0002', '0004'], async c => {
+  const { pg, assertOk } = c;
+  await pg.waitForTimeout(400);
+  assertOk('a failed delete keeps the paper, the attempts and the page', await pg.evaluate(() => !!window.__data.papers.OLD31 && window.__data.exercises.e2.attempts.length === 1) && /Today/.test(await c.txt()));
+}, { seed: retentionSeed, flags: { __failDelete: true } });
+
+// ---- 0001/0007 题库与题组 ----
+add('set-cleanup-uses-complete-membership', ['0007'], async c => {
+  const { pg, click, assertOk } = c;
+  await click('tab', { v: 'today' });
   await click('delete-ex', { id: 'e3' });
-  out.ownedSetDeleted = await pg.evaluate(() => !window.__data.sets.SO);
-  // legacy set SL: delete last member -> exercise gone, set kept, notice shown
+  assertOk('owned set is removed with its last member', await pg.evaluate(() => !window.__data.sets.SO));
   await click('delete-ex', { id: 'e4' });
-  out.legacySetKept = await pg.evaluate(() => !!window.__data.sets.SL);
-  out.noticeLegacy = await pg.evaluate(() => S.notice);
-  // membership read failure on an owned set -> kept + notice
-  await pg.evaluate(async () => { window.__data.sets.S2 = { owner: 'uS', subject: 'english', title: 'S2', text: 't', images: [], wordBank: [], createdAt: '2026-01-01' }; window.__data.exercises.e5 = { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q5', answer: 'a', accepted: ['a'], options: [], images: [], createdAt: '2026-01-01', setId: 'S2', setPos: 1, attempts: [] }; });
+  const legacy = await pg.evaluate(() => [!!window.__data.sets.SL, S.notice]);
+  assertOk('legacy set is kept and the notice says why', legacy[0] && /legacy/.test(legacy[1]));
+  await pg.evaluate(() => { window.__data.sets.S2 = { owner: 'uS', subject: 'english', title: 'S2', text: 't', images: [], wordBank: [], createdAt: '2026-01-01' }; window.__data.exercises.e5 = { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q5', answer: 'a', accepted: ['a'], options: [], images: [], createdAt: '2026-01-01', setId: 'S2', setPos: 1, attempts: [] }; });
   await pg.evaluate(async () => { await window.__db.doc('users/uS').update({}); }); await pg.waitForTimeout(300);
   await pg.evaluate(() => { const orig = window.__db.collection; S.rawDb = Object.assign({}, window.__db, { collection: c => { const x = orig(c); const w = x.where; x.where = (...a) => { const y = w(...a); y.get = async () => { throw new Error('boom'); }; return y; }; return x; } }); });
   await click('delete-ex', { id: 'e5' });
-  out.failedReadKeptSet = await pg.evaluate(() => !!window.__data.sets.S2);
-  out.noticeMembership = await pg.evaluate(() => S.notice);
-  // draft link validation: legacy set link rejected; owned set from another owner rejected; unchanged legacy link on edit allowed
+  const failed = await pg.evaluate(() => [!!window.__data.sets.S2, S.notice]);
+  assertOk('a failed membership read keeps the set and says so', failed[0] && /couldn't confirm/.test(failed[1]));
+});
+add('set-link-validation', ['0001', '0007'], async c => {
+  const { pg, assertOk } = c;
   const link = await pg.evaluate(() => {
     window.__data.sets.SO2 = { owner: 'uOther', subject: 'english', title: 'o', text: 't', images: [], wordBank: [], createdAt: '2026-01-01' };
     window.__data.sets.SOK = { owner: 'uS', subject: 'english', title: 'k', text: 't', images: [], wordBank: [], createdAt: '2026-01-01' };
     S.sets = Object.keys(window.__data.sets).map(id => Object.assign({ id, images: [] }, window.__data.sets[id]));
     const d = ref => ({ setRef: ref, subject: 'english', editId: null, owner: null });
-    return { legacy: draftLinkError(d('SL')), other: draftLinkError(d('SO2')), ok: draftLinkError(d('SOK')), unchangedLegacy: draftLinkError({ setRef: 'SL', origSetId: 'SL', subject: 'english', editId: 'e4', owner: 'uS' }), newSetStale: draftLinkError({ setRef: 'new:9', subject: 'english', editId: null }) };
+    return { legacy: draftLinkError(d('SL')), other: draftLinkError(d('SO2')), ok: draftLinkError(d('SOK')), unchangedLegacy: draftLinkError({ setRef: 'SL', origSetId: 'SL', subject: 'english', editId: 'e4', owner: 'uS' }) };
   });
-  out.link = { legacy: !!link.legacy, other: !!link.other, ok: link.ok === '', unchangedLegacy: link.unchangedLegacy === '' };
-  // stale check preview: preview under owner uS, then owner differs -> create refused with re-preview
-  await pg.evaluate(() => { S.paperForm = { subject: 'english', topics: [], count: 5 }; S.settings.defaultOwner = 'uS'; S.paperPreview = [{ id: 'e1' }, { id: 'e2' }]; S.paperPreviewOwner = 'uZ'; });
-  await click('paper-create');
-  out.stalePreviewRefused = await pg.evaluate(() => [S.paperPreview === null, S.paperMsg && S.paperMsg.kind]);
-  await pg.evaluate(() => { S.paperPreview = [{ id: 'e1' }, { id: 'e2' }]; S.paperPreviewOwner = 'uS'; });
-  await click('paper-create');
-  out.freshPaperHasMarker = await pg.evaluate(() => Object.values(window.__data.papers).filter(p => !p.kind).map(p => JSON.stringify(p.handedIn)));
-  // material edit: stale form edits only the title while the stored bank changed elsewhere -> bank/owner/subject untouched
+  assertOk('legacy and other-owner links rejected; owned and unchanged legacy links allowed', !!link.legacy && !!link.other && link.ok === '' && link.unchangedLegacy === '');
+});
+add('material-edit-keeps-bank-and-blocks-legacy', ['0007'], async c => {
+  const { pg, click, assertOk } = c;
   await pg.evaluate(async () => { window.__data.sets.SB = { owner: 'uS', subject: 'english', title: 'Old', text: 't', images: [], wordBank: ['a', 'b'], createdAt: '2026-01-01' }; window.__data.exercises.e6 = { owner: 'uS', subject: 'english', topic: 'x', format: 'pick', stem: 'Q6 [[b]]', answer: 'b', options: [], images: [], createdAt: '2026-01-01', setId: 'SB', setPos: 1, attempts: [] }; await window.__db.doc('users/uS').update({}); });
   await pg.waitForTimeout(300);
   await pg.evaluate(() => { S.rawDb = window.__db; const x = setById('SB'); const sd = newSetDraft(x); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SB', base: { title: sd.title, text: sd.text, source: sd.source, images: [], wordBank: sd.wordBank } }); S.setEdit.title = 'New title'; window.__data.sets.SB.wordBank = ['a', 'b', 'c']; });
   await click('save-set');
-  out.staleFormKeepsBank = await pg.evaluate(() => JSON.stringify(window.__data.sets.SB));
-  // destructive removal that would orphan e6's answer 'b' -> rejected with the question named
+  const sb = await pg.evaluate(() => window.__data.sets.SB);
+  assertOk('a stale unrelated edit does not overwrite bank, owner or subject', sb.title === 'New title' && sb.owner === 'uS' && sb.subject === 'english' && sb.wordBank.join() === 'a,b,c' && sb.createdAt === '2026-01-01');
   await pg.evaluate(() => { const x = setById('SB'); const sd = newSetDraft(Object.assign({}, x, { wordBank: ['a', 'b', 'c'] })); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SB', base: { title: sd.title, text: sd.text, source: sd.source, images: [], wordBank: sd.wordBank } }); S.setEdit.wordBank = 'a; c'; });
   await click('save-set');
-  out.removeUsedWordRejected = await pg.evaluate(() => [S.setEdit && S.setEdit.error, JSON.stringify(window.__data.sets.SB.wordBank)]);
-  // legacy set edit blocked
+  const rm = await pg.evaluate(() => [S.setEdit && S.setEdit.error, JSON.stringify(window.__data.sets.SB.wordBank)]);
+  assertOk('removing a used word is rejected and names the question', /Q6/.test(rm[0]) && rm[1] === '["a","b","c"]');
   await pg.evaluate(() => { const x = setById('SL') || { id: 'SL', subject: 'english', title: 'l', text: 't', images: [] }; const sd = newSetDraft(x); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SL', base: { title: '', text: sd.text, source: '', images: [], wordBank: '' } }); S.setEdit.title = 'x'; });
   await click('save-set');
-  out.legacyEditBlocked = await pg.evaluate(() => S.setEdit && S.setEdit.error);
-  // 验收 #11：受保护的卷里有题已删时，作答页明示缺失，并仍可恢复其余的题
-  await pg.evaluate(async () => {
-    const t = Object.keys(window.__data.papers).length; const today = window.__data.papers.DP1.createdAt;
-    window.__data.exercises.e1.attempts.push({ by: 'uS', date: today, mode: 'daily', paperId: 'DP9', response: 'z', result: 'right', judgedBy: 'auto', at: today + 'T09:00' });
-    window.__data.papers.DP9 = { kind: 'daily', for: 'uS', owner: 'uS', subject: 'english', title: 't', createdAt: today, madeAt: today + 'T09:30', topics: [], count: 2, exerciseIds: ['e1', 'gone9'], handedIn: {} };
-    await window.__db.doc('users/uS').update({});
-  });
-  await pg.waitForTimeout(300);
-  await click('exit-run'); await click('recover-daily', { id: 'DP9' });
-  out.missingShown = /1 question on this paper was deleted/.test(await txt()) && /Recovered: 1 answer already saved/.test(await txt());
-  await click('exit-run');
-  // 验收 #8：旧题组（无 owner）在「From saved material」里不可选，并说明原因；点它不会选中
+  assertOk('editing a legacy set is blocked', /ownership/.test(await pg.evaluate(() => S.setEdit && S.setEdit.error)));
+});
+add('legacy-set-not-selectable-in-saved-material', ['0001', '0007'], async c => {
+  const { pg, click, assertOk } = c;
   await pg.evaluate(async () => {
     window.__data.sets.SL2 = { subject: 'english', title: 'Legacy two', text: 'old', images: [], wordBank: [], createdAt: '2026-01-01' };
     window.__data.exercises.e8 = { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q8', answer: 'a', accepted: ['a'], options: [], images: [], createdAt: '2026-01-01', setId: 'SL2', setPos: 1, attempts: [] };
@@ -129,11 +177,28 @@ const seed = {
   });
   await pg.waitForTimeout(300);
   await click('tab', { v: 'record' }); await click('rec-mode', { v: 'saved' });
-  out.legacyCardBlocked = await pg.evaluate(() => { const m = [...document.querySelectorAll('button.mat')].find(x => /Legacy two/.test(x.innerText)); return m ? [m.disabled, /Owner not recorded/.test(m.innerText)] : null; });
+  const card = await pg.evaluate(() => { const m = [...document.querySelectorAll('button.mat')].find(x => /Legacy two/.test(x.innerText)); return m ? [m.disabled, /Owner not recorded/.test(m.innerText)] : null; });
   await click('mat-pick', { id: 'SL2' });
-  out.legacyNotSelected = await pg.evaluate(() => S.recSet === '');
-  // 写入重试：页面真实的写入路径（S.db）遇到 unavailable 自动重试再成功；别的错误码立刻失败、不重试
-  out.retryUnavailable = await pg.evaluate(async () => {
+  assertOk('legacy material card is disabled with a reason and cannot be picked', Array.isArray(card) && card[0] && card[1] && await pg.evaluate(() => S.recSet === ''));
+});
+
+// ---- 0008 检验卷 ----
+add('check-paper-stale-preview-and-marker', ['0008'], async c => {
+  const { pg, click, assertOk } = c;
+  await pg.evaluate(() => { S.paperForm = { subject: 'english', topics: [], count: 5 }; S.settings.defaultOwner = 'uS'; S.paperPreview = [{ id: 'e1' }, { id: 'e2' }]; S.paperPreviewOwner = 'uZ'; });
+  await click('paper-create');
+  const stale = await pg.evaluate(() => [S.paperPreview === null, S.paperMsg && S.paperMsg.kind]);
+  assertOk('a preview from another owner is refused and needs re-preview', stale[0] === true && stale[1] === 'err');
+  await pg.evaluate(() => { S.paperPreview = [{ id: 'e1' }, { id: 'e2' }]; S.paperPreviewOwner = 'uS'; });
+  await click('paper-create');
+  const made = await pg.evaluate(() => Object.values(window.__data.papers).filter(p => !p.kind).map(p => JSON.stringify(p.handedIn)));
+  assertOk('a new check paper starts with an empty marker map', made.length === 1 && made[0] === '{}');
+});
+
+// ---- 0010 平台适配与故障呈现 ----
+add('write-path-retries-only-unavailable', ['0010'], async c => {
+  const { pg, assertOk } = c;
+  const r = await pg.evaluate(async () => {
     window.__failWrite = { n: 1, code: 'unavailable', calls: 0 };
     const t0 = Date.now(); await S.db.doc('exercises/e2').update({ solution: 'Key idea: retried write.' });
     const ok1 = window.__data.exercises.e2.solution === 'Key idea: retried write.' && window.__failWrite.calls === 1 && Date.now() - t0 >= 450;
@@ -141,37 +206,39 @@ const seed = {
     try { await S.db.doc('exercises/e2').update({ solution: 'should not land' }); } catch (e) { threw = e.code; }
     return { ok1, threw, calls: window.__failWrite.calls, landed: window.__data.exercises.e2.solution === 'should not land' };
   });
-  // 验收 #4：必需的读取失败显示「无法读取」，不是一直加载，也不是空库；身份取不到与无 db 同样不可用；登记失败不挡使用但有提示
-  const failPage = async (flags, seedOverride) => {
-    const p2 = await b.newPage();
-    await p2.addInitScript(f => Object.assign(window, f), flags);
-    await p2.addInitScript(initFake, [seedOverride || seed]);
-    await p2.goto('file://' + target); await p2.waitForTimeout(600);
-    const text = (await p2.locator('#app').innerText()).replace(/\s+/g, ' ');
-    await p2.close(); return text;
-  };
-  out.settingsFail = await failPage({ __failRead: 'settings' });
-  out.exercisesFail = await failPage({ __failRead: 'exercises' });
-  out.identityFail = await failPage({ __failIdentity: true });
-  out.registerFail = await failPage({ __failUsers: true });
+  assertOk('unavailable is retried once and lands; other codes fail at once without landing', r.ok1 && r.threw === 'quota_exceeded' && r.calls === 1 && !r.landed);
+});
+add('read-failure-settings', ['0010'], async c => {
+  const t = await c.txt(); c.assertOk('shows "Couldn\'t read your data" with the settings cause, not loading or empty',
+    /Couldn't read your data/.test(t) && /your settings couldn't be read/.test(t) && !/Opening the exercise book/.test(t) && !/empty/.test(t.replace(/not an empty exercise book/, '')));
+}, { flags: { __failRead: 'settings' } });
+add('read-failure-exercises', ['0010'], async c => c.assertOk('shows "Couldn\'t read your data"', /Couldn't read your data/.test(await c.txt())), { flags: { __failRead: 'exercises' } });
+add('identity-failure', ['0010'], async c => c.assertOk('shows "Data unavailable"', /Data unavailable/.test(await c.txt())), { flags: { __failIdentity: true } });
+add('registration-failure', ['0010'], async c => { const t = await c.txt(); c.assertOk('warns but stays usable', /Couldn't register you/.test(t) && /Today/.test(t)); }, { flags: { __failUsers: true } });
+
+(async () => {
+  const sel = cases.filter(k => !wanted || k.journeys.some(j => wanted.includes(j)));
+  if (args.includes('--list')) { cases.forEach(k => console.log(k.journeys.join(',').padEnd(10), k.name)); return; }
+  if (!sel.length) { console.error('no case matches --journeys ' + wanted); process.exit(2); }
+  const { chromium } = require('playwright');
+  const b = await chromium.launch(); let failed = 0;
+  for (const k of sel) {
+    const seed = baseSeed(); if (k.opts.seed) k.opts.seed(seed);
+    const pg = await b.newPage(); const errs = [];
+    pg.on('pageerror', e => errs.push('pageerror ' + e.message)); if (!k.opts.flags) pg.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
+    if (k.opts.flags) await pg.addInitScript(f => Object.assign(window, f), k.opts.flags);
+    await pg.addInitScript(initFake, [seed]);
+    const fails = [];
+    const c = { pg,
+      txt: async () => (await pg.locator('#app').innerText()).replace(/\s+/g, ' '),
+      click: async (act, data) => { await pg.evaluate(([act, data]) => { const x = document.createElement('button'); x.dataset.act = act; for (const kk in data) x.dataset[kk] = data[kk]; document.body.appendChild(x); x.click(); x.remove(); }, [act, data || {}]); await pg.waitForTimeout(250); },
+      assertOk: (label, cond) => { if (!cond) fails.push(label); } };
+    try { await pg.goto('file://' + target); await pg.waitForTimeout(500); await k.fn(c); } catch (e) { fails.push('threw: ' + e.message.split('\n')[0]); }
+    if (errs.length) fails.push('page errors: ' + errs.join(' | '));
+    await pg.close();
+    if (fails.length) { failed++; console.log('FAIL', k.journeys.join(','), k.name); fails.forEach(f => console.log('   - ' + f)); } else console.log('ok  ', k.journeys.join(','), k.name);
+  }
   await b.close();
-  const ok = (k, cond) => { assert.ok(cond, 'FAILED: ' + k + ' = ' + JSON.stringify(out[k])); };
-  ok('todayHasRecovery', out.todayHasRecovery); ok('recoveredBanner', out.recoveredBanner); ok('paperStillThere', out.paperStillThere);
-  ok('paperCountAfterStart', out.paperCountAfterStart === 1); ok('markerWritten', out.markerWritten); ok('e1AttemptsUnchanged', out.e1AttemptsUnchanged); ok('e2AttemptSaved', out.e2AttemptSaved);
-  ok('ownedSetDeleted', out.ownedSetDeleted); ok('legacySetKept', out.legacySetKept); ok('noticeLegacy', /legacy/.test(out.noticeLegacy));
-  ok('failedReadKeptSet', out.failedReadKeptSet); ok('noticeMembership', /couldn't confirm/.test(out.noticeMembership));
-  ok('link', out.link.legacy && out.link.other && out.link.ok && out.link.unchangedLegacy);
-  ok('stalePreviewRefused', out.stalePreviewRefused[0] === true && out.stalePreviewRefused[1] === 'err');
-  ok('freshPaperHasMarker', out.freshPaperHasMarker.length === 1 && out.freshPaperHasMarker[0] === '{}');
-  const sb = JSON.parse(out.staleFormKeepsBank); ok('staleFormKeepsBank', sb.title === 'New title' && sb.owner === 'uS' && sb.subject === 'english' && sb.wordBank.join() === 'a,b,c' && sb.createdAt === '2026-01-01');
-  ok('removeUsedWordRejected', /Q6/.test(out.removeUsedWordRejected[0]) && out.removeUsedWordRejected[1] === '["a","b","c"]');
-  ok('legacyEditBlocked', /ownership/.test(out.legacyEditBlocked));
-  ok('missingShown', out.missingShown); ok('legacyCardBlocked', Array.isArray(out.legacyCardBlocked) && out.legacyCardBlocked[0] && out.legacyCardBlocked[1]); ok('legacyNotSelected', out.legacyNotSelected);
-  ok('retryUnavailable', out.retryUnavailable.ok1 && out.retryUnavailable.threw === 'quota_exceeded' && out.retryUnavailable.calls === 1 && !out.retryUnavailable.landed);
-  ok('settingsFail', /Couldn't read your data/.test(out.settingsFail) && /your settings couldn't be read/.test(out.settingsFail) && !/Opening the exercise book/.test(out.settingsFail) && !/empty/.test(out.settingsFail.replace(/not an empty exercise book/, '')));
-  ok('exercisesFail', /Couldn't read your data/.test(out.exercisesFail));
-  ok('identityFail', /Data unavailable/.test(out.identityFail));
-  ok('registerFail', /Couldn't register you/.test(out.registerFail) && /Today/.test(out.registerFail));
-  assert.deepStrictEqual(errs, [], 'page errors');
-  console.log('fake-platform smoke passed');
+  console.log(failed ? `${failed} of ${sel.length} cases failed` : `fake-platform smoke passed (${sel.length} cases${wanted ? ', journeys ' + wanted.join(',') : ', all journeys'})`);
+  process.exit(failed ? 1 : 0);
 })();

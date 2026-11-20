@@ -51,7 +51,7 @@ Implementation-stage checks and local functions do not run DOM handlers, registr
 
 ## Boundary classes
 
-Executable cases live in the `verify/` entries; each entry covers these classes.
+Executable cases live in the `verify/` entries, which together cover these classes; the README lists which journeys and classes have no case yet.
 
 - **Submission protection:** new Daily/Exam paper creation initializes an empty marker map, and absent-map legacy documents keep their inference. A saved objective attempt with a failed marker stays visible and recoverable after nothing is due. Partial attempt writes, multiple protected papers, missing or deleted papers, untouched fresh replacement and all-written zero-saved-attempt limits. A handed-in paper keeps unjudged questions in the denominator; empty or deleted-content papers are not mastery evidence.
 - **Set ownership and membership:** a supplementary draft on a set from owner A is rejected for new links after the owner switches to B. Complete membership (including empty) versus incomplete or failed reads: only the proven cleanup branch deletes, otherwise retain or defer. Ownerless, mixed-owner, memberless, invalid-owner and incomplete-membership legacy sets stay readable with a warning, with set mutation, new links and cleanup blocked and no automatic owner persistence. Compatible unchanged legacy content and attempt writes remain allowed.

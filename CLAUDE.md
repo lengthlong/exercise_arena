@@ -98,7 +98,8 @@ flowchart LR
 | operate | `operate/README.md` | 实际工具索引，对应 `model/operate/INDEX.md` | 工具现状；约定边界以模型为准，条目扩展交实现 |
 | operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
 | operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
-| verify | `verify/README.md`、`verify/fake-platform-smoke.js` | 实际验收条目，对应 `model/verify/SPEC.md` | 本地命令同上；`node verify/fake-platform-smoke.js impl/arena.html` 是假平台替代品，只证明声明的边界；运行时 walkthrough 需授权测试环境/数据，尚未运行 |
+| verify | `verify/README.md` | 实际验收条目与证据层级，对应 `model/verify/SPEC.md` | 模拟运行时与授权运行时两层；授权运行时每个发布候选一次，需授权 `OFFLINE` 测试环境/数据，尚未运行 |
+| verify | `verify/fake-platform-smoke.js` | 模拟运行时用例（假平台上跑真实页面，按旅程编号），对应 `model/verify/SPEC.md` 的边界类 | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]`；只证明页面行为，不证明平台边界 |
 
 其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管维护与发布，`verify/` 管验收入口。
 
