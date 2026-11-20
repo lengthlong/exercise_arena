@@ -9,6 +9,9 @@
   照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
   拍照后缩略图：照片一选就先显示原图，缩小在后台做，decode() 10 秒超时（用户直接指示，未开讨论）。
   重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
+  写入重试：写入遇到 unavailable（平台的暂时不可用）时自动重试，最多两次、隔 0.5–1.5 秒；别的错误码照旧立刻提示（用户反馈，未开讨论；从已发布的生产版并回仓库）。
+  接着交卷（旧生产版的做法，用户反馈）：已由受保护的每日卷恢复取代（discuss 0039）——交卷写到一半失败时，Today 列出未完成的卷，再点这一科先恢复最近一张，不新组、不删；本页不再单独保留旧做法。
+  旧每日卷没有 handedIn 时仍按作答推断已交（DATA.md），不沿用旧生产版「每日卷没有 handedIn 即未交」；新卷创建时写 handedIn: {}。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   新掌握：Today 的 Newly mastered 用科目子标签、按 Key idea 列出（前 3 行 + more），展开看题干，点开详情可返回 Today（discuss 0038）。第 88 版发布 0037 与 0038。
   录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
@@ -299,6 +302,19 @@ details.photos[open] > summary { margin-bottom: 6px; }
 .ladpair .climber .zz { font: 700 8px var(--font-body); fill: var(--cf); }
 .ladpair .climber .csh { fill: #000; opacity: .18; }
 .ladpair .runner path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .hero .hs { fill: #6366f1; stroke: #3730a3; stroke-width: 1.2; }
+.ladpair .hero .hbag { fill: #f59e0b; stroke: #b45309; stroke-width: 1; }
+.ladpair .hero .hh { fill: #ffe0bd; stroke: #3730a3; stroke-width: 1.1; }
+.ladpair .hero .hcap { fill: #ef4444; stroke: #991b1b; stroke-width: .9; stroke-linejoin: round; }
+.ladpair .hero .hstar { font: 700 5px var(--font-body); fill: #fde047; text-anchor: middle; }
+.ladpair .hero .he { fill: #1b2231; }
+.ladpair .hero .hm { fill: none; stroke: #1b2231; stroke-width: .9; stroke-linecap: round; }
+.ladpair .hero .ha, .ladpair .hero .hl { fill: none; stroke: #6366f1; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.ladpair .hero .hsh { fill: #000; opacity: .22; }
+.ladpair .hero .hq rect { fill: var(--ink); }
+.ladpair .hero .hq text { font: 700 7px var(--font-body); fill: var(--paper); text-anchor: middle; }
+.ladcap { text-align: center; margin: 0; }
+.sheet-ladder { padding-top: 24px; }   /* 选中题的小人站在第 5 级时，头顶的题号要探出梯子上方 */
 .ladpair .nu { font-weight: 600; fill: var(--green); }
 .ladpair .nd { font-weight: 600; fill: var(--c-wrong); }
 /* 阶梯分段横条（Exercises 每科小卡） */
@@ -734,13 +750,91 @@ function leftMix(todo, leftIds) {
 function makeDailyPaper(list, uid, owner, today, fmt, subject, madeAt) {
   // 每日卷：一个科目，按当天清单的顺序，只给 uid 做；madeAt 是生成时刻
   return { kind: 'daily', for: uid, owner, title: (SUBJ[subject] ? SUBJ[subject].en : '') + ' redo · ' + (fmt ? fmt(today) : today), createdAt: today, madeAt: madeAt || null,
-    subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id) };
+    subject, topics: [], count: list.length, exerciseIds: list.map(e => e.id), handedIn: {} };   // handedIn 写 {}：新卷明确还没人交，不走旧卷的「有作答即已交」推断（DATA.md papers）
 }
 function openDailyPaper(papers, view, uid, subject) {
   // 这一科给我、我还没交的每日卷里最新的一张（madeAt，否则 createdAt；再按 id）：再开始这一科的重做时，新卷从它带上已填的回答；旧式混合卷（subject 为 null）不取
   const key = p => String(p.madeAt || p.createdAt || '');
   return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid))
     .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+function protectedDailyPapers(papers, view, uid, subject) {
+  // 受保护的未交每日卷：给我的、有科目、我还没交确认、但已有我的已存作答；最新的在前（madeAt 否则 createdAt，再按 id）。旧卷没有 handedIn，有作答即视为已交，不在此列；只有没有我的已存作答的未交草稿才允许被新批次取代
+  const key = p => String(p.madeAt || p.createdAt || '');
+  return papers.filter(p => isDaily(p) && p.for === uid && p.subject && (!subject || p.subject === subject) && !handedInAt(p, view, uid) && paperProgress(p, view).done > 0)
+    .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)));
+}
+function replaceableDailyPapers(papers, view, uid, subject) {
+  // 这一科给我的未交、且没有我的已存作答的每日卷：开始新批次时被取代（旧式混合卷 subject 为 null 不取）
+  return papers.filter(p => isDaily(p) && p.for === uid && subject && p.subject === subject && !handedInAt(p, view, uid) && paperProgress(p, view).done === 0);
+}
+function recoverRun(paper, view) {
+  // 受保护卷的恢复状态：已存作答还原成回答与判定并标为已存（之后不再按空缓冲重判）；其余回答取卷上暂存的 responses
+  const responses = {}, results = {}, saved = {};
+  for (const [id, v] of Object.entries(paper.responses || {})) if (typeof v === 'string' && v) responses[id] = v;
+  for (const r of paperAttempts(paper, view)) if (r.ex && r.attempt) { responses[r.id] = String(r.attempt.response || ''); results[r.id] = r.attempt.result; saved[r.id] = true; }
+  return { responses, results, saved };
+}
+function paperAssessment(paper, view, uid) {
+  // 已交与评定完整是两回事：评定完整是卷上仍在的每道题都有我的已存判定；没有剩余题是空卷，不算完整；派生，不存
+  const pr = paperProgress(paper, view);
+  return { handedIn: !!handedInAt(paper, view, uid), judged: pr.done, total: pr.total, pending: pr.total - pr.done, complete: pr.total > 0 && pr.done === pr.total, empty: pr.total === 0 };
+}
+function previewCheck(preview, previewOwner, scopeOwner, exs) {
+  // 检验卷创建前：预览属于当前归属人范围，且每道题仍在当前内容库（同归属人）；否则要重新预览，不把旧题 id 与新 owner 合写
+  if (!preview || !preview.length) return { ok: false, reason: 'empty', ids: [] };
+  if (!sameOwner(previewOwner, scopeOwner)) return { ok: false, reason: 'scope', ids: [] };
+  const byId = new Map(exs.map(e => [e.id, e]));
+  const gone = preview.filter(e => { const c = byId.get(e.id); return !c || !sameOwner(c.owner, scopeOwner); }).map(e => e.id);
+  return gone.length ? { ok: false, reason: 'missing', ids: gone } : { ok: true, reason: '', ids: preview.map(e => e.id) };
+}
+function setOwnership(set, exs) {
+  // 题组归属状态：'legacy' 无已存 owner；'conflict' 有 owner、但可见成员的 owner 与它不同；'owned' 有效。只读判断，不推断也不写入 owner
+  if (!set || typeof set.owner !== 'string' || !set.owner.trim()) return 'legacy';
+  if (exs.some(e => e.setId === set.id && !sameOwner(e.owner, set.owner))) return 'conflict';
+  return 'owned';
+}
+function checkSetLink(set, subject, owner, exs) {
+  // 新建或改变错题对题组的引用：题组必须存在、归属有效、与错题同归属人、同科目（原有兼容引用不走这里）
+  if (!set) return { ok: false, reason: 'missing' };
+  const o = setOwnership(set, exs);
+  if (o !== 'owned') return { ok: false, reason: o };
+  if (!sameOwner(set.owner, owner)) return { ok: false, reason: 'owner' };
+  if (set.subject !== subject) return { ok: false, reason: 'subject' };
+  return { ok: true, reason: '' };
+}
+function supplementBlock(m, sets, exs, owner) {
+  // 从已存材料补录：题组来源要归属有效、同当前内容归属人，否则不可选（返回原因）；照片批次不是题组，不受限
+  if (!m || m.kind !== 'set') return '';
+  return checkSetLink((sets || []).find(x => x.id === m.id), m.subject, owner, exs).reason;
+}
+function missingRefCount(paper, exs) {
+  // 卷上已不存在的题数（错题被删）；作答页与恢复入口据此明示缺失
+  const have = new Set(exs.map(e => e.id));
+  return (paper.exerciseIds || []).filter(id => !have.has(id)).length;
+}
+function cleanupDecision(set, members, goneId, exs) {
+  // 最后成员清理：只在题组归属有效、且新读到的完整当前成员（members，读失败为 null）除去刚移出的之外为空时才删；其余保留，reason 说明为何保留
+  if (!set) return { del: false, reason: 'gone' };
+  if (setOwnership(set, exs) !== 'owned') return { del: false, reason: 'ownership' };
+  if (!Array.isArray(members)) return { del: false, reason: 'membership' };
+  if (members.some(m => m.id !== goneId)) return { del: false, reason: 'members' };
+  return { del: true, reason: '' };
+}
+function bankEdit(oldBank, newBank, members) {
+  // 词表改动：只加词、重排不会破坏答案；删词须有完整当前成员（members，读失败为 null）才能判断，不确定就阻止；lost 是答案不在新词表里的成员选词题
+  const keep = new Set(newBank.map(normAnswer));
+  const removed = oldBank.filter(w => !keep.has(normAnswer(w)));
+  if (!removed.length) return { destructive: false, blocked: false, lost: [] };
+  if (!Array.isArray(members)) return { destructive: true, blocked: true, lost: [] };
+  return { destructive: true, blocked: false, lost: members.filter(x => x.format === 'pick' && !keep.has(normAnswer(x.answer))) };
+}
+function setPatch(base, form) {
+  // 题组材料编辑只写用户真改了的字段（对打开表单时的 base 比），不回写 owner、subject、createdAt，也不把旧表单里没改的词表写回去
+  const norm = f => ({ title: String(f.title || '').trim(), text: String(f.text || '').trim(), source: String(f.source || '').trim(), images: Array.isArray(f.images) ? f.images.slice() : [], wordBank: parseList(f.wordBank) });
+  const a = norm(base), b = norm(form), out = {};
+  for (const k of Object.keys(b)) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out[k] = b[k];
+  return out;
 }
 function paperScore(paper, exs) {
   const rows = paperAttempts(paper, exs).filter(r => r.ex);
@@ -1015,24 +1109,35 @@ function levelOf(atts) {
   }
   return mastered ? 5 : step;
 }
+function paperLevel(e, uid, paperId, results, saved) {
+  // 一道题在一张卷交卷前后的级（1–4，5 为掌握）：在本人第一条带本卷 paperId 的阶梯输入作答处切开；本卷作答还没写入的取 results，主观题要 saved 才算，没有结果的留在原级；toMark 为还没自评的主观题
+  const input = ladderInput((e.attempts || []).filter(a => a.by === uid));
+  const i = input.findIndex(a => a.paperId === paperId);
+  let before, after, toMark = false;
+  if (i >= 0) { before = input.slice(0, i); after = input.slice(0, i + 1); }
+  else {
+    const r = (results || {})[e.id], ready = r && (e.format !== 'open' || (saved || {})[e.id]);
+    if (e.format === 'open' && !ready) toMark = true;
+    before = input; after = ready ? input.concat([{ result: r }]) : input;
+  }
+  return { a: levelOf(before), b: levelOf(after), toMark };
+}
+function questionClimb(e, uid, paperId) {
+  // 详情页上选中的那道题在两架梯子上的走法：from 为左梯的级、to 为右梯的级，kind 为 up / same / down；交卷前已掌握又做错的左梯记 1 级（同 paperLadders），仍掌握的两架都站第 5 级
+  const { a, b } = paperLevel(e, uid, paperId, {}, {});
+  const from = a === 5 && b < 5 ? 1 : a;
+  return { from, to: b, kind: a === 5 && b < 5 ? 'down' : b > a ? 'up' : b < a ? 'down' : 'same' };
+}
 function paperLadders(exs, uid, paperId, results, saved) {
-  // 一张卷交卷前后的两架梯子，形状同 weekLadders：左为本卷作答之前（在本人第一条带本卷 paperId 的阶梯输入作答处切开，按数组位置，之后的不算），右为加上本卷作答之后
-  // 本卷作答已写入的取已有的；还没写入的取 results，主观题要 saved 才算；没有结果的留在原级。toMark 是还没自评的主观题数
+  // 一张卷交卷前后的两架梯子，形状同 weekLadders：左为本卷作答之前，右为加上本卷作答之后（逐题的级见 paperLevel）
   // 交卷前已掌握：交卷后仍掌握的计 masteredBefore、两架都不放；不再掌握的左梯记 1 级并算 down
   const left = [0, 0, 0, 0, 0], right = [0, 0, 0, 0, 0], up = { 2: 0, 3: 0, 4: 0, 5: 0 }, flowMap = {};
   let masteredBefore = 0, down = 0, toMark = 0;
   for (const e of exs) {
-    const input = ladderInput((e.attempts || []).filter(a => a.by === uid));
-    const i = input.findIndex(a => a.paperId === paperId);
-    let before, after;
-    if (i >= 0) { before = input.slice(0, i); after = input.slice(0, i + 1); }
-    else {
-      const r = (results || {})[e.id], ready = r && (e.format !== 'open' || (saved || {})[e.id]);
-      if (e.format === 'open' && !ready) toMark++;
-      before = input; after = ready ? input.concat([{ result: r }]) : input;
-    }
-    let a = levelOf(before);
-    const b = levelOf(after);
+    const lv = paperLevel(e, uid, paperId, results, saved);
+    if (lv.toMark) toMark++;
+    let a = lv.a;
+    const b = lv.b;
     if (a === 5 && b === 5) { masteredBefore++; continue; }
     if (a === 5) { a = 1; down++; }
     else if (b < a) down++;
@@ -1351,6 +1456,30 @@ function matchMaterial(item, query) {
   const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
   return [item.label, item.source, strip(item.text)].concat(item.stems || []).join('\n').toLowerCase().includes(k);
 }
+async function retryUnavailable(fn, sleep, rnd, retries) {
+  // 平台说 unavailable 是暂时的：写入失败带这个码时，隔一小会儿（0.5–1.5 秒，随机）再试，最多 retries 次；别的错误码原样抛出
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (!err || err.code !== 'unavailable' || i >= retries) throw err;
+      await sleep(500 + Math.floor(rnd() * 1000));
+    }
+  }
+}
+function retryingDb(db, sleep, rnd, retries) {
+  // 只给写（set、update、delete）加重试；页面里写入都是整份替换、按字段替换或删除，重做一次结果相同。读与监听不经过它（用原来的 db）
+  const wrapDoc = ref => ({
+    id: ref.id, path: ref.path,
+    get: () => ref.get(),
+    set: d => retryUnavailable(() => ref.set(d), sleep, rnd, retries),
+    update: d => retryUnavailable(() => ref.update(d), sleep, rnd, retries),
+    delete: () => retryUnavailable(() => ref.delete(), sleep, rnd, retries),
+  });
+  return {
+    doc: p => wrapDoc(db.doc(p)),
+    collection: p => { const c = db.collection(p); return { doc: id => wrapDoc(id === undefined ? c.doc() : c.doc(id)) }; },
+  };
+}
 /* LOGIC:END */
 </script>
 
@@ -1426,7 +1555,8 @@ const S = {
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, detailFrom: null, todayScroll: 0, nmSubj: {}, nmOpen: {}, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
-  settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
+  settingsMsg: null, errMsg: null, notice: null, bootWarn: null,   // errMsg：写数据出错，显示在当前标签页最上方；notice：错题已改好、但题组清理等后续没做时的提示
+  paperPreviewOwner: null,   // 检验卷预览时的默认归属人；创建前要与当前范围核对
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
 };
@@ -1480,9 +1610,38 @@ function nextPos(setId) {
   pendingPos[setId] = m + 1;
   return m + 1;
 }
+async function readMembers(setId) {
+  // 一道题组当前全部成员（不限归属人）：用查询新读一次，不靠按归属人订阅的快照；平台不支持、被拒或失败时返回 null，调用处按「无法确认」保留或阻止
+  try {
+    const q = (S.rawDb || S.db).collection('exercises').where('setId', '==', setId);   // 查询用原来的 db：带重试的 S.db 只包了写入
+    if (!q || typeof q.get !== 'function') return null;
+    const snap = await q.get();
+    if (!snap || !Array.isArray(snap.docs)) return null;
+    return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+  } catch (err) { return null; }
+}
+const KEPT_SET = { ownership: "its ownership isn't recorded or conflicts (legacy set)", membership: "the page couldn't confirm that no other question uses it", failed: "removing it failed" };
 async function cleanupSet(setId, goneId) {
+  // 最后成员清理：条件见 cleanupDecision；保留不算失败，错题的变化已成功，另行提示一句，不批量清别的题组、不删照片
   if (!setId) return;
-  if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
+  const set = setById(setId), members = set ? await readMembers(setId) : null;
+  const d = cleanupDecision(set, members, goneId, S.exercises);
+  let why = d.reason;
+  if (d.del) { try { await S.db.doc('sets/' + setId).delete(); return; } catch (err) { why = 'failed'; } }
+  if (KEPT_SET[why]) S.notice = `The question set was kept because ${KEPT_SET[why]}.`;
+}
+function draftLinkError(d) {
+  // 保存前核对草稿对题组的引用：新建或改变的引用要与题组同归属人、同科目；原有兼容引用（编辑时不变）保留；部分保存的新题组按其已存归属核对，不静默分享、复制或改归属
+  const ref = String(d.setRef || ''), owner = d.editId ? d.owner : recOwner();
+  if (!ref) return '';
+  if (ref.startsWith('new:')) {
+    const sd = setOfDraft(d);
+    return sd && sd.savedId && !sameOwner(sd.savedOwner, owner) ? 'This question set was already saved for a different owner. Discard it and record these questions again under the intended owner.' : '';
+  }
+  if (d.editId && ref === d.origSetId) return '';
+  const c = checkSetLink(setById(ref), d.subject, owner, S.exercises);
+  if (c.ok) return '';
+  return { missing: 'The question set is no longer available.', legacy: "This question set has no recorded owner yet (older data), so new questions can't be added to it.", conflict: "This question set's owner conflicts with its questions, so new questions can't be added to it.", owner: 'This question set belongs to a different owner. Switch back to that library or record these questions as a new set.', subject: 'The question set has a different subject.' }[c.reason] || 'The question set cannot be used.';
 }
 // 照片展开或收起记在哪：作答页 S.run.openPhotos，卷子详情 S.paperOpenPhotos；按这组照片（id 用逗号连起来）记，翻到有同一组照片的题时沿用；别处不记
 function photoStore() { return S.run ? (S.run.openPhotos = S.run.openPhotos || {}) : (S.tab === 'papers' && S.paperView) ? S.paperOpenPhotos : null; }
@@ -1540,11 +1699,14 @@ function render() {
   let h = `<nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run || matchLive() ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
   else if (S.status === 'nodb') h += `<div class="panel"><p class="h2">Data unavailable</p><p class="muted">Sign in with an invited Claude account, then open this page again. The exercises and answers live in this page's database, which can only be read and written after signing in.</p></div>`;
+  else if (S.status === 'noread') h += `<div class="panel"><p class="h2">Couldn't read your data</p><p class="muted">${esc(S.readFail || 'Reading from the database failed.')} This is not an empty exercise book. Reload the page to try again.</p></div>`;
   else if (S.errMsg && !S.run) h += `<p class="note err">${esc(S.errMsg)}</p>`;
+  if (S.status === 'ready' && S.bootWarn) h += `<p class="note err">${esc(S.bootWarn)}</p>`;
+  if (S.status === 'ready' && S.notice && !S.run) h += `<p class="note">${esc(S.notice)}</p>`;
   if (S.status === 'ready' && (S.tab === 'today' || S.run)) h += renderPractice();
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
-  if (S.status === 'ready' && ((S.tab === 'today' && !S.run) || (S.run && S.run.phase === 'review'))) armLadders();
+  if (S.status === 'ready' && ((S.tab === 'today' && !S.run) || (S.run && S.run.phase === 'review') || (S.tab === 'papers' && S.paperView))) armLadders();
 }
 
 /* ---------- Today ---------- */
@@ -1611,11 +1773,19 @@ function todayBlock(today, redo, cps, todo, view) {
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
+  const prot = protectedDailyPapers(S.papers, view, S.me);
+  if (prot.length) {
+    // 已存了作答、但没交成的每日卷：不论此刻有没有到期题都列出，点开恢复；该科处理前不开新批次
+    h += `<div class="today-papers"><p class="h3">Unfinished hand-ins</p><p class="muted small">Part of these papers is already saved. Finish one before starting a new batch in the same subject.</p><div class="list">${prot.map(p => {
+      const pr = paperProgress(p, view);
+      return `<button type="button" class="item" data-act="recover-daily" data-id="${esc(p.id)}"><span class="t">${paperTag(p)} ${esc(pname(p))}</span><span class="side"><span class="num">${pr.done}/${pr.total} saved</span></span><span class="meta"><span>started ${fmtDate(p.createdAt)}</span>${missingRefCount(p, S.exercises) ? `<span>· ${missingRefCount(p, S.exercises)} deleted</span>` : ''}</span></button>`;
+    }).join('')}</div></div>`;
+  }
   if (cps.length) {
     // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
     h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => {
-      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
-      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
+      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me), asm = paperAssessment(p, view, S.me);
+      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}${handed && asm.pending ? ` · ${asm.pending} to judge` : ''}</span></span>`;
       const body = `<span class="t">${paperTag(p)} ${esc(pname(p))}</span>${side}<span class="meta"><span>set ${fmtDate(p.createdAt)}</span></span>`;
       return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
     }).join('')}</div></div>`;
@@ -1730,7 +1900,27 @@ function climberSvg(x, y, k) {
   return `<g class="climber" data-pose="${pose}" transform="translate(${x} ${y})" style="--cf:${c};--cd:${d}">${pose === 'jump' ? '<ellipse class="csh" cx="0" cy="0" rx="7" ry="1.6"/>' : ''}<g class="cb">
     <path class="cl" d="${p.l}"/><path class="ca" d="${p.a}"/>${body}</g></g>`;
 }
-function ladderPair(wl, key) {
+// 详情页选中那道题的小人：和梯子上按级摆姿势的小人不同——红帽子带金星、靛蓝上衣、背小书包，头顶挂着题号；以脚下（横档上沿）为原点
+// 在梯子旁边（横档右半）：左梯的起点 LX+HOFF，右梯的终点 RX+HOFF；动画（playLadder）先在左梯那一级跳到右梯，再沿右梯一级一级爬（做错则滑下）
+const HOFF = 14;
+function heroParts(mode, ph) {
+  // mode：idle 站着、cheer 举臂跳、run 跑、climb 爬、fall 滑下；ph 为 -1…1 的相位；返回 l 腿、a 手臂、dy 身子上下
+  if (mode === 'cheer') return { l: 'M-2 -8 L-3 0 M2 -8 L3 0', a: `M-3 -17 L-8 ${(-25 - ph).toFixed(1)} M3 -17 L8 ${(-25 + ph).toFixed(1)}`, dy: -3 * Math.abs(ph) };
+  if (mode === 'run') return { l: `M-1 -8 L${(-1 + ph * 4).toFixed(1)} 0 M1 -8 L${(1 - ph * 4).toFixed(1)} 0`, a: `M0 -17 L${(-ph * 4).toFixed(1)} -10 M0 -17 L${(ph * 4).toFixed(1)} -10`, dy: -1.5 * Math.abs(ph) };
+  if (mode === 'climb') return { l: `M-2 -8 L-3 ${(-1 + ph * 2.5).toFixed(1)} M2 -8 L3 ${(-1 - ph * 2.5).toFixed(1)}`, a: `M-3 -17 L-5 ${(-25 + ph * 3).toFixed(1)} M3 -17 L5 ${(-25 - ph * 3).toFixed(1)}`, dy: 0 };
+  if (mode === 'fall') return { l: `M-2 -8 L-5 ${(-1 + ph).toFixed(1)} M2 -8 L5 ${(-1 - ph).toFixed(1)}`, a: `M-3 -17 L-9 ${(-24 + ph * 3).toFixed(1)} M3 -17 L9 ${(-24 - ph * 3).toFixed(1)}`, dy: 0 };
+  return { l: 'M-2 -8 L-3 0 M2 -8 L3 0', a: 'M-3 -17 L-7 -10 M3 -17 L7 -10', dy: 0 };
+}
+function heroSvg(x, y, label, kind) {
+  const p = heroParts(kind === 'up' ? 'cheer' : 'idle', 0);
+  return `<g class="hero" transform="translate(${x} ${y})"><g class="hb"><ellipse class="hsh" cx="0" cy="0" rx="8" ry="1.6"/>
+    <path class="hl" d="${p.l}"/><path class="ha" d="${p.a}"/>
+    <rect class="hbag" x="-8.5" y="-19" width="5" height="9" rx="2"/><rect class="hs" x="-4.5" y="-20" width="9" height="12" rx="4.5"/>
+    <circle class="hh" cx="0" cy="-25" r="5"/><path class="hcap" d="M-5.4 -26 A5.4 5.4 0 0 1 5.4 -26 Z M3 -27.5 L9.5 -26.2 L3 -25 Z"/><text class="hstar" x="0" y="-27.6">★</text>
+    <circle class="he" cx="-1.8" cy="-24.4" r=".7"/><circle class="he" cx="1.8" cy="-24.4" r=".7"/><path class="hm" d="${kind === 'down' ? 'M-1.8 -21.4 Q0 -22.6 1.8 -21.4' : 'M-1.8 -22.2 Q0 -20.8 1.8 -22.2'}"/></g>
+    <g class="hq"><rect x="-9" y="-41" width="18" height="9.5" rx="4.75"/><text x="0" y="-33.8">${esc(label)}</text></g></g>`;
+}
+function ladderPair(wl, key, hero) {
   // 两架木梯：左为周初、右为周末（本周为此刻）；级名（Level 1…、★ Mastered）在左梯左边；每级的题数写在各自梯子的右边（左梯顶级恒为空，不写）；左梯 1 级后写本周新录的题数「↑N」（绿）；
   // 右梯各级题数后写本周升到这一级的题数「↑83」，第 1 级后写下降的题数「↑5」（红）；data-flows 给小人跑跳的动画（armLadders）
   const { W, H, TX, LX, RX, LW, NL, NR, y } = LAD;
@@ -1754,23 +1944,33 @@ function ladderPair(wl, key) {
     if (wl.left[k - 1]) g += climberSvg(LX, y(k) - 3.5, k);
     if (wl.right[k - 1]) g += climberSvg(RX, y(k) - 3.5, k);
   }
+  if (hero) g += heroSvg(RX + HOFF, y(hero.to) - 3.5, hero.label, hero.kind);
   const words = n => [1, 2, 3, 4].map(k => `${n[k - 1]} at level ${k}`).join(', ') + `, ${n[4]} mastered`;
   const ups = [2, 3, 4].filter(k => wl.up[k]).map(k => `${wl.up[k]} climbed to level ${k}`).concat(wl.up[5] ? [`${wl.up[5]} mastered`] : []);
-  const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.`;
+  const aria = `Ladder at the start: ${words(wl.left)}${wl.fresh ? ` (including ${wl.fresh} new)` : ''}. At the end: ${words(wl.right)}. ${ups.length ? ups.join(', ') : 'No climbs yet'}${wl.down ? `; ${wl.down} moved down` : ''}.${hero ? ' ' + hero.text : ''}`;
   return `<div class="ladpair" data-key="${key}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-flows='${JSON.stringify(wl.flows)}'>${defs}${g}<g class="dots"></g></svg>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}" data-flows='${JSON.stringify(wl.flows)}'${hero ? ` data-hero='${JSON.stringify({ from: hero.from, to: hero.to, kind: hero.kind })}'` : ''}>${defs}${g}<g class="dots"></g></svg>
   </div>`;
 }
 // 爬升动画：每股升级放 min(n, 6) 个小人，从左梯 from 级沿弧线跑到右梯 to 级，最后一段抬手爬上那一级；每个约 1.8 秒、依次错开，一直循环；
 // 梯子在视野里才播，离开视野或页面重画后停；系统要求减少动态效果时不播
 const ladRuns = new Map();   // svg → 正在播的 requestAnimationFrame 句柄
 let ladObserver = null;
-function stopLadder(svg) { const h = ladRuns.get(svg); if (h) cancelAnimationFrame(h); ladRuns.delete(svg); const l = svg.querySelector('.dots'); if (l) l.innerHTML = ''; }
+function stopLadder(svg) {
+  const h = ladRuns.get(svg); if (h) cancelAnimationFrame(h); ladRuns.delete(svg); const l = svg.querySelector('.dots'); if (l) l.innerHTML = '';
+  // 选中题的小人停在终点（右梯那一级），不留在半途
+  const g = svg.querySelector('.hero'); let hd = null;
+  try { hd = svg.dataset.hero ? JSON.parse(svg.dataset.hero) : null; } catch (e) { hd = null; }
+  if (g && hd) { g.setAttribute('transform', `translate(${LAD.RX + HOFF} ${LAD.y(hd.to) - 3.5})`); g.style.opacity = '1'; }
+}
 function playLadder(svg) {
   if (ladRuns.has(svg) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
   let flows = [];
   try { flows = JSON.parse(svg.dataset.flows || '[]'); } catch (e) { return; }
-  const layer = svg.querySelector('.dots'); if (!layer || !flows.length) return;
+  let hero = null;
+  try { hero = svg.dataset.hero ? JSON.parse(svg.dataset.hero) : null; } catch (e) { hero = null; }
+  const heroG = hero && svg.querySelector('.hero');
+  const layer = svg.querySelector('.dots'); if (!layer || (!flows.length && !heroG)) return;
   const NS = 'http://www.w3.org/2000/svg', runners = [], DUR = 1800, CYCLE = 2800;
   // 小人：圆头、身子、两臂、两腿（以脚下为原点，高约 15）
   const mk = color => {
@@ -1782,9 +1982,33 @@ function playLadder(svg) {
   let k = 0;
   for (const f of flows) for (let i = 0; i < Math.min(f.n, 6); i++) runners.push({ g: mk(VCOL[f.to - 1]), c: LAD.curve(f), t0: (k++ * 330) % CYCLE });
   const climbers = Array.from(svg.querySelectorAll('.climber')).map((g, i) => ({ pose: g.dataset.pose, b: g.querySelector('.cb'), a: g.querySelector('.ca'), l: g.querySelector('.cl'), z: g.querySelector('.zz'), sh: g.querySelector('.csh'), off: i * 1.7 }));
+  // 选中题的小人：站定 → 在起点那一级跳到右梯 → 沿右梯一级一级爬到终点（做错则滑下）→ 在终点站定 → 淡出，循环
+  const H = heroG && (() => {
+    const yb = k => LAD.y(k) - 3.5, x0 = LAD.LX + HOFF, x1 = LAD.RX + HOFF, n = Math.abs(hero.to - hero.from);
+    const T = { idle: 400, hop: 900, climb: hero.kind === 'up' ? n * 650 : hero.kind === 'down' ? 500 : 0, rest: 1500, fade: 200 };
+    return { x0, x1, yb, T, total: T.idle + T.hop + T.climb + T.rest + T.fade, b: heroG.querySelector('.hb'), a: heroG.querySelector('.ha'), l: heroG.querySelector('.hl'), sh: heroG.querySelector('.hsh') };
+  })();
+  const heroStep = now => {
+    const { x0, x1, yb, T, total } = H, tt = (now - start) % total, ease = u => u < .5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u);
+    let x = x0, y = yb(hero.from), mode = 'idle', ph = Math.sin(now / 90);
+    const tHop = T.idle, tClimb = tHop + T.hop, tRest = tClimb + T.climb;
+    if (tt >= tRest) { x = x1; y = yb(hero.to); mode = hero.kind === 'up' ? 'cheer' : 'idle'; ph = Math.sin(now / 160); }
+    else if (tt >= tClimb) {
+      const u = (tt - tClimb) / T.climb; x = x1;
+      if (hero.kind === 'up') { const pos = u * (hero.to - hero.from), k = Math.min(Math.floor(pos), hero.to - hero.from - 1); y = yb(hero.from + k) + (yb(hero.from + k + 1) - yb(hero.from + k)) * ease(pos - k); mode = 'climb'; }
+      else { y = yb(hero.from) + (yb(hero.to) - yb(hero.from)) * u * u; mode = 'fall'; }
+    } else if (tt >= tHop) { const u = (tt - tHop) / T.hop; x = x0 + (x1 - x0) * u; y = yb(hero.from) - 4 * Math.sin(Math.PI * u) * 5; mode = 'run'; }
+    const p = heroParts(mode, ph);
+    H.a.setAttribute('d', p.a); H.l.setAttribute('d', p.l);
+    H.b.setAttribute('transform', `translate(0 ${p.dy.toFixed(2)})`);
+    H.sh.setAttribute('rx', (8 - 2 * Math.abs(p.dy) / 3).toFixed(1));
+    heroG.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    heroG.style.opacity = tt < 150 ? String(tt / 150) : tt > total - T.fade ? String((total - tt) / T.fade) : '1';
+  };
   const start = performance.now();
   const step = now => {
     if (!svg.isConnected) { ladRuns.delete(svg); return; }
+    if (H) heroStep(now);
     for (const c of climbers) {
       const ph = Math.sin(now / (c.pose === 'jump' ? 240 : 320) + c.off), p = poseParts(c.pose, ph);
       c.a.setAttribute('d', p.a); c.l.setAttribute('d', p.l);
@@ -1927,8 +2151,11 @@ function renderPaperRun() {
     // 得分立即显示，一行：客观题交卷即判，主观题自评存好后算进；对错分布看翻页条的颜色
     const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? '<span class="small muted">Mark your written answers</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
+    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? `<span class="small muted">Handed in, not fully assessed: mark your ${plural(toMark, 'written answer')}</span>` : R.handed ? '<span class="small muted">Fully assessed</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
   }
+  const gone = missingRefCount(p, S.exercises);
+  if (gone) h += `<p class="note">${plural(gone, 'question')} on this paper ${gone === 1 ? 'was' : 'were'} deleted and can't be answered${exs.length ? '; the rest of the paper is below' : '; nothing is left to answer'}.</p>`;
+  if (R.phase === 'answer' && R.recovered) h += `<p class="note">Recovered: ${plural(Object.keys(R.saved).length, 'answer')} already saved. Hand in again to finish saving the rest.</p>`;
   if (R.phase === 'answer' && R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
     h += `<div class="note err">${R.warn.must.map(w => `<div>${esc(w)}</div>`).join('')}${R.warn.missing.length ? `<div>No answer yet: questions ${R.warn.missing.map(n => `<button type="button" class="linkbtn" data-act="card-go" data-v="${n - 1}">${n}</button>`).join(', ')}.</div>` : ''}<div>You can fix them, or hand in anyway.</div></div>`;
@@ -1971,11 +2198,12 @@ function resetRecMode() {
   // 每次进入 Record 页都停在 New photos or text；所选材料、给 AI 的提示与列表的搜索、筛选、页码都不保留
   S.recMode = 'new'; S.recSet = ''; S.recHint = ''; S.matQuery = ''; S.matPage = 1;
 }
-function materialCard(m, picked, off) {
+const SUPP_NOTE = { legacy: "Owner not recorded (older data): can't add questions", conflict: "Owner conflicts with its questions: can't add questions", owner: 'Belongs to a different owner: can\'t add questions', missing: 'No longer available' };
+function materialCard(m, picked, off, block) {
   const thumb = m.images.length ? `<img src="${blobUrl(m.images[0])}" alt="" loading="lazy">` : `<span class="mat-txt">${esc(plain(m.text).trim().slice(0, 60))}</span>`;
-  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off ? 'disabled' : ''}>
+  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off || block ? 'disabled' : ''}>
     <span class="mat-thumb">${thumb}</span>
-    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span></span>
+    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span>${block ? `<span class="small muted">${esc(SUPP_NOTE[block] || "Can't add questions")}</span>` : ''}</span>
   </button>`;
 }
 function matPager(n, page) {
@@ -1990,7 +2218,8 @@ function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
   const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
   const saved = S.recMode === 'saved';
-  const rs = recSource();
+  let rs = recSource();
+  if (rs && rs.kind === 'set' && supplementBlock(rs, S.sets, S.exercises, recOwner())) { S.recSet = ''; rs = null; }   // 换了内容归属人等：保留的选择不再可补录，清掉
   if (S.recSet && !rs) S.recSet = '';
   // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
   let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
@@ -2010,7 +2239,7 @@ function renderRecord() {
       ${act(rs ? 'Selected: ' + esc((all.find(m => m.id === rs.id) || { label: '' }).label) : '', !!rs)}</div>`;
     h += `<div class="grp"><input type="search" id="mat-q" data-matsearch="1" placeholder="Search title, source, text or questions" value="${esc(S.matQuery)}" aria-label="Search saved material" autocomplete="off">${nav.top}`;
     h += !all.length ? `<p class="small muted">Nothing saved yet.</p>` : !shown.length ? `<p class="small muted">No match.</p>`
-      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy)).join('')}</div>`;
+      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy, supplementBlock(m, S.sets, S.exercises, recOwner()))).join('')}</div>`;
     h += nav.bottom + `</div></section>`;
   } else {
     h += `<div class="grp">`;
@@ -2320,7 +2549,7 @@ function renderDetail() {
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
-    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span><button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button></div>`;
+    else h += `${materialBlock(qs, true)}<div class="row"><span class="small muted grow">Question set "${esc(qs.title || 'Untitled')}" has ${plural(S.exercises.filter(x => x.setId === qs.id).length, 'exercise')}. The set is deleted once all its exercises are deleted or moved out.</span>${setOwnership(qs, S.exercises) === 'owned' ? `<button type="button" class="btn ghost small" data-act="edit-set" data-id="${esc(qs.id)}">Edit set</button>` : ''}</div>${setOwnership(qs, S.exercises) === 'owned' ? '' : `<p class="note">This question set has no confirmed owner yet (older data). You can still practise and edit its questions, but the shared material can't be edited and new questions can't be added until its ownership is repaired.</p>`}`;
   }
   h += `<article class="sheet">${questionBody(e, { key: 'v', response: '', locked: true, showCorrect: false })}${solutionBlock(e)}</article>
   <section class="panel">
@@ -2446,8 +2675,20 @@ function renderPaperSheet(paperId) {
   const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
   // 摘要：左上角返回、类型标签、分数一行，卷名与交卷时刻在下一行
   let h = `<div class="progress sheet-top">${back}${paperTag(p)}<div class="grow"></div><span class="score num">${sc.right}/${sc.total}</span><div class="sum-name"><span class="h3 ellip">${esc(pname(p))}</span><span class="small muted ellip">Handed in ${esc(when)}</span></div></div>`;
+  const asm = paperAssessment(p, mine(), S.me);
+  if (asm.empty) h += `<p class="note">No questions are left on this paper, so there is nothing to assess.</p>`;
+  else if (asm.handedIn && !asm.complete) h += `<p class="note">Handed in, but not fully assessed: ${plural(asm.pending, 'question')} on this paper ${asm.pending === 1 ? 'has' : 'have'} no saved judgment yet.</p>`;
+  const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), Math.max(0, rows.length - 1)), r = rows[i];
+  // 梯子一直在：交卷前后两架，按本卷各题作答现算；选中的题有作答时，另有一个小人沿梯子爬它那一级
+  const lad = paperLadders(rows.filter(x => x.ex).map(x => x.ex), S.me, p.id, {}, {});
+  let hero = null, cap = '';
+  if (r && r.ex && r.attempt) {
+    const c = questionClimb(r.ex, S.me, p.id), lv = k => k === 5 ? 'mastered' : `level ${k}`, q = `Q${i + 1}`;
+    const text = c.kind === 'up' ? `${q} climbs from ${lv(c.from)} to ${lv(c.to)}.` : c.kind === 'down' ? `${q} drops back to ${lv(c.to)}.` : `${q} stays ${c.to === 5 ? 'mastered' : 'at ' + lv(c.to)}.`;
+    hero = Object.assign({ label: q, text }, c); cap = text;
+  }
+  h += `<section class="panel sheet-ladder">${ladderPair(lad, 'sheet', hero)}${cap ? `<p class="small muted ladcap">${esc(cap)}</p>` : ''}</section>`;
   if (!rows.length) return h;
-  const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
   h += cardPager(sheetMarks(rows), i, 'sheet-go');
   if (!r.ex) return h + `<article class="sheet"><p class="muted">This exercise has been deleted.</p>${cardNav(i, rows.length, 'sheet-go', '', 'paper-view-close')}</article>`;
   const e = r.ex, a = r.attempt;
@@ -2677,6 +2918,12 @@ async function flushResponses(R) {
   if (R.saveP) await R.saveP.catch(() => {});
   if (R.dirty && !R.handing) await saveResponses(R);
 }
+function openRecovery(p) {
+  // 恢复一张受保护的未交每日卷：已存作答还原为回答与判定（标为已存），回到作答页，再点 Hand in 只补写缺的作答与交卷确认
+  const rr = recoverRun(p, mine());
+  S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: rr.responses, results: rr.results, saved: rr.saved, idx: 0, openSets: {}, openPhotos: {}, recovered: true };
+  render(); window.scrollTo(0, 0);
+}
 async function writeAttempts(e, attempts) {
   // e 是原文档，attempts 是所有人的全部作答；阶梯按人现算，不写派生字段
   await S.db.doc('exercises/' + e.id).update({ attempts });
@@ -2697,7 +2944,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2723,8 +2970,12 @@ document.addEventListener('click', async ev => {
         // 每次都按这一科此刻的一批（先没做过的、再最久没用的）新组一张；带上这一科最新那张没交的每日卷上、新卷也有的题的回答；写好新卷后删掉本人这一科所有没交的每日卷；没有到期题就不组卷
         const today = localToday(), subj = b.dataset.subject;
         if (!SUBJ[subj]) break;
-        const view = mine(), last = openDailyPaper(S.papers, view, S.me, subj);
-        const olds = S.papers.filter(x => isDaily(x) && x.for === S.me && x.subject === subj && !handedInAt(x, view, S.me));
+        const view = mine();
+        // 这一科有已存我作答的未交卷：先恢复最近一张，其余在 Today 的未完成列表里；处理完才开新批次，绝不取代或删除它
+        const prot = protectedDailyPapers(S.papers, view, S.me, subj);
+        if (prot.length) { openRecovery(prot[0]); break; }
+        const last = openDailyPaper(S.papers, view, S.me, subj);
+        const olds = replaceableDailyPapers(S.papers, view, S.me, subj);
         const list = subjectBatch(todayScope(S.exercises, S.me, S.settings.defaultOwner).todo, today, S.settings.dailyLimit, subj);
         if (!list.length) { render(); break; }
         const doc = makeDailyPaper(list, S.me, S.settings.defaultOwner, today, fmtDate, subj, nowLocal());
@@ -2738,6 +2989,7 @@ document.addEventListener('click', async ev => {
         S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: Object.assign({}, carried), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} };
         render(); window.scrollTo(0, 0); break;
       }
+      case 'recover-daily': { const rp = S.papers.find(x => x.id === b.dataset.id); if (rp) openRecovery(rp); break; }
       case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
       case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); break;
       case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); break;
@@ -2762,7 +3014,7 @@ document.addEventListener('click', async ev => {
             if (must.length || missing.length) { R.warn = { must, missing }; R.warned = true; render(); window.scrollTo(0, 0); break; }
           }
           R.warn = null;
-          for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
+          for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open' && !R.saved[id]) R.results[id] = judgeAuto(e, R.responses[id] || ''); }   // 已存的作答不按（可能为空的）缓冲重判
           R.phase = 'review'; R.idx = 0;
         }
         R.saving = true; R.err = null; R.handing = true; render(); window.scrollTo(0, 0);
@@ -2801,7 +3053,7 @@ document.addEventListener('click', async ev => {
       case 'recognise': await recognise(); break;
       case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } render(); } break;
       case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
-      case 'mat-pick': if (!(S.recBusy || S.recPrep)) { S.recSet = b.dataset.id; render(); } break;
+      case 'mat-pick': { const m = savedMaterials(S.sets, S.exercises).find(x => x.id === b.dataset.id); if (!(S.recBusy || S.recPrep) && m && !supplementBlock(m, S.sets, S.exercises, recOwner())) { S.recSet = b.dataset.id; render(); } break; }
       case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
       case 'plog-clear': store.set(PLOG_KEY, '[]'); render(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
@@ -2809,17 +3061,29 @@ document.addEventListener('click', async ev => {
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
       case 'drop-set': { const k = b.dataset.s; for (const d of S.drafts) if (d.setRef === 'new:' + k) d.setRef = ''; S.setDrafts = S.setDrafts.filter(x => x.key !== Number(k)); render(); break; }
       case 'drop-simg': { const sd = setDraftByKey(b.dataset.s); sd.images.splice(Number(b.dataset.i), 1); render(); break; }
-      case 'edit-set': { const x = setById(b.dataset.id); S.setEdit = Object.assign(newSetDraft(x), { key: 'edit', id: x.id, createdAt: x.createdAt, test: x.test }); render(); break; }
+      case 'edit-set': {
+        const x = setById(b.dataset.id);
+        if (!x || setOwnership(x, S.exercises) !== 'owned') break;
+        const sd = newSetDraft(x);
+        S.setEdit = Object.assign(sd, { key: 'edit', id: x.id, base: { title: sd.title, text: sd.text, source: sd.source, images: sd.images.slice(), wordBank: sd.wordBank } }); render(); break;
+      }
       case 'cancel-set': S.setEdit = null; render(); break;
       case 'save-set': {
-        const E = S.setEdit;
+        // 只写真改了的字段（不回写 owner、subject、createdAt）；删词要先新读完整当前成员，读不到或有别的归属人的成员就阻止，答案会掉出词表也不存
+        const E = S.setEdit, cur = setById(E.id);
+        if (!cur || setOwnership(cur, S.exercises) !== 'owned') { E.error = "This question set's ownership isn't recorded or conflicts, so it can't be edited yet."; render(); break; }
         if (!E.text.trim() && !E.images.length) { E.error = 'Add material text or at least one photo.'; render(); break; }
-        const bank = parseList(E.wordBank);
-        const lost = S.exercises.filter(x => x.setId === E.id && x.format === 'pick' && !bank.some(w => normAnswer(w) === normAnswer(x.answer)));
-        if (lost.length) { E.error = "Can't save: these word-pick answers aren't in the new word bank — " + lost.map(x => `"${plain(x.stem) || x.answer}" (answer ${x.answer})`).join(', ') + '. Change the word bank or these questions first.'; render(); break; }
-        const doc = { subject: E.subject, title: E.title.trim(), text: E.text.trim(), images: E.images, source: E.source.trim(), wordBank: bank, createdAt: E.createdAt || localToday() };
-        if (E.test) doc.test = true;
-        await S.db.doc('sets/' + E.id).set(doc);
+        const patch = setPatch(E.base, E);
+        if (!Object.keys(patch).length) { S.setEdit = null; render(); break; }
+        if (patch.wordBank) {
+          const oldBank = parseList(cur.wordBank);
+          const members = bankEdit(oldBank, patch.wordBank, null).destructive ? await readMembers(E.id) : null;
+          const ck = bankEdit(oldBank, patch.wordBank, members);
+          if (ck.blocked) { E.error = "Can't remove words right now: the page couldn't confirm which questions use this set. Try again later, or only add or reorder words."; render(); break; }
+          if (members && members.some(m => !sameOwner(m.owner, cur.owner))) { E.error = "Can't remove words: some questions using this set belong to a different owner."; render(); break; }
+          if (ck.lost.length) { E.error = "Can't save: these word-pick answers aren't in the new word bank — " + ck.lost.map(x => `"${plain(x.stem) || x.answer}" (answer ${x.answer})`).join(', ') + '. Change the word bank or these questions first.'; render(); break; }
+        }
+        await S.db.doc('sets/' + E.id).update(patch);
         S.setEdit = null; render(); break;
       }
       case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
@@ -2853,14 +3117,17 @@ document.addEventListener('click', async ev => {
       case 'paper-preview': {
         const P = S.paperForm;
         S.paperPreview = paperLayout(drawPaper(paperPool(), { subject: P.subject, topics: P.topics, count: Math.max(1, Math.min(50, Number(P.count) || 10)) }));
+        S.paperPreviewOwner = S.settings.defaultOwner;
         S.paperMsg = null; render(); break;
       }
       case 'paper-create': {
         const P = S.paperForm, today = localToday();
+        const chk = previewCheck(S.paperPreview, S.paperPreviewOwner, S.settings.defaultOwner, S.exercises);
+        if (!chk.ok) { S.paperPreview = null; S.paperPreviewOwner = null; S.paperMsg = { kind: 'err', text: chk.reason === 'empty' ? 'Preview the draw first.' : 'The library changed since the preview (a different owner, or some questions are gone). Please preview again.' }; render(); break; }
         const tnames = P.topics.length ? P.topics.map(t => topicLabel(P.subject, t)).join(', ') : 'All topics';
-        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: S.paperPreview.map(e => e.id), owner: S.settings.defaultOwner };
+        const doc = { title: `${SUBJ[P.subject].en} · ${tnames} · ${fmtDate(today)}`, createdAt: today, madeAt: nowLocal(), madeBy: S.me, subject: P.subject, topics: P.topics.slice(), count: Number(P.count) || 10, exerciseIds: chk.ids, owner: S.settings.defaultOwner, handedIn: {} };
         await S.db.collection('papers').doc().set(doc);
-        S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
+        S.paperPreview = null; S.paperPreviewOwner = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
       }
       case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
       case 'paper-view-close': S.paperView = null; render(); break;
@@ -2974,6 +3241,8 @@ document.addEventListener('keydown', ev => {
 async function saveDraft(d) {
   const r = draftToDoc(d);
   if (r.error) { d.error = r.error; return false; }
+  const le = draftLinkError(d);
+  if (le) { d.error = le; return false; }
   d.error = '';
   try {
     let setId = null;
@@ -2983,8 +3252,9 @@ async function saveDraft(d) {
         sd.subject = sd.subject || d.subject;
         if (!String(sd.text).trim() && !sd.images.length && !d.stem.trim()) { d.error = 'The question set still needs material text or a photo.'; return false; }
         const ref = S.db.collection('sets').doc();
-        await ref.set({ subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
-        sd.savedId = ref.id;
+        const setOwner = d.editId ? d.owner : recOwner();
+        await ref.set({ owner: setOwner, subject: sd.subject, title: sd.title.trim(), text: sd.text.trim(), images: sd.images, source: sd.source.trim(), wordBank: parseList(sd.wordBank), createdAt: localToday() });
+        sd.savedId = ref.id; sd.savedOwner = setOwner;
       }
       setId = sd.savedId;
     } else if (d.setRef) setId = d.setRef;
@@ -3214,6 +3484,8 @@ async function recogniseMore() {
   // 来源是题组：题组的文字和照片都交给 AI；来源是一批共用照片的独立题：只交照片。照片用 /_blob/<id> 取成 Blob，按照片限额取；取不到或超限的跳过并在提示里说
   const src = recSource();
   if (!src) { S.recSet = ''; render(); return; }
+  const blk = supplementBlock(src, S.sets, S.exercises, recOwner());
+  if (blk) { S.recSet = ''; S.recMsg = { kind: 'err', text: (SUPP_NOTE[blk] || "Can't add questions to this set") + '.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   const t0 = Date.now(), tm = {}, opts = readOptions(t0, tm);
   S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
@@ -3277,16 +3549,20 @@ async function boot() {
   if (!window.claude || !window.claude.use) { S.status = 'nodb'; render(); return; }
   const use = n => window.claude.use(n).catch(() => null);
   const [db, assets, sample, user] = await Promise.all([use('db'), use('assets'), use('sample'), use('user')]);
-  const me = user ? (await user.me()).id : null;
+  let me = null;
+  try { me = user ? (await user.me()).id : null; } catch (e) { me = null; }   // 取不到身份与没有 db 一样：不能正常使用
   if (!db || !me) { S.status = 'nodb'; render(); return; }
-  Object.assign(S, { db, assets, sample, user, me });
+  // S.db 只用来写，写入遇到 unavailable 自动重试（用户反馈的行为，来自已发布的生产版）；监听与读取仍用原来的 db（S.rawDb）
+  Object.assign(S, { db: retryingDb(db, ms => new Promise(r => setTimeout(r, ms)), Math.random, 2), rawDb: db, assets, sample, user, me });
   S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
-  try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) {}
+  // 登记失败不挡使用，但要说：别人的比赛名单里可能暂时没有我
+  try { const u = await db.doc('users/' + me).get(); if (!u.exists) await db.doc('users/' + me).set({ joinedAt: localToday() }); } catch (e) { S.bootWarn = "Couldn't register you in the shared user list. You can keep practising, but others may not see you in matches until you reload and it succeeds."; }
   if (sample && sample.limits) { try { const l = await sample.limits(); S.imgLimits = l && l.images ? l.images : null; } catch (e) { S.imgLimits = null; } }
   // 就绪：设置、错题、卷子、题组各到一次快照；错题与卷子只订阅默认归属人的，默认归属人变了就重新订阅（DATA.md「加载」）
   const got = { exercises: false, papers: false, sets: false };
-  const fail = () => { S.status = 'nodb'; render(); };
+  // 必需的读取失败：显示无法读取（不是空库，也不是一直加载）；刷新页面重试
+  const fail = what => { S.status = 'noread'; S.readFail = `The ${what || 'data'} couldn't be read.`; render(); };
   const ready = k => {
     got[k] = true;
     if (!(got.exercises && got.papers && got.sets)) { softRender(); return; }
@@ -3299,7 +3575,7 @@ async function boot() {
     const owner = S.settings.defaultOwner;
     if (subOwner !== undefined && owner === subOwner) return;
     subOwner = owner; subs.forEach(u => u()); subs = [];
-    S.exercises = []; S.papers = []; got.exercises = got.papers = false; pruned = false;
+    S.exercises = []; S.papers = []; S.paperPreview = null; S.paperPreviewOwner = null; got.exercises = got.papers = false; pruned = false;
     if (S.status === 'ready') S.status = 'loading';
     softRender();
     subs.push(db.collection('exercises').where('owner', '==', owner).onSnapshot(snap => {
@@ -3309,16 +3585,16 @@ async function boot() {
         return o;
       });
       ready('exercises'); loadNames();
-    }, fail));
+    }, () => fail('exercises')));
     subs.push(db.collection('papers').where('owner', '==', owner).onSnapshot(snap => {
       S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
       ready('papers'); loadNames();
-    }, fail));
+    }, () => fail('papers')));
   };
   db.collection('sets').onSnapshot(snap => {
     S.sets = snap.docs.map(d => Object.assign({ id: d.id, images: [] }, d.data()));
     ready('sets');
-  }, fail);
+  }, () => fail('question sets'));
   db.collection('users').onSnapshot(snap => {
     S.userIds = snap.docs.map(d => d.id).sort((a, b) => (b === me) - (a === me) || a.localeCompare(b));
     loadNames(); softRender();
@@ -3331,12 +3607,14 @@ async function boot() {
     S.owners = Object.fromEntries(snap.docs.map(d => [d.id, readSettings(d.data(), d.id).defaultOwner]));
     softRender();
   }, () => {});
+  let settingsRead = false;
   db.doc('settings/' + me).onSnapshot(snap => {
+    settingsRead = true;
     const v = snap.exists ? snap.data() : null;
     S.settings = readSettings(v, me);
     subscribeOwned();
     softRender();
-  }, () => {});
+  }, () => { if (!settingsRead) fail('your settings'); });   // 没读到过设置就不能确定要开哪个库；读到之后的监听出错保持现状，不把能用的页面换成错误页
 }
 boot();
 </script>
