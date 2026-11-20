@@ -37,7 +37,7 @@ const seed = {
     const doc = (c, id) => ({ id,
       async get() { if (window.__failUsers && c === 'users') throw new Error('users unavailable'); const d = (data[c] || {})[id]; return { exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }; },
       async set(v) { (data[c] = data[c] || {})[id] = JSON.parse(JSON.stringify(v)); notify(); },
-      async update(v) { Object.assign(data[c][id], JSON.parse(JSON.stringify(v))); notify(); },
+      async update(v) { if (window.__failWrite && window.__failWrite.n > 0) { window.__failWrite.n--; window.__failWrite.calls++; const e = new Error('injected'); e.code = window.__failWrite.code; throw e; } Object.assign(data[c][id], JSON.parse(JSON.stringify(v))); notify(); },
       async delete() { delete data[c][id]; notify(); },
       onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => { const d = (data[c] || {})[id]; cb({ exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }); }; subs.push(fire); setTimeout(fire, 0); return () => {}; } });
     const db = { collection: c => Object.assign(q(c), { doc: id => doc(c, id || 'auto' + (++n)) }), doc: p => { const [c, id] = p.split('/'); return doc(c, id); } };
@@ -76,7 +76,7 @@ const seed = {
   // membership read failure on an owned set -> kept + notice
   await pg.evaluate(async () => { window.__data.sets.S2 = { owner: 'uS', subject: 'english', title: 'S2', text: 't', images: [], wordBank: [], createdAt: '2026-01-01' }; window.__data.exercises.e5 = { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q5', answer: 'a', accepted: ['a'], options: [], images: [], createdAt: '2026-01-01', setId: 'S2', setPos: 1, attempts: [] }; });
   await pg.evaluate(async () => { await window.__db.doc('users/uS').update({}); }); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { const orig = window.__db.collection; S.db = Object.assign({}, S.db, { collection: c => { const x = orig(c); const w = x.where; x.where = (...a) => { const y = w(...a); y.get = async () => { throw new Error('boom'); }; return y; }; return x; } }); });
+  await pg.evaluate(() => { const orig = window.__db.collection; S.rawDb = Object.assign({}, window.__db, { collection: c => { const x = orig(c); const w = x.where; x.where = (...a) => { const y = w(...a); y.get = async () => { throw new Error('boom'); }; return y; }; return x; } }); });
   await click('delete-ex', { id: 'e5' });
   out.failedReadKeptSet = await pg.evaluate(() => !!window.__data.sets.S2);
   out.noticeMembership = await pg.evaluate(() => S.notice);
@@ -99,7 +99,7 @@ const seed = {
   // material edit: stale form edits only the title while the stored bank changed elsewhere -> bank/owner/subject untouched
   await pg.evaluate(async () => { window.__data.sets.SB = { owner: 'uS', subject: 'english', title: 'Old', text: 't', images: [], wordBank: ['a', 'b'], createdAt: '2026-01-01' }; window.__data.exercises.e6 = { owner: 'uS', subject: 'english', topic: 'x', format: 'pick', stem: 'Q6 [[b]]', answer: 'b', options: [], images: [], createdAt: '2026-01-01', setId: 'SB', setPos: 1, attempts: [] }; await window.__db.doc('users/uS').update({}); });
   await pg.waitForTimeout(300);
-  await pg.evaluate(() => { S.db = window.__db; const x = setById('SB'); const sd = newSetDraft(x); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SB', base: { title: sd.title, text: sd.text, source: sd.source, images: [], wordBank: sd.wordBank } }); S.setEdit.title = 'New title'; window.__data.sets.SB.wordBank = ['a', 'b', 'c']; });
+  await pg.evaluate(() => { S.rawDb = window.__db; const x = setById('SB'); const sd = newSetDraft(x); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SB', base: { title: sd.title, text: sd.text, source: sd.source, images: [], wordBank: sd.wordBank } }); S.setEdit.title = 'New title'; window.__data.sets.SB.wordBank = ['a', 'b', 'c']; });
   await click('save-set');
   out.staleFormKeepsBank = await pg.evaluate(() => JSON.stringify(window.__data.sets.SB));
   // destructive removal that would orphan e6's answer 'b' -> rejected with the question named
@@ -132,6 +132,15 @@ const seed = {
   out.legacyCardBlocked = await pg.evaluate(() => { const m = [...document.querySelectorAll('button.mat')].find(x => /Legacy two/.test(x.innerText)); return m ? [m.disabled, /Owner not recorded/.test(m.innerText)] : null; });
   await click('mat-pick', { id: 'SL2' });
   out.legacyNotSelected = await pg.evaluate(() => S.recSet === '');
+  // 写入重试：页面真实的写入路径（S.db）遇到 unavailable 自动重试再成功；别的错误码立刻失败、不重试
+  out.retryUnavailable = await pg.evaluate(async () => {
+    window.__failWrite = { n: 1, code: 'unavailable', calls: 0 };
+    const t0 = Date.now(); await S.db.doc('exercises/e2').update({ solution: 'Key idea: retried write.' });
+    const ok1 = window.__data.exercises.e2.solution === 'Key idea: retried write.' && window.__failWrite.calls === 1 && Date.now() - t0 >= 450;
+    window.__failWrite = { n: 3, code: 'quota_exceeded', calls: 0 }; let threw = null;
+    try { await S.db.doc('exercises/e2').update({ solution: 'should not land' }); } catch (e) { threw = e.code; }
+    return { ok1, threw, calls: window.__failWrite.calls, landed: window.__data.exercises.e2.solution === 'should not land' };
+  });
   // 验收 #4：必需的读取失败显示「无法读取」，不是一直加载，也不是空库；身份取不到与无 db 同样不可用；登记失败不挡使用但有提示
   const failPage = async (flags, seedOverride) => {
     const p2 = await b.newPage();
@@ -158,6 +167,7 @@ const seed = {
   ok('removeUsedWordRejected', /Q6/.test(out.removeUsedWordRejected[0]) && out.removeUsedWordRejected[1] === '["a","b","c"]');
   ok('legacyEditBlocked', /ownership/.test(out.legacyEditBlocked));
   ok('missingShown', out.missingShown); ok('legacyCardBlocked', Array.isArray(out.legacyCardBlocked) && out.legacyCardBlocked[0] && out.legacyCardBlocked[1]); ok('legacyNotSelected', out.legacyNotSelected);
+  ok('retryUnavailable', out.retryUnavailable.ok1 && out.retryUnavailable.threw === 'quota_exceeded' && out.retryUnavailable.calls === 1 && !out.retryUnavailable.landed);
   ok('settingsFail', /Couldn't read your data/.test(out.settingsFail) && /your settings couldn't be read/.test(out.settingsFail) && !/Opening the exercise book/.test(out.settingsFail) && !/empty/.test(out.settingsFail.replace(/not an empty exercise book/, '')));
   ok('exercisesFail', /Couldn't read your data/.test(out.exercisesFail));
   ok('identityFail', /Data unavailable/.test(out.identityFail));

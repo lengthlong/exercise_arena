@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,paperAssessment,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,paperAssessment,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -850,4 +850,32 @@ assert.deepStrictEqual([n39_sb({ kind: 'set', id: 'S1', subject: 'english' }, 'u
 assert.strictEqual(L.missingRefCount({ exerciseIds: ['x1', 'gone', 'gone2'] }, [{ id: 'x1' }]), 2);
 assert.strictEqual(L.missingRefCount({ exerciseIds: ['x1'] }, [{ id: 'x1' }]), 0);
 assert.strictEqual(L.missingRefCount({}, []), 0);
-console.log('all logic tests passed');
+
+// ---- 写入重试（生产版已有的行为并回仓库）：只对 unavailable 重试，最多 retries 次，延迟 0.5–1.5 秒；只包写入 ----
+(async () => {
+  const mkFn = (codes) => { let n = 0; return { calls: () => n, fn: async () => { const c = codes[n++]; if (c === 'ok' || c === undefined) return 'done'; const e = new Error(c); e.code = c; throw e; } }; };
+  const slept = [];
+  const sleep = async ms => { slept.push(ms); };
+  let f = mkFn(['ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length], [1, 0]);   // 一次成功不等待
+  f = mkFn(['unavailable', 'ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0.5, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length, slept[0]], [2, 1, 1000]);   // 重试一次，延迟 500 + 0.5×1000
+  slept.length = 0; f = mkFn(['unavailable', 'unavailable', 'ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0.999, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length], [3, 2]); assert.ok(slept.every(ms => ms >= 500 && ms < 1500));
+  slept.length = 0; f = mkFn(['unavailable', 'unavailable', 'unavailable', 'ok']);
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === 'unavailable'); assert.strictEqual(f.calls(), 3);   // 最多重试两次，之后原样抛出
+  f = mkFn(['quota_exceeded', 'ok']);
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === 'quota_exceeded'); assert.strictEqual(f.calls(), 1);   // 别的错误码立刻抛出，不重试
+  f = { n: 0, fn: async () => { f.n++; throw new Error('no code'); } };
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2)); assert.strictEqual(f.n, 1);
+  // 包装只管写：写入经过重试；读（get）直接转发；id、path 保留；collection().doc() 无参时让平台生成 id
+  const log = []; let failNext = 1;
+  const fakeRef = { id: 'r1', path: 'x/r1', get: async () => 'got', set: async d => { log.push(['set', d]); if (failNext-- > 0) { const e = new Error('u'); e.code = 'unavailable'; throw e; } }, update: async d => { log.push(['update', d]); }, delete: async () => { log.push(['delete']); } };
+  const fakeDb = { doc: p => { log.push(['doc', p]); return fakeRef; }, collection: p => ({ doc: id => { log.push(['cdoc', p, id === undefined ? 'auto' : id]); return fakeRef; }, where: () => { throw new Error('should not be reached through the wrapper'); } }) };
+  const w = L.retryingDb(fakeDb, async () => {}, () => 0, 2);
+  const d = w.doc('x/r1'); assert.deepStrictEqual([d.id, d.path, await d.get()], ['r1', 'x/r1', 'got']);
+  await d.set({ a: 1 }); assert.deepStrictEqual(log.filter(x => x[0] === 'set').length, 2);                       // unavailable 后重试成功
+  await d.update({ b: 2 }); await d.delete();
+  w.collection('x').doc(); w.collection('x').doc('given'); assert.deepStrictEqual(log.filter(x => x[0] === 'cdoc'), [['cdoc', 'x', 'auto'], ['cdoc', 'x', 'given']]);
+  assert.strictEqual(typeof w.collection('x').where, 'undefined');   // 包装没有读查询：页面的成员查询要用原来的 db（S.rawDb）
+})().then(() => console.log('all logic tests passed'), e => { console.error(e); process.exit(1); });   // 重试断言是异步的：全部过了才报通过

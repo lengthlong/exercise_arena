@@ -9,6 +9,7 @@
   照片日志：录入页「Photo log」记拍照到缩略图出现的过程，只存本机 localStorage，不进 db。
   拍照后缩略图：照片一选就先显示原图，缩小在后台做，decode() 10 秒超时（用户直接指示，未开讨论）。
   重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
+  写入重试：写入遇到 unavailable（平台的暂时不可用）时自动重试，最多两次、隔 0.5–1.5 秒；别的错误码照旧立刻提示（用户反馈，未开讨论；从已发布的生产版并回仓库）。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   新掌握：Today 的 Newly mastered 用科目子标签、按 Key idea 列出（前 3 行 + more），展开看题干，点开详情可返回 Today（discuss 0038）。第 88 版发布 0037 与 0038。
   录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
@@ -1429,6 +1430,30 @@ function matchMaterial(item, query) {
   const strip = t => String(t || '').replace(/\[\[(.+?)\]\]/g, '$1');
   return [item.label, item.source, strip(item.text)].concat(item.stems || []).join('\n').toLowerCase().includes(k);
 }
+async function retryUnavailable(fn, sleep, rnd, retries) {
+  // 平台说 unavailable 是暂时的：写入失败带这个码时，隔一小会儿（0.5–1.5 秒，随机）再试，最多 retries 次；别的错误码原样抛出
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (!err || err.code !== 'unavailable' || i >= retries) throw err;
+      await sleep(500 + Math.floor(rnd() * 1000));
+    }
+  }
+}
+function retryingDb(db, sleep, rnd, retries) {
+  // 只给写（set、update、delete）加重试；页面里写入都是整份替换、按字段替换或删除，重做一次结果相同。读与监听不经过它（用原来的 db）
+  const wrapDoc = ref => ({
+    id: ref.id, path: ref.path,
+    get: () => ref.get(),
+    set: d => retryUnavailable(() => ref.set(d), sleep, rnd, retries),
+    update: d => retryUnavailable(() => ref.update(d), sleep, rnd, retries),
+    delete: () => retryUnavailable(() => ref.delete(), sleep, rnd, retries),
+  });
+  return {
+    doc: p => wrapDoc(db.doc(p)),
+    collection: p => { const c = db.collection(p); return { doc: id => wrapDoc(id === undefined ? c.doc() : c.doc(id)) }; },
+  };
+}
 /* LOGIC:END */
 </script>
 
@@ -1562,7 +1587,7 @@ function nextPos(setId) {
 async function readMembers(setId) {
   // 一道题组当前全部成员（不限归属人）：用查询新读一次，不靠按归属人订阅的快照；平台不支持、被拒或失败时返回 null，调用处按「无法确认」保留或阻止
   try {
-    const q = S.db.collection('exercises').where('setId', '==', setId);
+    const q = (S.rawDb || S.db).collection('exercises').where('setId', '==', setId);   // 查询用原来的 db：带重试的 S.db 只包了写入
     if (!q || typeof q.get !== 'function') return null;
     const snap = await q.get();
     if (!snap || !Array.isArray(snap.docs)) return null;
@@ -3438,7 +3463,8 @@ async function boot() {
   let me = null;
   try { me = user ? (await user.me()).id : null; } catch (e) { me = null; }   // 取不到身份与没有 db 一样：不能正常使用
   if (!db || !me) { S.status = 'nodb'; render(); return; }
-  Object.assign(S, { db, assets, sample, user, me });
+  // S.db 只用来写，写入遇到 unavailable 自动重试（用户反馈的行为，来自已发布的生产版）；监听与读取仍用原来的 db（S.rawDb）
+  Object.assign(S, { db: retryingDb(db, ms => new Promise(r => setTimeout(r, ms)), Math.random, 2), rawDb: db, assets, sample, user, me });
   S.settings = readSettings(null, me);   // 拿到 me 后重设：默认归属人是本人
   // 第一次打开时登记自己；名字不存
   // 登记失败不挡使用，但要说：别人的比赛名单里可能暂时没有我
