@@ -1,5 +1,6 @@
 // 假平台冒烟入口（替代品，不是平台验收）：用内存里的假 db/user 在无头 Chromium 里打开 impl/arena.html，
 // 走讨论 0039 落实的处理器：受保护每日卷恢复、新卷交卷确认初始化、题组清理、题组链接校验、检验卷预览校验、材料编辑。
+// 另覆盖验收 20261120-first-loop-after-0039 #8（旧题组补录入口）与 #11（卷上已删题的明示）。
 // 用法：node verify/fake-platform-smoke.js impl/arena.html（需要可 require 的 playwright 与 Chromium）。
 // 它只证明页面代码在假平台约定下的行为；真实 db 查询、身份、AI/照片、并发与发布需要授权的测试 Artifact（见 verify/README.md）。
 const assert = require('assert'); const path = require('path');
@@ -108,6 +109,28 @@ const seed = {
   await pg.evaluate(() => { const x = setById('SL') || { id: 'SL', subject: 'english', title: 'l', text: 't', images: [] }; const sd = newSetDraft(x); S.setEdit = Object.assign(sd, { key: 'edit', id: 'SL', base: { title: '', text: sd.text, source: '', images: [], wordBank: '' } }); S.setEdit.title = 'x'; });
   await click('save-set');
   out.legacyEditBlocked = await pg.evaluate(() => S.setEdit && S.setEdit.error);
+  // 验收 #11：受保护的卷里有题已删时，作答页明示缺失，并仍可恢复其余的题
+  await pg.evaluate(async () => {
+    const t = Object.keys(window.__data.papers).length; const today = window.__data.papers.DP1.createdAt;
+    window.__data.exercises.e1.attempts.push({ by: 'uS', date: today, mode: 'daily', paperId: 'DP9', response: 'z', result: 'right', judgedBy: 'auto', at: today + 'T09:00' });
+    window.__data.papers.DP9 = { kind: 'daily', for: 'uS', owner: 'uS', subject: 'english', title: 't', createdAt: today, madeAt: today + 'T09:30', topics: [], count: 2, exerciseIds: ['e1', 'gone9'], handedIn: {} };
+    await window.__db.doc('users/uS').update({});
+  });
+  await pg.waitForTimeout(300);
+  await click('exit-run'); await click('recover-daily', { id: 'DP9' });
+  out.missingShown = /1 question on this paper was deleted/.test(await txt()) && /Recovered: 1 answer already saved/.test(await txt());
+  await click('exit-run');
+  // 验收 #8：旧题组（无 owner）在「From saved material」里不可选，并说明原因；点它不会选中
+  await pg.evaluate(async () => {
+    window.__data.sets.SL2 = { subject: 'english', title: 'Legacy two', text: 'old', images: [], wordBank: [], createdAt: '2026-01-01' };
+    window.__data.exercises.e8 = { owner: 'uS', subject: 'english', topic: 'x', format: 'short', stem: 'Q8', answer: 'a', accepted: ['a'], options: [], images: [], createdAt: '2026-01-01', setId: 'SL2', setPos: 1, attempts: [] };
+    await window.__db.doc('users/uS').update({});
+  });
+  await pg.waitForTimeout(300);
+  await click('tab', { v: 'record' }); await click('rec-mode', { v: 'saved' });
+  out.legacyCardBlocked = await pg.evaluate(() => { const m = [...document.querySelectorAll('button.mat')].find(x => /Legacy two/.test(x.innerText)); return m ? [m.disabled, /Owner not recorded/.test(m.innerText)] : null; });
+  await click('mat-pick', { id: 'SL2' });
+  out.legacyNotSelected = await pg.evaluate(() => S.recSet === '');
   await b.close();
   const ok = (k, cond) => { assert.ok(cond, 'FAILED: ' + k + ' = ' + JSON.stringify(out[k])); };
   ok('todayHasRecovery', out.todayHasRecovery); ok('recoveredBanner', out.recoveredBanner); ok('paperStillThere', out.paperStillThere);
@@ -120,6 +143,7 @@ const seed = {
   const sb = JSON.parse(out.staleFormKeepsBank); ok('staleFormKeepsBank', sb.title === 'New title' && sb.owner === 'uS' && sb.subject === 'english' && sb.wordBank.join() === 'a,b,c' && sb.createdAt === '2026-01-01');
   ok('removeUsedWordRejected', /Q6/.test(out.removeUsedWordRejected[0]) && out.removeUsedWordRejected[1] === '["a","b","c"]');
   ok('legacyEditBlocked', /ownership/.test(out.legacyEditBlocked));
+  ok('missingShown', out.missingShown); ok('legacyCardBlocked', Array.isArray(out.legacyCardBlocked) && out.legacyCardBlocked[0] && out.legacyCardBlocked[1]); ok('legacyNotSelected', out.legacyNotSelected);
   assert.deepStrictEqual(errs, [], 'page errors');
   console.log('fake-platform smoke passed');
 })();

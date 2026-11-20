@@ -787,6 +787,16 @@ function checkSetLink(set, subject, owner, exs) {
   if (set.subject !== subject) return { ok: false, reason: 'subject' };
   return { ok: true, reason: '' };
 }
+function supplementBlock(m, sets, exs, owner) {
+  // 从已存材料补录：题组来源要归属有效、同当前内容归属人，否则不可选（返回原因）；照片批次不是题组，不受限
+  if (!m || m.kind !== 'set') return '';
+  return checkSetLink((sets || []).find(x => x.id === m.id), m.subject, owner, exs).reason;
+}
+function missingRefCount(paper, exs) {
+  // 卷上已不存在的题数（错题被删）；作答页与恢复入口据此明示缺失
+  const have = new Set(exs.map(e => e.id));
+  return (paper.exerciseIds || []).filter(id => !have.has(id)).length;
+}
 function cleanupDecision(set, members, goneId, exs) {
   // 最后成员清理：只在题组归属有效、且新读到的完整当前成员（members，读失败为 null）除去刚移出的之外为空时才删；其余保留，reason 说明为何保留
   if (!set) return { del: false, reason: 'gone' };
@@ -1715,7 +1725,7 @@ function todayBlock(today, redo, cps, todo, view) {
     // 已存了作答、但没交成的每日卷：不论此刻有没有到期题都列出，点开恢复；该科处理前不开新批次
     h += `<div class="today-papers"><p class="h3">Unfinished hand-ins</p><p class="muted small">Part of these papers is already saved. Finish one before starting a new batch in the same subject.</p><div class="list">${prot.map(p => {
       const pr = paperProgress(p, view);
-      return `<button type="button" class="item" data-act="recover-daily" data-id="${esc(p.id)}"><span class="t">${paperTag(p)} ${esc(pname(p))}</span><span class="side"><span class="num">${pr.done}/${pr.total} saved</span></span><span class="meta"><span>started ${fmtDate(p.createdAt)}</span></span></button>`;
+      return `<button type="button" class="item" data-act="recover-daily" data-id="${esc(p.id)}"><span class="t">${paperTag(p)} ${esc(pname(p))}</span><span class="side"><span class="num">${pr.done}/${pr.total} saved</span></span><span class="meta"><span>started ${fmtDate(p.createdAt)}</span>${missingRefCount(p, S.exercises) ? `<span>· ${missingRefCount(p, S.exercises)} deleted</span>` : ''}</span></button>`;
     }).join('')}</div></div>`;
   }
   if (cps.length) {
@@ -2036,6 +2046,8 @@ function renderPaperRun() {
     const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
     h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? `<span class="small muted">Handed in, not fully assessed: mark your ${plural(toMark, 'written answer')}</span>` : R.handed ? '<span class="small muted">Fully assessed</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
   }
+  const gone = missingRefCount(p, S.exercises);
+  if (gone) h += `<p class="note">${plural(gone, 'question')} on this paper ${gone === 1 ? 'was' : 'were'} deleted and can't be answered${exs.length ? '; the rest of the paper is below' : '; nothing is left to answer'}.</p>`;
   if (R.phase === 'answer' && R.recovered) h += `<p class="note">Recovered: ${plural(Object.keys(R.saved).length, 'answer')} already saved. Hand in again to finish saving the rest.</p>`;
   if (R.phase === 'answer' && R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
@@ -2079,11 +2091,12 @@ function resetRecMode() {
   // 每次进入 Record 页都停在 New photos or text；所选材料、给 AI 的提示与列表的搜索、筛选、页码都不保留
   S.recMode = 'new'; S.recSet = ''; S.recHint = ''; S.matQuery = ''; S.matPage = 1;
 }
-function materialCard(m, picked, off) {
+const SUPP_NOTE = { legacy: "Owner not recorded (older data): can't add questions", conflict: "Owner conflicts with its questions: can't add questions", owner: 'Belongs to a different owner: can\'t add questions', missing: 'No longer available' };
+function materialCard(m, picked, off, block) {
   const thumb = m.images.length ? `<img src="${blobUrl(m.images[0])}" alt="" loading="lazy">` : `<span class="mat-txt">${esc(plain(m.text).trim().slice(0, 60))}</span>`;
-  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off ? 'disabled' : ''}>
+  return `<button type="button" class="mat${picked ? ' picked' : ''}" data-act="mat-pick" data-id="${esc(m.id)}" aria-pressed="${picked}" ${off || block ? 'disabled' : ''}>
     <span class="mat-thumb">${thumb}</span>
-    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span></span>
+    <span class="mat-body"><span class="mat-top">${subjChip(m.subject)}<span class="chip">${m.kind === 'set' ? 'Set' : 'Photos'}</span></span><span class="mat-label">${esc(m.label)}</span><span class="small muted">${m.ids.length} recorded · last ${esc(fmtDate(String(m.last).slice(0, 10)))}</span>${block ? `<span class="small muted">${esc(SUPP_NOTE[block] || "Can't add questions")}</span>` : ''}</span>
   </button>`;
 }
 function matPager(n, page) {
@@ -2098,7 +2111,8 @@ function renderRecord() {
   const L = S.imgLimits, canPhoto = !!(S.assets && L), canSample = !!S.sample;
   const max = canPhoto ? L.maxCount : 0, n = S.recPhotos.length, full = n >= max, busy = S.recBusy || S.recPrep;
   const saved = S.recMode === 'saved';
-  const rs = recSource();
+  let rs = recSource();
+  if (rs && rs.kind === 'set' && supplementBlock(rs, S.sets, S.exercises, recOwner())) { S.recSet = ''; rs = null; }   // 换了内容归属人等：保留的选择不再可补录，清掉
   if (S.recSet && !rs) S.recSet = '';
   // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
   let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
@@ -2118,7 +2132,7 @@ function renderRecord() {
       ${act(rs ? 'Selected: ' + esc((all.find(m => m.id === rs.id) || { label: '' }).label) : '', !!rs)}</div>`;
     h += `<div class="grp"><input type="search" id="mat-q" data-matsearch="1" placeholder="Search title, source, text or questions" value="${esc(S.matQuery)}" aria-label="Search saved material" autocomplete="off">${nav.top}`;
     h += !all.length ? `<p class="small muted">Nothing saved yet.</p>` : !shown.length ? `<p class="small muted">No match.</p>`
-      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy)).join('')}</div>`;
+      : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy, supplementBlock(m, S.sets, S.exercises, recOwner()))).join('')}</div>`;
     h += nav.bottom + `</div></section>`;
   } else {
     h += `<div class="grp">`;
@@ -2923,7 +2937,7 @@ document.addEventListener('click', async ev => {
       case 'recognise': await recognise(); break;
       case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } render(); } break;
       case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
-      case 'mat-pick': if (!(S.recBusy || S.recPrep)) { S.recSet = b.dataset.id; render(); } break;
+      case 'mat-pick': { const m = savedMaterials(S.sets, S.exercises).find(x => x.id === b.dataset.id); if (!(S.recBusy || S.recPrep) && m && !supplementBlock(m, S.sets, S.exercises, recOwner())) { S.recSet = b.dataset.id; render(); } break; }
       case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
       case 'plog-clear': store.set(PLOG_KEY, '[]'); render(); break;
       case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
@@ -3354,6 +3368,8 @@ async function recogniseMore() {
   // 来源是题组：题组的文字和照片都交给 AI；来源是一批共用照片的独立题：只交照片。照片用 /_blob/<id> 取成 Blob，按照片限额取；取不到或超限的跳过并在提示里说
   const src = recSource();
   if (!src) { S.recSet = ''; render(); return; }
+  const blk = supplementBlock(src, S.sets, S.exercises, recOwner());
+  if (blk) { S.recSet = ''; S.recMsg = { kind: 'err', text: (SUPP_NOTE[blk] || "Can't add questions to this set") + '.' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   const t0 = Date.now(), tm = {}, opts = readOptions(t0, tm);
   S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();

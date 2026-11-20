@@ -13,7 +13,7 @@ See [model/verify/SPEC.md](../model/verify/SPEC.md) for the acceptance contract.
 
 | Entry | Run | What it covers | What it does not cover |
 |---|---|---|---|
-| [fake-platform-smoke.js](./fake-platform-smoke.js) | `node verify/fake-platform-smoke.js impl/arena.html` (needs `playwright` and Chromium) | The real page in headless Chromium against an in-memory fake db: protected daily-paper recovery on Today and Hand in, new-paper marker initialization, last-member set cleanup (kept for legacy sets and failed reads), new set-link rejection, stale check-preview refusal, material edit patching and legacy edit block | Real db query behavior (including the `where('setId')` membership read), identity, assets, AI, concurrent writes, retention timing, matches, publication |
+| [fake-platform-smoke.js](./fake-platform-smoke.js) | `node verify/fake-platform-smoke.js impl/arena.html` (needs `playwright` and Chromium) | The real page in headless Chromium against an in-memory fake db: protected daily-paper recovery on Today and Hand in, new-paper marker initialization, last-member set cleanup (kept for legacy sets and failed reads), new set-link rejection, stale check-preview refusal, material edit patching and legacy edit block, missing-question notice on a recovered paper, legacy sets disabled in the saved-material list | Real db query behavior (including the `where('setId')` membership read), identity, assets, AI, concurrent writes, retention timing, matches, publication |
 
 A pass here supports only the declared fake-platform boundary. It is a substitute, not integrated acceptance.
 
