@@ -2,7 +2,7 @@
 
 - **Journey / steps** 0011 1-5.
 - **Operator and authorization** Repository maintainer applying frozen design scope or authorized contract-preserving maintenance. New semantics return to discussion. No production writes/publication.
-- **Environment and dependencies** Local checkout, Node.js, checker, paired model/source/entry files and identified baseline.
+- **Environment and dependencies** Local checkout, Node.js, checker, paired model/source/entry files and identified baseline. The checker needs an `awk` that supports regex interval expressions (GNU awk or macOS awk); mawk 1.3.4 fails with `REcompile() - panic`.
 
 ## Maintain an aligned change
 

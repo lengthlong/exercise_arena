@@ -37,7 +37,7 @@ The intended production URL recorded by the source header is [Exercise Arena Art
 
 ## Supply an acceptance candidate
 
-- **Prerequisites and scope** Identify source content/revision, authorized test target, actors/capabilities, named data/asset scope and allowed writes. Do not upload an unaccepted candidate to production merely to obtain acceptance evidence.
+- **Prerequisites and scope** Needed once per release candidate for the authorized runtime; a slice accepted on the simulated runtime alone needs no test target. Identify source content/revision, authorized test target, actors/capabilities, named data/asset scope and allowed writes. Do not upload an unaccepted candidate to production merely to obtain acceptance evidence.
 - **Success / failure** The test target loads the identified candidate with declared dependencies; inability to supply it leaves runtime acceptance unverified.
 - **Verification / recovery** Verify candidate identity and test scope through [acceptance SPEC](../../verify/SPEC.md). Do not invent a sandbox or safe rollback. Test cleanup must be explicitly authorized, not a global data purge.
 - **Implementation** Manual platform entry; test-candidate procedure and evidence remain downstream work.
