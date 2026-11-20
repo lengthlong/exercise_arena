@@ -1,9 +1,9 @@
 ---
-name: design-writing
+name: arena-writing
 description: 写或复审本工作区的设计文字（write / review design docs）：术语表、ADR、数据契约、研究笔记、给人看的总述。用于：新写或改写这些文件；复审它们的写法。
 ---
 
-# design-writing
+# arena-writing
 
 本工作区是软件系统设计。各文件的一句话用途与权威见 `CLAUDE.md` 的地图。共守语义、设计与实现分工、面向人读的结构与表达（「一句话 + 图 + 编号要点 + 概念表」总述）、ADR 与术语表写法，按 `design-discuss` 的 `WRITING.md`。这里规定本工作区的文件边界、内容标准、方法与图格式。
 
