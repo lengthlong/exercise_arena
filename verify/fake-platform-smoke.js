@@ -1,6 +1,6 @@
 // 假平台冒烟入口（替代品，不是平台验收）：用内存里的假 db/user 在无头 Chromium 里打开 impl/arena.html，
 // 走讨论 0039 落实的处理器：受保护每日卷恢复、新卷交卷确认初始化、题组清理、题组链接校验、检验卷预览校验、材料编辑。
-// 另覆盖验收 20261120-first-loop-after-0039 #8（旧题组补录入口）与 #11（卷上已删题的明示）。
+// 另覆盖验收 20261120-first-loop-after-0039 #4（读取失败的呈现）、#8（旧题组补录入口）与 #11（卷上已删题的明示）。
 // 用法：node verify/fake-platform-smoke.js impl/arena.html（需要可 require 的 playwright 与 Chromium）。
 // 它只证明页面代码在假平台约定下的行为；真实 db 查询、身份、AI/照片、并发与发布需要授权的测试 Artifact（见 verify/README.md）。
 const assert = require('assert'); const path = require('path');
@@ -25,27 +25,28 @@ const seed = {
 (async () => {
   const b = await chromium.launch(); const pg = await b.newPage();
   const errs = []; pg.on('pageerror', e => errs.push('pageerror ' + e.message)); pg.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
-  await pg.addInitScript(([seed]) => {
+  const initFake = ([seed]) => {
     const data = JSON.parse(JSON.stringify(seed)); const subs = []; let n = 0;
     const notify = () => subs.forEach(f => f());
     const snapDoc = (c, id) => ({ id, data: () => JSON.parse(JSON.stringify(data[c][id])) });
     const q = (c, f, v) => ({
-      onSnapshot(cb) { const fire = () => cb({ docs: Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id)) }); subs.push(fire); setTimeout(fire, 0); return () => {}; },
+      onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => cb({ docs: Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id)) }); subs.push(fire); setTimeout(fire, 0); return () => {}; },
       async get() { return { docs: Object.keys(data[c] || {}).filter(id => !f || data[c][id][f] === v).map(id => snapDoc(c, id)) }; },
       where(ff, op, vv) { return q(c, ff, vv); },
     });
     const doc = (c, id) => ({ id,
-      async get() { const d = (data[c] || {})[id]; return { exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }; },
+      async get() { if (window.__failUsers && c === 'users') throw new Error('users unavailable'); const d = (data[c] || {})[id]; return { exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }; },
       async set(v) { (data[c] = data[c] || {})[id] = JSON.parse(JSON.stringify(v)); notify(); },
       async update(v) { Object.assign(data[c][id], JSON.parse(JSON.stringify(v))); notify(); },
       async delete() { delete data[c][id]; notify(); },
-      onSnapshot(cb) { const fire = () => { const d = (data[c] || {})[id]; cb({ exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }); }; subs.push(fire); setTimeout(fire, 0); return () => {}; } });
+      onSnapshot(cb, errCb) { if (window.__failRead === c) { setTimeout(() => errCb && errCb(new Error('read failed')), 0); return () => {}; } const fire = () => { const d = (data[c] || {})[id]; cb({ exists: !!d, data: () => JSON.parse(JSON.stringify(d || {})) }); }; subs.push(fire); setTimeout(fire, 0); return () => {}; } });
     const db = { collection: c => Object.assign(q(c), { doc: id => doc(c, id || 'auto' + (++n)) }), doc: p => { const [c, id] = p.split('/'); return doc(c, id); } };
     window.__data = data; window.__failGet = false;
     const realGet = db.collection('exercises').get;
-    window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => ({ id: 'uS' }), profiles: async () => ({}) } : null };
+    window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => { if (window.__failIdentity) throw new Error('no identity'); return { id: 'uS' }; }, profiles: async () => ({}) } : null };
     window.__db = db;
-  }, [seed]);
+  };
+  await pg.addInitScript(initFake, [seed]);
   await pg.goto('file://' + target); await pg.waitForTimeout(500);
   const out = {};
   const txt = async () => (await pg.locator('#app').innerText());
@@ -131,6 +132,19 @@ const seed = {
   out.legacyCardBlocked = await pg.evaluate(() => { const m = [...document.querySelectorAll('button.mat')].find(x => /Legacy two/.test(x.innerText)); return m ? [m.disabled, /Owner not recorded/.test(m.innerText)] : null; });
   await click('mat-pick', { id: 'SL2' });
   out.legacyNotSelected = await pg.evaluate(() => S.recSet === '');
+  // 验收 #4：必需的读取失败显示「无法读取」，不是一直加载，也不是空库；身份取不到与无 db 同样不可用；登记失败不挡使用但有提示
+  const failPage = async (flags, seedOverride) => {
+    const p2 = await b.newPage();
+    await p2.addInitScript(f => Object.assign(window, f), flags);
+    await p2.addInitScript(initFake, [seedOverride || seed]);
+    await p2.goto('file://' + target); await p2.waitForTimeout(600);
+    const text = (await p2.locator('#app').innerText()).replace(/\s+/g, ' ');
+    await p2.close(); return text;
+  };
+  out.settingsFail = await failPage({ __failRead: 'settings' });
+  out.exercisesFail = await failPage({ __failRead: 'exercises' });
+  out.identityFail = await failPage({ __failIdentity: true });
+  out.registerFail = await failPage({ __failUsers: true });
   await b.close();
   const ok = (k, cond) => { assert.ok(cond, 'FAILED: ' + k + ' = ' + JSON.stringify(out[k])); };
   ok('todayHasRecovery', out.todayHasRecovery); ok('recoveredBanner', out.recoveredBanner); ok('paperStillThere', out.paperStillThere);
@@ -144,6 +158,10 @@ const seed = {
   ok('removeUsedWordRejected', /Q6/.test(out.removeUsedWordRejected[0]) && out.removeUsedWordRejected[1] === '["a","b","c"]');
   ok('legacyEditBlocked', /ownership/.test(out.legacyEditBlocked));
   ok('missingShown', out.missingShown); ok('legacyCardBlocked', Array.isArray(out.legacyCardBlocked) && out.legacyCardBlocked[0] && out.legacyCardBlocked[1]); ok('legacyNotSelected', out.legacyNotSelected);
+  ok('settingsFail', /Couldn't read your data/.test(out.settingsFail) && /your settings couldn't be read/.test(out.settingsFail) && !/Opening the exercise book/.test(out.settingsFail) && !/empty/.test(out.settingsFail.replace(/not an empty exercise book/, '')));
+  ok('exercisesFail', /Couldn't read your data/.test(out.exercisesFail));
+  ok('identityFail', /Data unavailable/.test(out.identityFail));
+  ok('registerFail', /Couldn't register you/.test(out.registerFail) && /Today/.test(out.registerFail));
   assert.deepStrictEqual(errs, [], 'page errors');
   console.log('fake-platform smoke passed');
 })();
