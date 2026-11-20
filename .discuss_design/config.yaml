@@ -2,10 +2,19 @@
 toolkit: v0.43.0
 scan:
   - CLAUDE.md
+  - journey/*/*.md
   - model/adr/*.md
   - model/domain/GLOSSARY.md
+  - model/domain/DOMAIN.md
+  - model/arch/*.md
+  - model/arch/*/*.md
+  - model/operate/*.md
+  - model/operate/*/*.md
+  - model/verify/*.md
   - DATA.md
-  - .agents/skills/arena-writing/*.md
+  - operate/*.md
+  - operate/*/*.md
+  - verify/*.md
 integrations:
 managed:
   # toolkit: v0.43.0

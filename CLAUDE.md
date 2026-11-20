@@ -88,17 +88,12 @@ flowchart LR
 
 ## 本工作区的地图
 
-托管块之外，本工作区还有这些文件：
+除标准地图外，本工作区还有：
 
-| 位置 | 回答 | 权威 |
-|---|---|---|
-| model | `model/domain/GLOSSARY.md` | 领域术语是什么 | 设计 |
-| model | `DATA.md` | 页面的 `db` 存什么、怎样写：字段、派生字段、写入规则、归类体系的来源、留白 | 设计 |
-| model | `model/adr/*.md` | 为什么这么定 | 设计 |
-| impl | `impl/arena.html` | 练习场页面的源码；发布网址写在文件头部注释里 | 实现；须符合 `DATA.md` 与测试断言 |
-| impl | `impl/logic.test.js` | 页面规则，写成对页面纯逻辑（`LOGIC:BEGIN…END`）的断言 | 实现；页面行为的权威 |
-| guide | `.agents/skills/arena-writing/` | 本工作区的设计写法、研究看什么 | 设计 |
+| 类别 | 位置 | 回答什么 | 权威 / 维护 |
+|---|---|---|---|
+| model | `DATA.md` | 页面 `db` 的字段、派生字段、写入规则与归类来源 | 设计 |
+| impl | `impl/arena.html` | 练习场页面源码；发布网址写在文件头 | 实现 |
+| impl | `impl/logic.test.js` | 页面纯逻辑规则的断言 | 实现；页面行为以此为准 |
 
-分工：术语表管概念的定义（含其中的数字），`DATA.md` 管数据，页面行为以 `impl/logic.test.js` 的断言为准；一处改了，另一处在同一轮一起改。
-
-读设计：术语先读 `model/domain/GLOSSARY.md`，涉及取舍再读 `model/adr/`；改页面或数据前先读 `DATA.md`，改页面规则前先读 `impl/logic.test.js`。写或改 ADR 时，除 `WRITING.md` 外也按 `arena-writing` 的「设计文件只写现状」。
+其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管维护与发布，`verify/` 管验收入口。
