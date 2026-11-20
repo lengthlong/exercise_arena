@@ -1,62 +1,125 @@
-# Domain overview
+# Domain model
 
-Exercise Arena is a single-context system for recording wrong exercises, practicing them on a review ladder, checking mastery, and comparing progress through games.
+Exercise Arena is one core bounded context for recording, reviewing and assessing exercises, with optional competition. Its home is the browser page; platform identity, db, assets and AI are external generic facilities, not contexts we implement.
 
 ## Proposition
 
-A user records wrong exercises from text or photos. The page derives each user’s review ladder from attempts, generates daily redo and check papers, calculates coins and progress, and runs matches between users.
+A user confirms exercises from wrong answers or supplementary material. Each actor practices within a selected content owner's library; saved attempts derive that actor's ladder, assessment and rewards. Selecting another library changes scope, not identity or ownership.
 
-## Aggregates
+Terms are defined in [GLOSSARY.md](./GLOSSARY.md). Stored shapes, writes and compatibility have one owner: [DATA.md](../../DATA.md). Detailed algorithms and taxonomy remain in mapped source/tests within these contracts.
 
-| Aggregate | Root | Members | Writer |
+## Aggregate ownership
+
+| Aggregate root | Contained concepts | Logical writer | Journey commands |
 |---|---|---|---|
-| Exercise | `exercises/{id}` | fields, embedded attempts, optional set link | Exercise Arena page |
-| Question set | `sets/{id}` | subject, material, word bank | Exercise Arena page |
-| Paper | `papers/{id}` | exercise ids, handed-in state, daily responses | Exercise Arena page |
-| Match | `matches/{id}` | players, stakes, points, game-specific data | Exercise Arena page |
-| User settings | `settings/{user id}` | daily limit, default owner | Exercise Arena page |
+| User | Platform registration; no stored display-name authority | Platform/data gateway | user/0010 |
+| User settings | Default owner and batch-size configuration | Gateway via Session/settings | user/0006, 0010 |
+| Exercise | Content, optional material reference, embedded Attempts/Judgments | Gateway via Record, Exercise library or Papers | user/0001, 0002, 0003, 0007, 0009 |
+| Question set | One owner's same-subject material and optional Word bank | Gateway via Record/Exercise library | user/0001, 0007 |
+| Paper | Ordered Exercise references, draft state and per-actor acknowledgment | Gateway via Papers | user/0002, 0003, 0008; retention |
+| Match | Committed entrants/Stake values and contained Round result | Gateway via Games | user/0005 |
 
-## Value objects
+The gateway is one logical persistence responsibility, not an exclusive browser writer or cross-document transaction. No new collection, recorder provenance, immutable paper snapshot or judgment audit trail is introduced.
 
-- Attempt: one user’s dated response and judgment on one exercise.
-- Coin and Balance: weekly progress and spendable balance derived from attempts and matches.
-- Star and Starboard: match result and ranking derived from match points.
+## Conceptual relations
 
 ```mermaid
 classDiagram
+    direction LR
+    class User {
+        <<AggregateRoot>>
+    }
+    class UserSettings {
+        <<AggregateRoot>>
+    }
     class Exercise {
-        subject
-        topic
-        attempts
-        owner
-        setId
+        <<AggregateRoot>>
     }
     class QuestionSet {
-        subject
-        material
-        wordBank
+        <<AggregateRoot>>
     }
     class Paper {
-        exerciseIds
-        kind
-        owner
-        for
+        <<AggregateRoot>>
     }
     class Match {
-        game
-        players
-        stakes
-        points
+        <<AggregateRoot>>
     }
-    Exercise --> QuestionSet
-    Paper --> Exercise
-    Match --> User
+    class Attempt {
+        <<EmbeddedValue>>
+    }
+    class Judgment {
+        <<ValueObject>>
+    }
+    class WordBank {
+        <<ValueObject>>
+    }
+    class DailyPaper {
+        <<PaperVariant>>
+    }
+    class ExamPaper {
+        <<PaperVariant>>
+    }
+    class Stake {
+        <<ValueObject>>
+    }
+    class Round {
+        <<ContainedResult>>
+    }
+    UserSettings "0..1" --> "1" User : belongs to
+    UserSettings --> User : selects default owner
+    Exercise "0..*" --> "1" User : owned by
+    Exercise "0..*" --> "0..1" QuestionSet : reuses material
+    QuestionSet "0..*" --> "1" User : owned by
+    QuestionSet "1" *-- "0..1" WordBank : contains
+    Exercise "1" *-- "0..*" Attempt : history
+    Attempt "0..*" --> "1" User : answered by
+    Attempt "1" *-- "1" Judgment : current judgment
+    Attempt "0..*" --> "0..1" Paper : made on
+    Paper "0..*" --> "0..*" Exercise : ordered references
+    Paper "0..*" --> "1" User : library owner
+    Paper <|-- DailyPaper
+    Paper <|-- ExamPaper
+    DailyPaper "0..*" --> "1" User : assigned to
+    ExamPaper "0..*" --> "0..1" User : created by
+    Match "0..*" --> "1" User : opened by
+    Match "0..*" --> "2..*" User : entrants
+    Match "1" *-- "2..*" Stake : committed stakes
+    Stake "0..*" --> "1" User : committed by
+    Match "1" *-- "0..1" Round : pending or completed
 ```
 
-## Invariants
+This is the target relation for new/validated records. Legacy ownerless/mixed-owner sets remain readable under DATA without invented owners/new links. Legacy missing creators/stakes and historical multi-round matches remain readable. Deleted references are unresolved. Daily/Exam are Paper variants, not separate roots/tables.
 
-1. Every exercise has an owner and belongs to exactly one subject. See ADR 0002.
-2. Attempts are embedded in the exercise and identify their author. See ADR 0004.
-3. A question set stores shared material once; each member exercise keeps its own ladder. See ADR 0003.
-4. A paper is either a daily paper for one user or a check paper drawn from one owner’s exercises.
-5. A match has one round, at least two entrants, and stakes deducted when it starts.
+## Values and derived models
+
+Attempt/Judgment are embedded values changed through Exercise. Word bank and Stake are contained values; Draft is transient; Saved material includes a derived photo grouping, not another root.
+
+| Derived model | Inputs and boundary | Journeys |
+|---|---|---|
+| Review ladder and mastery | One actor's daily attempts and wrong check attempts, from Exercise creation | user/0002, 0003, 0004, 0009 |
+| Daily redo | Actor ladder, selected owner, local date, subject and effective batch size | user/0002, 0006 |
+| Paper assessment | Remaining references, saved actor judgments, distinct hand-in fact | user/0002, 0003, 0004, 0009 |
+| Progress, Streak, Mastery transition | Actor history in subscribed scope; conditional forecast | user/0004, 0009 |
+| Coin and Balance | Weekly daily rewards minus committed match spending | user/0004, 0005, 0009 |
+| Star and Starboard | Saved rounds, period and users' Default-owner grouping | user/0004, 0005 |
+
+These are computed models, not independently persisted aggregates.
+
+## Invariants and lifetime
+
+1. Actor supplies attempt authorship; selected owner supplies content scope. Shared-library access is not transfer or a permission role ([ADR 0002](../adr/0002-each-user-opens-the-arena-with-their-own-claude-account.md); user/0006, 0010).
+2. New/validated sets and members have the same owner/subject. Reuse is within that library, not cross-owner sharing. Each actor's ladder remains per question ([ADR 0003](../adr/0003-question-set-holds-shared-material-questions-keep-own-ladder.md); user/0001, 0002, 0007).
+3. Ordinary edits preserve owner, timestamps and attempts. Material/bank edits preserve usable material and every member word-pick answer; no automatic answer rewriting, rejudging or ladder reset (user/0007).
+4. Last-member set deletion is command-triggered and conditional on valid ownership and complete current empty membership. Uncertainty retains/defers cleanup; no orphan purge or asset deletion (user/0007).
+5. Legacy compatibility preserves material access, valid unchanged-reference Exercise edits and actor attempt/judgment writes. Missing/conflicting owners do not authorize set mutation/new links/cleanup. A uniquely inferred owner is not persisted automatically; repair is separately authorized and deferred (user/0001, 0002, 0003, 0007, 0009, 0010).
+6. Papers hold mutable/deletable references. At creation references belong to the current owner scope; stale previews require re-preview. Exercise deletion removes all embedded attempts and leaves missing paper references (user/0007, 0008).
+7. Daily papers are for one actor; each actor takes an Exam paper once. Both store attempts in Exercise ([ADR 0004](../adr/0004-attempts-are-embedded-in-the-exercise-document.md); user/0002, 0003).
+8. Handed in is not fully assessed. New papers explicitly start unsubmitted rather than invoking absent-marker legacy inference. Existing unjudged questions remain in the score denominator; no remaining questions is not mastery evidence (user/0002, 0003; DATA owns marker initialization).
+9. Unsubmitted daily papers with saved actor attempts are protected, with recovery visible even without due work. Restore saved responses/judgments and retry missing writes/marker; untouched drafts keep fresh replacement. Unsaved written/check-draft cross-session recovery is deferred (user/0002).
+10. Retention deletes eligible submitted daily Paper documents in the actor's current owner scope, not embedded attempts. Details may become unavailable (user/0002, 0004; DATA).
+11. Match start commits spending before round-result persistence. Result failure does not refund; derived eligibility cannot prevent concurrent overspending (user/0005).
+12. No writer label proves a transaction/complete snapshot. Attempt-array, marker-map, bank and membership writes retain distinct concurrent overwrite/reference risks.
+
+## Implementation boundary
+
+Ownership/legacy restrictions, protected-paper recovery and stale-preview validation are not yet implemented or accepted by the current page. [Runtime contracts](../arch/arena/SPEC.md) and [acceptance contract](../verify/SPEC.md) define the downstream handoff. Local logic tests do not prove these future command boundaries.

@@ -1,29 +1,40 @@
-# 0006 Manage settings
+# 0006 Configure my practice
 
-- **Actor** User
-- **Goal** Set the daily limit and default owner.
-- **Trigger** The user wants to change practice volume or whose exercises are shown.
-- **Success** Settings are saved and the page scope updates.
+- **Actor** User changing their own User settings.
+- **Goal** Select a content owner and subject-batch size.
+- **Trigger** The user wants a different library or practice batch size.
+- **Prerequisites** [user/0010](./0010-open-shared-arena.md).
+- **Success** The setting write is acknowledged and the page uses the effective settings in a ready, correct owner scope.
 
 ```mermaid
 sequenceDiagram
     actor U as User
     participant P as Exercise Arena page
-    participant D as Page db
-    U->>P: Open Settings
-    U->>P: Change daily limit or default owner
-    P->>D: Save settings
-    P-->>U: Reload Today and Papers for the new scope
+    U->>P: 1. Inspect my effective settings
+    U->>P: 2. Change owner or batch size
+    U->>P: 3. Observe save acknowledgment
+    P-->>U: 4. Reload affected views if owner changed
+    U->>P: 5. Confirm the effective scope and size
 ```
 
 ## Main success scenario
 
-1. The user opens the Settings tab.
-2. The user changes the daily limit or default owner.
-3. The page saves the setting.
-4. Today and Papers reload with the new scope.
+1. The user opens Settings and inspects their own effective values.
+2. The user changes Default owner or daily limit. The limit is 1-50 per subject batch, default 10; it is not a cap on the whole day.
+3. The page writes the setting change and reports acknowledgment.
+4. If owner changed, the page cancels old subscriptions, shows loading and obtains the new owner scope.
+5. The user confirms the effective settings and affected views, including recording and paper preparation.
 
 ## Extensions
 
-- **2a. The daily limit is out of range.** The page clamps it to the supported range.
-- **3a. The default owner is invalid.** The page falls back to the current user.
+- **1a. No settings document exists.** Use defaults: the actor as owner and batch size 10.
+- **2a. A value is malformed.** Apply the fallback/clamping rules in DATA; a nonempty owner ID is not automatically proven to be a registered user.
+- **3a. The write fails.** Report unsaved settings; do not equate a local selection with persistence.
+- **4a. A required subscription fails.** Show unavailable, not an empty library or completed scope switch.
+- **4b. Another device changes the actor's settings.** Apply the same owner reload boundary.
+- **4c. Retained recording drafts or check previews refer to the previous owner.** New reference writes must validate current scope; a stale check preview requires re-preview.
+- **5a. Another owner's library is selected.** View/practice/edit access continues; identity, own judgments and content ownership do not transfer.
+
+## Runtime trace
+
+Session/settings coordinates Platform/data gateway and page readiness; Progress reads the effective scope. See [scenarios](../../model/arch/SCENARIO.md) S1/S11, [runtime contracts](../../model/arch/arena/SPEC.md) C1/C9 and [data contract](../../DATA.md).

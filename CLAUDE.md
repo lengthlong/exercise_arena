@@ -92,8 +92,16 @@ flowchart LR
 
 | 类别 | 位置 | 回答什么 | 权威 / 维护 |
 |---|---|---|---|
-| model | `DATA.md` | 页面 `db` 的字段、派生字段、写入规则与归类来源 | 设计 |
-| impl | `impl/arena.html` | 练习场页面源码；发布网址写在文件头 | 实现 |
-| impl | `impl/logic.test.js` | 页面纯逻辑规则的断言 | 实现；页面行为以此为准 |
+| model | `DATA.md` | 页面 `db` 的存储形状、写入与旧数据兼容；归类来源 | 唯一数据契约；运行命令见 `model/arch/arena/SPEC.md` |
+| impl | `impl/arena.html` | 单页面源码，对应 `model/domain/`、`model/arch/` 与 `DATA.md` | 算法实现；运行 `node impl/logic.test.js impl/arena.html`；不得覆盖约定模型 |
+| impl | `impl/logic.test.js` | 页面纯逻辑算法与可执行例，对应领域、运行时与数据契约 | `node impl/logic.test.js impl/arena.html`；逻辑断言不证明平台集成 |
+| operate | `operate/README.md` | 实际工具索引，对应 `model/operate/INDEX.md` | 工具现状；约定边界以模型为准，条目扩展交实现 |
+| operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
+| operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
+| verify | `verify/README.md` | 实际验收条目，对应 `model/verify/SPEC.md` | 本地命令同上；运行时 walkthrough 需授权测试环境/数据，现有覆盖描述待实现校正 |
 
 其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管维护与发布，`verify/` 管验收入口。
+
+旅程约定目标与成功条件；领域模型约定概念、关系与不变量；架构和运行时模型约定职责、交互及失败边界。`DATA.md` 独占存储形状、写入和兼容规则；`TAX` 独占归类 id。源码与测试维护这些契约内的详细算法与可执行例，不另写重复算法手册。测试、源码与模型矛盾时返回讨论，不静默改规则。
+
+变更模型后在根目录运行 `./check.sh` 和 `node impl/logic.test.js impl/arena.html`。这两项是注册的本地检查；它们通过不表示新运行契约已实现、集成验收已通过或可发布。维护、验收与交付分别记录证据，生产数据修复不由页面交付隐含授权。
