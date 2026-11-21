@@ -1,7 +1,7 @@
 # Paper page: one implementation
 
 > status: completed (2026-11-21)
-> location: branch `develop`, commits `f987efe..e155792`
+> location: branch `develop`, commits `a4210be..ce60355`
 
 ## Upstream
 <!-- upstream -->
