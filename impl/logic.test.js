@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,paperAssessment,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -843,13 +843,14 @@ assert.deepStrictEqual(ids(L.replaceableDailyPapers([n39_dProt, n39_dFresh, n39_
 // 恢复：已存作答还原为回答、判定并标已存；其余回答取卷上暂存的 responses；别人的作答不进来
 const n39_rec = L.recoverRun(n39_mkDaily('D1', { responses: { x2: 'draft', x1: 'stale' } }), n39_pExs);
 assert.deepStrictEqual([{ ...n39_rec.responses }, { ...n39_rec.results }, { ...n39_rec.saved }], [{ x2: 'draft', x1: 'B' }, { x1: 'right' }, { x1: true }]);
-// 评定完整与已交分开；未判的现有题留在分母；没有剩余题不算完整
-const n39_asmP = n39_mkDaily('D1', { exerciseIds: ['x1', 'gone', 'x2'], handedIn: { uA: '2026-10-16T08:05' } });
-assert.deepStrictEqual({ ...L.paperAssessment(n39_asmP, n39_pExs, 'uA') }, { handedIn: true, judged: 1, total: 2, pending: 1, complete: false, empty: false });
-const n39_asmDone = L.paperAssessment(n39_mkDaily('D1', { exerciseIds: ['x1'], handedIn: { uA: '2026-10-16T08:05' } }), n39_pExs, 'uA');
-assert.deepStrictEqual([n39_asmDone.handedIn, n39_asmDone.complete, n39_asmDone.pending], [true, true, 0]);
-const n39_asmEmpty = L.paperAssessment(n39_mkDaily('D1', { exerciseIds: ['gone'], handedIn: { uA: '2026-10-16T08:05' } }), n39_pExs, 'uA');
-assert.deepStrictEqual([n39_asmEmpty.handedIn, n39_asmEmpty.complete, n39_asmEmpty.empty], [true, false, true]);
+// 评定完整与已交分开（paperAssess 与 handedInAt）；未判的现有题留在分母；没有剩余题不算完整
+const n39_asm = p => ({ ...L.paperAssess(L.paperRows(p, n39_pExs)), handedIn: !!L.handedInAt(p, n39_pExs, 'uA') });
+const n39_asmP = n39_asm(n39_mkDaily('D1', { exerciseIds: ['x1', 'gone', 'x2'], handedIn: { uA: '2026-10-16T08:05' } }));
+assert.deepStrictEqual([n39_asmP.handedIn, n39_asmP.judged, n39_asmP.total, n39_asmP.toJudge, n39_asmP.complete], [true, 1, 2, 1, false]);
+const n39_asmDone = n39_asm(n39_mkDaily('D1', { exerciseIds: ['x1'], handedIn: { uA: '2026-10-16T08:05' } }));
+assert.deepStrictEqual([n39_asmDone.handedIn, n39_asmDone.complete, n39_asmDone.toJudge], [true, true, 0]);
+const n39_asmEmpty = n39_asm(n39_mkDaily('D1', { exerciseIds: ['gone'], handedIn: { uA: '2026-10-16T08:05' } }));
+assert.deepStrictEqual([n39_asmEmpty.handedIn, n39_asmEmpty.complete, n39_asmEmpty.total], [true, false, 0]);
 // 检验卷预览：同范围且题都还在才可创建；换归属人、题不在或不在该归属人名下都要重新预览
 const n39_vp = [{ id: 'x1' }, { id: 'x2' }], n39_vex = [{ id: 'x1', owner: 'uS' }, { id: 'x2', owner: 'uS' }];
 assert.deepStrictEqual({ ...L.previewCheck(n39_vp, 'uS', 'uS', n39_vex), ids: undefined }, { ok: true, reason: '', ids: undefined });

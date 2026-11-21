@@ -793,11 +793,6 @@ function recoverRun(paper, view) {
   for (const r of paperRows(paper, view)) if (r.ex && r.attempt) { responses[r.id] = String(r.attempt.response || ''); results[r.id] = r.attempt.result; saved[r.id] = true; }
   return { responses, results, saved };
 }
-function paperAssessment(paper, view, uid) {
-  // 已交与评定完整是两回事：评定完整是卷上仍在的每道题都有我的已存判定；没有剩余题是空卷，不算完整；派生，不存
-  const a = paperAssess(paperRows(paper, view));
-  return { handedIn: !!handedInAt(paper, view, uid), judged: a.judged, total: a.total, pending: a.toJudge, complete: a.complete, empty: a.total === 0 };
-}
 function previewCheck(preview, previewOwner, scopeOwner, exs) {
   // 检验卷创建前：预览属于当前归属人范围，且每道题仍在当前内容库（同归属人）；否则要重新预览，不把旧题 id 与新 owner 合写
   if (!preview || !preview.length) return { ok: false, reason: 'empty', ids: [] };
