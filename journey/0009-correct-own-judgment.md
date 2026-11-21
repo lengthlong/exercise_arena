@@ -3,7 +3,7 @@
 - **Actor** User correcting their own saved Attempt.
 - **Goal** Make an incorrect saved judgment accurate and inspect recalculated outcomes.
 - **Trigger** The user finds an incorrect judgment in Exercise history or paper details.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); an existing actor-authored Attempt.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); an existing actor-authored Attempt.
 - **Success** The own-attempt judgment change is acknowledged and dependent ladder, mastery, paper assessment and rewards are recalculated without adding a new attempt.
 
 ```mermaid
@@ -36,4 +36,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Exercise library/Papers requests gateway override; Progress derives consequences. See [scenarios](../../model/arch/SCENARIO.md) S8/S9/S13, [runtime contracts](../../model/arch/arena/SPEC.md) C5/C7/C10 and [data contract](../../DATA.md).
+Exercise library/Papers requests gateway override; Progress derives consequences. See [scenarios](../model/arch/SCENARIO.md) S8/S9/S13, [runtime contracts](../model/arch/arena/SPEC.md) C5/C7/C10 and [data contract](../DATA.md).

@@ -208,13 +208,13 @@ if [ -s "$tmp.refs" ]; then
       inrec = (top == "record" || top == "discuss" || top == "research")
     }
     {
-      later = ($0 ~ /(^|[^A-Za-z0-9_-])record\/(implement|verify)\/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-/ || $0 ~ /(^|[^A-Za-z0-9_-])record\/deliver\/[A-Za-z0-9][A-Za-z0-9._-]*\.md/)
+      later = ($0 ~ /(^|[^A-Za-z0-9_-])record\/(implement|verify)\/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-/ || $0 ~ /(^|[^A-Za-z0-9_-])record\/(release|deliver)\/[A-Za-z0-9][A-Za-z0-9._-]*\.md/)
       if (!inrec && top != "doc" && $0 ~ /(^|[^A-Za-z0-9_-])discuss\/[0-9]/) print "D\t" FILENAME ":" FNR ":" $0 > out
       if (!inrec && top != "doc" && $0 ~ /(^|[^A-Za-z0-9_-])research\/[A-Za-z0-9][A-Za-z0-9._-]*\.md/) print "R\t" FILENAME ":" FNR ":" $0 > out
       if (!inrec && top != "doc" && later) print "X\t" FILENAME ":" FNR ":" $0 > out
       if (kind != "discuss" && top != "doc" && $0 ~ /(^|[^A-Za-z0-9_-])doc\/[A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z]+/) print "C\t" FILENAME ":" FNR ":" $0 > out
       if ((kind == "discuss" || kind == "research") && later) print "W\t" FILENAME ":" FNR ":" $0 > out
-      if ((kind == "implement" || kind == "verify") && $0 ~ /(^|[^A-Za-z0-9_-])record\/deliver\/[A-Za-z0-9][A-Za-z0-9._-]*\.md/) print "W\t" FILENAME ":" FNR ":" $0 > out
+      if ((kind == "implement" || kind == "verify") && $0 ~ /(^|[^A-Za-z0-9_-])record\/(release|deliver)\/[A-Za-z0-9][A-Za-z0-9._-]*\.md/) print "W\t" FILENAME ":" FNR ":" $0 > out
     }
     END { printf "" > out }
   ' || die "Record reference scan failed"
@@ -230,7 +230,7 @@ if [ -s "$tmp.refs" ]; then
   ref_report D "References to discussion records. Put durable conclusions in design files."
   ref_report R "References to research records. Put needed facts in the text."
   ref_report C "References to individual files in doc/."
-  ref_report X "References to implementation, acceptance or delivery records from design or skills."
+  ref_report X "References to implementation, acceptance or release records from design or skills."
   ref_report W "References to downstream records. Point to upstream or peer records only."
 fi
 
@@ -267,7 +267,7 @@ if [ -s "$tmp.dead-files" ] && [ -r "$CHECKER_DIR/visible-text.awk" ]; then
 fi
 
 # Validate lifecycle and upstream references across both record formats.
-for dir in record/discuss discuss record/implement record/verify record/deliver; do
+for dir in record/discuss discuss record/implement record/verify record/release record/deliver; do
   for f in "$dir"/*.md; do
     [ -f "$f" ] || continue
     [ -s "$f" ] || { echo "Empty record: $f" >&2; fail=1; continue; }
@@ -280,16 +280,28 @@ fi
 
 # ── 6. 编号命名 ─────────────────────────────────────────────────
 # 列出各目录的条目后由一个 awk 判前缀与重号（M = 要查前缀的 md，A = 参与查重的条目，E = 目录结束）。
-for d in discuss research record/discuss record/research model/adr doc; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -e "$f" ] || [ -L "$f" ] || continue
-    b=${f##*/}
-    case "$b" in *.md) [ -f "$f" ] && [ "$b" != README.md ] && printf 'M\t%s\t%s\n' "$d" "$f" ;; esac
-    printf 'A\t%s\t%s\n' "$d" "$b"
+{
+  if [ -d journey ]; then
+    for f in journey/*; do
+      [ -f "$f" ] || continue
+      b=${f##*/}
+      case "$b" in USER.md|OPERATOR.md|README.md) continue ;; *.md) ;; *) continue ;; esac
+      printf 'M\tjourney\t%s\n' "$f"
+      printf 'A\tjourney\t%s\n' "$b"
+    done
+    printf 'E\tjourney\n'
+  fi
+  for d in discuss research record/discuss record/research model/adr doc; do
+    [ -d "$d" ] || continue
+    for f in "$d"/*; do
+      [ -e "$f" ] || [ -L "$f" ] || continue
+      b=${f##*/}
+      case "$b" in *.md) [ -f "$f" ] && [ "$b" != README.md ] && printf 'M\t%s\t%s\n' "$d" "$f" ;; esac
+      printf 'A\t%s\t%s\n' "$d" "$b"
+    done
+    printf 'E\t%s\n' "$d"
   done
-  printf 'E\t%s\n' "$d"
-done > "$tmp.numbered"
+} > "$tmp.numbered"
 LC_ALL=C awk -F '\t' '
   $1 == "M" { if ($3 !~ /\/[0-9][0-9][0-9][0-9]-[^\/]*$/) { print "Filename needs an NNNN- prefix: " $3; bad = 1 } next }
   $1 == "A" { if ($3 ~ /^[0-9][0-9][0-9][0-9]/) cnt[substr($3, 1, 4)]++; next }
@@ -304,7 +316,7 @@ LC_ALL=C awk -F '\t' '
   END { exit bad }
 ' "$tmp.numbered" || fail=1
 
-# 实现与验收记录名是 YYYYMMDD-<主题>.md；交付记录名是 <版本>[-<目标环境>][-<序号>].md，不另查
+# 实现与验收记录名是 YYYYMMDD-<主题>.md；发版记录（及旧交付记录）名是 <版本>[-<目标环境>][-<序号>].md，另查跨目录同名
 for d in record/implement record/verify; do
   [ -d "$d" ] || continue
   for f in "$d"/*.md; do
@@ -316,6 +328,16 @@ for d in record/implement record/verify; do
     esac
   done
 done
+if [ -d record/release ] && [ -d record/deliver ]; then
+  for f in record/release/*.md; do
+    [ -f "$f" ] || continue
+    b=${f##*/}
+    if [ -f "record/deliver/$b" ]; then
+      echo "Duplicate release record filename across record/release/ and record/deliver/: $b"
+      fail=1
+    fi
+  done
+fi
 
 # ── 7. 受管副本完整且与配置一致（批量 shasum） ──────────────────
 IFS= read -r recorded < "$tmp.recorded"
@@ -457,7 +479,7 @@ done
 # ── 7b. journey/、model/、verify/、record/（及旧的 discuss/、research/）不能被 Git 忽略（否则其中文件被检查静默漏掉） ─
 if [ -e .git ]; then
   probes=()
-  for d in journey journey/user journey/operator model verify record record/discuss record/research record/implement record/verify record/deliver discuss research; do
+  for d in journey journey/user journey/operator model verify record record/discuss record/research record/implement record/verify record/release record/deliver discuss research; do
     [ ! -d "$d" ] || probes+=("$d/x")
   done
   status=0
@@ -498,9 +520,15 @@ elif [ "$markers_ok" -eq 1 ]; then
   done < "$tmp.tops-sorted"
 fi
 
-# ── 8b. 旧模型布局只提示（ADR 0024、0025；upgrade 不搬，由 agent 按 design-init 迁） ─
+# ── 8b. 旧布局只提示（ADR 0024、0025、0035、0036；upgrade 不搬，由 agent 按 design-init 迁） ─
 if [ -d model/journey ] || [ -d model/cuj ]; then
-  echo "Legacy journey layout. Use design-init to plan the move to journey/user/ and journey/operator/."
+  echo "Legacy journey layout. Use design-init to plan the move to flat journey/ with USER.md and OPERATOR.md."
+fi
+if [ -d journey/user ] || [ -d journey/operator ]; then
+  echo "Legacy journey subdirectories (journey/user/ or journey/operator/). Use design-init to migrate to flat journey/ with USER.md and OPERATOR.md."
+fi
+if [ -d record/deliver ]; then
+  echo "Legacy record/deliver/ directory. Use design-init to move it intact to record/release/."
 fi
 if [ -d model/arch/component ]; then
   echo "Legacy component layout at model/arch/component/. Use design-init to move components to model/arch/<container>/COMPONENT.md."

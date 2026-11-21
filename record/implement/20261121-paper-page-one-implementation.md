@@ -6,21 +6,21 @@
 ## Upstream
 <!-- upstream -->
 
-- 0040 Q1 implemented
-- 0040 Q2 implemented
-- 0040 Q3 implemented
-- 0040 Q4 implemented
-- 0040 Q5 implemented
-- 0040 Q6 implemented
-- 0040 Q7 implemented
-- 0040 Q8 implemented
+- 0042 Q1 implemented
+- 0042 Q2 implemented
+- 0042 Q3 implemented
+- 0042 Q4 implemented
+- 0042 Q5 implemented
+- 0042 Q6 implemented
+- 0042 Q7 implemented
+- 0042 Q8 implemented
 
 ## Paired acceptance entries and affected journey steps
 
 | Entry | Added, changed or affected | Journey steps |
 |---|---|---|
-| `verify/README.md` Paper page walkthrough | Added; not run against a platform candidate | user/0002 4-7 and 7c, user/0003 1b/2/6, user/0004 4 and 4d, user/0009 1/4 and 1b |
-| `node impl/logic.test.js impl/arena.html` | Changed: removed `tally`, `paperAttempts`, `paperProgress`, `runMarks`, `sheetMarks` cases; added rows, assessment, live overlay, ladder and marks cases | user/0002 6-7, user/0003 6, user/0004 4 |
+| `verify/fake-platform-smoke.js` three Paper page cases | Added; run on the simulated platform only | 0002 4-7 and 7c, 0003 1b/2/6, 0004 4 and 4d, 0009 1/4 and 1b |
+| `node impl/logic.test.js impl/arena.html` | Changed: removed `tally`, `paperAttempts`, `paperProgress`, `runMarks`, `sheetMarks` cases; added rows, assessment, live overlay, ladder and marks cases | 0002 6-7, 0003 6, 0004 4 |
 
 ## Implementation choices
 
@@ -37,5 +37,6 @@
 
 - `node impl/logic.test.js impl/arena.html`: `all logic tests passed`
 - `./check.sh`: exit 0 (needed gawk in this container; the default mawk panics in the link scanner on the untouched baseline)
-- Scripted Chromium walkthrough on an in-memory fake db, kept outside the repo: 29 checks passed
+- `node verify/fake-platform-smoke.js impl/arena.html`: 18 cases passed, including the three new Paper page cases (simulated platform; not an authorized-runtime result)
+- Merged with `origin/develop` before pushing; its protected-recovery, detail-ladder climber and missing-reference note are kept inside the unified page (see discussion 0042 merge note).
 - Not covered: real platform db subscriptions and latency, hand-in partial-write failure paths on the page, the 375px layout of the outcome block beyond one screenshot, Today recovery entry

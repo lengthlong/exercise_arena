@@ -3,7 +3,7 @@
 - **Actor** User preparing an Exam paper; the taker may be another user.
 - **Goal** Create a reusable check paper from the selected owner's exercises.
 - **Trigger** The user wants a check of selected subjects/topics.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); a ready, nonempty matching pool.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); a ready, nonempty matching pool.
 - **Success** An acknowledged paper contains the confirmed available references from the selected library and can be selected for taking. Creation is not assessment.
 
 ```mermaid
@@ -25,7 +25,7 @@ sequenceDiagram
 3. The user requests a preview from the matching pool, which may include mastered exercises.
 4. The user inspects actual available count, questions and grouped material.
 5. The user confirms creation. Before writing, the page validates the preview's scope and current referenced exercises against the selected library.
-6. The user sees the saved Exam paper; taking belongs to [user/0003](./0003-take-a-check-paper.md).
+6. The user sees the saved Exam paper; taking belongs to [0003](./0003-take-a-check-paper.md).
 
 ## Extensions
 
@@ -38,4 +38,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Papers draws and validates through Session/settings and Platform/data gateway. See [scenarios](../../model/arch/SCENARIO.md) S6, [runtime contracts](../../model/arch/arena/SPEC.md) C6 and [data contract](../../DATA.md).
+Papers draws and validates through Session/settings and Platform/data gateway. See [scenarios](../model/arch/SCENARIO.md) S6, [runtime contracts](../model/arch/arena/SPEC.md) C6 and [data contract](../DATA.md).

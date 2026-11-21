@@ -3,7 +3,7 @@
 - **Actor** User; AI supplies drafts, not decisions.
 - **Goal** Save confirmed exercises from wrong answers or supplementary saved material.
 - **Trigger** The user has a wrong exercise to record, or wants to record additional questions from saved material.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md) has established identity and a ready owner scope.
+- **Prerequisites** [0010](./0010-open-shared-arena.md) has established identity and a ready owner scope.
 - **Success** Each confirmed successful write belongs to the selected owner, appears in the library, and starts the actor's ladder due the next day. New set references obey same-owner membership. Unsuccessful drafts remain distinguishable from recorded content.
 
 ```mermaid
@@ -23,7 +23,7 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The user checks the selected content owner; changing it belongs to [user/0006](./0006-manage-settings.md).
+1. The user checks the selected content owner; changing it belongs to [0006](./0006-manage-settings.md).
 2. The user supplies new photos/text, or selects an eligible saved Question set or same-subject photo group and specifies what to supplement.
 3. The user requests AI drafting and inspects the returned material and exercises.
 4. The user confirms or edits material, subject, topic, optional concept/question type, answer format, correct answer, explanation, wrong answer and error cause.
@@ -44,4 +44,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Steps 1-2 use Session/settings; 3-6 use Record and Platform/data gateway; 7 reads the library. See [scenarios](../../model/arch/SCENARIO.md) S1-S3, [runtime contracts](../../model/arch/arena/SPEC.md) C1-C2, [domain](../../model/domain/DOMAIN.md) and [data contract](../../DATA.md). Later content correction belongs to [user/0007](./0007-maintain-exercise-library.md).
+Steps 1-2 use Session/settings; 3-6 use Record and Platform/data gateway; 7 reads the library. See [scenarios](../model/arch/SCENARIO.md) S1-S3, [runtime contracts](../model/arch/arena/SPEC.md) C1-C2, [domain](../model/domain/DOMAIN.md) and [data contract](../DATA.md). Later content correction belongs to [0007](./0007-maintain-exercise-library.md).

@@ -16,7 +16,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C1 Open and reload scope
 
-- **Journeys / scenarios** user/0010 1-6, user/0006 4-5; S1.
+- **Journeys / scenarios** 0010 1-6, 0006 4-5; S1.
 - **Prerequisites** Platform sharing/access and an opaque actor ID; own settings read before owner-scoped subscriptions.
 - **Outcome** User registration/default settings and required current-scope views support a usable page. Actor remains distinct from owner, creator, assignee and attempt author.
 - **Reload** Cancel old subscription generation and clear/reload scoped views; stale results cannot populate the new scope. A failure is not an empty library.
@@ -25,7 +25,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C2 Record confirmed drafts
 
-- **Journeys / scenarios** user/0001 1-7; S2-S3.
+- **Journeys / scenarios** 0001 1-7; S2-S3.
 - **Prerequisites** Ready current owner scope, confirmed usable input/material and valid content/answers under DATA.
 - **Outcome** Per-draft acknowledged Exercise writes and, where applicable, same-owner/subject set writes. New set ownership is valid; supplementation creates a member only in its owning library.
 - **User decisions** AI drafts are untrusted. Duplicate warnings prompt decisions: batch saving skips warned drafts, individual saving is deliberate confirmation.
@@ -37,7 +37,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C3 Edit/delete content and material
 
-- **Journeys / scenarios** user/0007 1-6; S4.
+- **Journeys / scenarios** 0007 1-6; S4.
 - **Preservation** Ordinary edits preserve content owner, creation timestamps and embedded attempts. Ownership transfer is not added. Usable text/photo material and subject/reference consistency remain valid.
 - **Material/bank edits** Preserve set owner/subject and member history. Permit add/reorder/remove only when every member word-pick correct answer remains in the resulting bank; reject and identify affected questions otherwise. No automatic answer rewrite, rejudgment or ladder reset.
 - **Evidence** Destructive bank changes require complete current same-owner membership and valid ownership; unavailable/uncertain evidence blocks the affected edit.
@@ -48,7 +48,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C4 Start/recover daily batches
 
-- **Journeys / scenarios** user/0002 1-4/7; S5.
+- **Journeys / scenarios** 0002 1-4/7; S5.
 - **Selection** Actor's due ladder in selected owner/subject scope, capped per batch by effective settings; not a per-day total cap.
 - **Untouched drafts** Save the fresh batch with overlapping responses carried and an explicit initial unsubmitted marker state before removing superseded untouched drafts. DATA requires new-paper marker initialization; absent-marker legacy documents retain their original inference. Legacy mixed-subject papers remain readable but are not resumed.
 - **Protected submission** Never replace/delete an unsubmitted daily paper containing persisted actor attempts. Today exposes recovery even with zero due questions.
@@ -58,7 +58,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C5 Submit, self-judge and override
 
-- **Journeys / scenarios** user/0002 5-7, user/0003 4-6, user/0009 1-5; S5/S7/S8.
+- **Journeys / scenarios** 0002 5-7, 0003 4-6, 0009 1-5; S5/S7/S8.
 - **Separate states** Draft response, persisted Attempt/Judgment, hand-in acknowledgment and full assessment are not interchangeable.
 - **Submission** Save missing objective attempts, stop at first write failure, then save the actor marker. Retry skips already-saved actor/paper attempts and preserves saved judgments. Marker failure is partial submission, not a transaction rollback.
 - **Written items** Save a written Attempt at self-judgment in the current session. Pending existing questions stay in the score denominator with no invented result. A handed-in paper may still be incomplete.
@@ -70,7 +70,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C6 Prepare/take check papers
 
-- **Journeys / scenarios** user/0008 1-6, user/0003 1-6; S6-S7.
+- **Journeys / scenarios** 0008 1-6, 0003 1-6; S6-S7.
 - **Preparation** Preview actual available subject/topic pool, including mastered questions; insufficient pool reports actual count, empty pool cannot yield meaningful success.
 - **Creation** Validate preview scope/generation and current owner-scoped references before writing; initialize new-paper submission state as required by DATA. Owner change or unavailable/out-of-scope references requires re-preview, not silent cross-owner creation.
 - **Taking** Each actor takes once; C5 governs acknowledgment/assessment and retries. Check wrong resets ladder; right/partial does not advance it; no coins.
@@ -79,7 +79,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C7 Read progress and rewards
 
-- **Journeys / scenarios** user/0004 1-5 and outcome reads in user/0002, 0003, 0005, 0009; S9.
+- **Journeys / scenarios** 0004 1-5 and outcome reads in 0002, 0003, 0005, 0009; S9.
 - **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity.
 - **Rules** GLOSSARY/DATA own meanings and derivation contracts; exact algorithms stay executable in mapped source/tests. Keep taxonomy IDs in TAX.
 - **Failure/limits** Empty activity differs from failed supporting reads. Forecasts are conditional; local dates/week boundaries are device-local. Corrections and concurrent match starts may cause negative balances; retained attempts may have unavailable paper details.
@@ -87,7 +87,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C8 Start/finish matches
 
-- **Journeys / scenarios** user/0005 1-6; S10.
+- **Journeys / scenarios** 0005 1-6; S10.
 - **Prerequisites** At least two eligible entrants in opener's Default-owner group, including opener; each can afford standard stake, opener also optional extra stake. Required group/balance snapshots must be ready.
 - **Outcome** Save committed start/spending, compute one Lift round, save result before animation. Other entrants may be offline; extra stake is not guaranteed victory.
 - **Failure** Start failure differs from saved-start/failed-result; committed stake stays spent. No refund/automatic result recovery is promised.
@@ -95,7 +95,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C9 Persist settings and retain papers
 
-- **Journeys / scenarios** user/0006 1-5; user/0002/0004 affected by S12; S11-S12.
+- **Journeys / scenarios** 0006 1-5; 0002/0004 affected by S12; S11-S12.
 - **Settings** Write only actor settings with acknowledgment; DATA owns defaults/clamping. Reload owner scope through C1, including another-device changes. Nonempty ID is not automatic validation of a registered owner.
 - **Retention** After required current views are ready, delete only eligible submitted daily Paper documents for that actor/current owner scope using DATA's exact age boundary. Attempts survive.
 - **Failure** Settings failure is unsaved, not success. Retention deletes are best-effort; unavailable scope cannot authorize a global purge.
@@ -103,14 +103,14 @@ The source header records its platform runtime declaration; this review does not
 
 ## C10 Open and use a paper page
 
-- **Journeys / scenarios** user/0002 1/4-7, user/0003 1-6, user/0004 4-5, user/0009 1-5; S5, S7-S9, S13.
+- **Journeys / scenarios** 0002 1/4-7, 0003 1-6, 0004 4-5, 0009 1-5; S5, S7-S9, S13.
 - **One page** Every paper the actor opens is one Paper page for that paper and actor, Taking before the actor's hand-in and Reviewing after. Right after hand-in and re-opened later are the same Reviewing page; its content is derived from the actor's stored attempts plus unsaved results of the current session, never from a second store. Daily and Exam papers differ only by the outcome rules below.
 - **Entry rows** A paper row means Start when the actor has not handed in and Review when they have, wherever it appears (Today Exam rows, Papers Exam and Daily lists). Daily rows group by day and omit the creation time, otherwise rows carry the same name, tags and score. Unsubmitted daily papers stay out of Papers lists; their entry is C4. Back returns to the origin view; Detail on a card opens the exercise history and its Back returns to the same card.
-- **Taking** One card at a time with a question pager and Hand in. Hand-in, partial-write and retry follow C5. Leaving keeps a daily draft's responses and discards an Exam draft (C6).
+- **Taking** One card at a time with a question pager and Hand in. Hand-in, partial-write and retry follow C5; a recovered protected paper (C4) opens here with its saved answers and judgments and a note saying so. Leaving keeps a daily draft's responses and discards an Exam draft (C6).
 - **Reviewing** One outcome block, one card per remaining question and one judgment control per card:
-  - Outcome block: score as right over remaining questions; assessment status, either fully assessed or "N to judge"; deleted questions are marked and leave the denominator. Daily papers add coins earned on this paper; every paper shows the ladder before and after, where Exam papers show only wrong answers sending a question back to level 1 and no coins (C6). Pending written answers stay at their original level.
+  - Outcome block: score as right over remaining questions; assessment status, either "Fully assessed" or "Handed in, not fully assessed: N to judge" (a paper with no remaining questions says nothing is left to assess); deleted questions are marked and leave the denominator. Daily papers add coins earned on this paper; every paper shows the ladder before and after, with a marker for the selected question and a caption of its own climb, where Exam papers show only wrong answers sending a question back to level 1 and no coins (C6). Pending written answers stay at their original level.
   - Card states: judged (response, correct answer, explanation, result), pending (written, handed in, no saved judgment), no answer (an existing question on a legacy paper with no attempt of the actor), deleted. Pending reads "Not judged yet", never "No answer".
-  - Judgment control: a pending written answer whose response is still in the current session offers Right/Partial/Wrong, saved per C5; once judged, the card offers the Override of C5 in both the just-handed-in and the re-opened page. A pending question without its response cannot get a created attempt (user/0009 1b).
+  - Judgment control: a pending written answer whose response is still in the current session offers Right/Partial/Wrong, saved per C5; once judged, the card offers the Override of C5 in both the just-handed-in and the re-opened page. A pending question without its response cannot get a created attempt (0009 1b).
 - **Derived, not stored** Score, status, ladder and coins are recomputed from attempts after every acknowledged write, including an override; no field is added to DATA.
 - **Failure/limits** A missing paper or question is explicit. A failed judgment or override write leaves the prior stored result authoritative. Unsaved written responses and Exam drafts are not recovered across sessions.
 

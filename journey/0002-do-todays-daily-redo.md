@@ -3,7 +3,7 @@
 - **Actor** User, practicing as the authenticated actor in the selected owner's library.
 - **Goal** Complete today's due exercises through successive subject batches.
 - **Trigger** Due work or a protected unfinished daily submission is shown on Today.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); existing exercises and effective settings defaults.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); existing exercises and effective settings defaults.
 - **Success** No due items or protected unfinished submissions remain in the actor/owner scope, and every started batch is handed in and fully assessed. A partially completed day is reported as such; no due items alone does not prove completion.
 
 ```mermaid
@@ -49,4 +49,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Steps 1/7 read Progress; 2-6 use Papers and Platform/data gateway, scoped by Session/settings. See [scenarios](../../model/arch/SCENARIO.md) S5/S9/S13, [runtime contracts](../../model/arch/arena/SPEC.md) C4-C5/C10 and [data contract](../../DATA.md). The [domain](../../model/domain/DOMAIN.md) separates per-actor ladder, paper acknowledgment and assessment.
+Steps 1/7 read Progress; 2-6 use Papers and Platform/data gateway, scoped by Session/settings. See [scenarios](../model/arch/SCENARIO.md) S5/S9/S13, [runtime contracts](../model/arch/arena/SPEC.md) C4-C5/C10 and [data contract](../DATA.md). The [domain](../model/domain/DOMAIN.md) separates per-actor ladder, paper acknowledgment and assessment.

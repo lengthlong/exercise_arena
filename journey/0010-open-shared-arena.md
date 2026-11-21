@@ -40,4 +40,4 @@ sequenceDiagram
 
 ## Runtime trace
 
-Session/settings and Platform/data gateway own boot and scope reload. See [scenarios](../../model/arch/SCENARIO.md) S1, [runtime contracts](../../model/arch/arena/SPEC.md) C1, and [container](../../model/arch/CONTAINER.md). Publication enabling this entry belongs to [operator/0002](../operator/0002-publish-artifact.md); sharing the Artifact does not share/copy questions between content owners.
+Session/settings and Platform/data gateway own boot and scope reload. See [scenarios](../model/arch/SCENARIO.md) S1, [runtime contracts](../model/arch/arena/SPEC.md) C1, and [container](../model/arch/CONTAINER.md). Publication enabling this entry belongs to [0012](./0012-publish-artifact.md); sharing the Artifact does not share/copy questions between content owners.

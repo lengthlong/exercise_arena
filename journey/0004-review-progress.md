@@ -3,7 +3,7 @@
 - **Actor** User viewing their own practice outcomes.
 - **Goal** Understand workload, mastery and weekly progress within the selected owner's library.
 - **Trigger** The user wants to review practice or a completed paper.
-- **Prerequisites** [user/0010](./0010-open-shared-arena.md); ready supporting snapshots.
+- **Prerequisites** [0010](./0010-open-shared-arena.md); ready supporting snapshots.
 - **Success** The user can distinguish due work, ladder distribution, recent activity, newly mastered exercises and rewards, and inspect available supporting details. This is a read-only goal.
 
 ```mermaid
@@ -33,9 +33,9 @@ sequenceDiagram
 - **3b. A late correction or concurrent match spending affects balance.** Recompute from saved attempts/stakes; balance may be negative.
 - **4d. A written answer has no saved judgment.** The paper page shows it as not judged and counts it in "N to judge", never as no answer.
 - **4a. Daily-paper retention or exercise deletion removed details.** Show their unavailability; attempts survive paper retention but not exercise deletion.
-- **4b. Content needs correction.** Start [user/0007](./0007-maintain-exercise-library.md).
-- **4c. An own judgment needs correction.** Start [user/0009](./0009-correct-own-judgment.md).
+- **4b. Content needs correction.** Start [0007](./0007-maintain-exercise-library.md).
+- **4c. An own judgment needs correction.** Start [0009](./0009-correct-own-judgment.md).
 
 ## Runtime trace
 
-Progress reads Session/settings snapshots; it writes no aggregate. See [scenarios](../../model/arch/SCENARIO.md) S9/S13, [runtime contracts](../../model/arch/arena/SPEC.md) C7/C10 and [domain](../../model/domain/DOMAIN.md). Detailed algorithms remain executable in the mapped source/tests.
+Progress reads Session/settings snapshots; it writes no aggregate. See [scenarios](../model/arch/SCENARIO.md) S9/S13, [runtime contracts](../model/arch/arena/SPEC.md) C7/C10 and [domain](../model/domain/DOMAIN.md). Detailed algorithms remain executable in the mapped source/tests.

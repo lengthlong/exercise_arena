@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,paperAssessment,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -783,6 +783,17 @@ assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right), prw.mastere
 // 更早的检验卷作答被 ladderInput 过滤：做对不动、做错回第 1 级
 prw = prl([prx('a', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right', 'paper'), prP('2026-10-14', 'right')]), prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'wrong', 'paper'), prP('2026-10-14', 'right')])]);
 assert.deepStrictEqual([Array.from(prw.left), Array.from(prw.right)], [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0]]);   // a 2 → 3；b 1 → 2
+// 详情页选中那道题的走法：左梯的级 → 右梯的级，与两架梯子同一规则（paperLadders 逐题相加即两梯）
+const qc = e => { const c = L.questionClimb(e, 'uS', 'P'); return [c.from, c.to, c.kind]; };
+assert.deepStrictEqual(qc(prx('a', [ca('2026-10-12', 'right'), prP('2026-10-14', 'right')])), [2, 3, 'up']);
+assert.deepStrictEqual(qc(prx('a', [prP('2026-10-14', 'partial')])), [1, 1, 'same']);
+assert.deepStrictEqual(qc(prx('b', [ca('2026-10-12', 'right'), ca('2026-10-13', 'right'), prP('2026-10-14', 'wrong')])), [3, 1, 'down']);
+assert.deepStrictEqual(qc(prx('c', ['2026-10-02', '2026-10-04', '2026-10-08'].map(d => ca(d, 'right')).concat([prP('2026-10-15', 'right')]))), [4, 5, 'up']);   // 第 4 级做对即掌握
+assert.deepStrictEqual(qc(prx('d', prm.concat([prP('2026-10-20', 'right')]))), [5, 5, 'same']);                                                              // 仍掌握：两架都站第 5 级
+assert.deepStrictEqual(qc(prx('e', prm.concat([prP('2026-10-20', 'wrong')]))), [1, 1, 'down']);                                                               // 已掌握又做错：左梯记 1 级，算下降
+// 检验卷：做对、部分对不动，做错回第 1 级
+assert.deepStrictEqual(qc(prx('f', [ca('2026-10-12', 'right'), ca('2026-10-14', 'right', 'paper', 'uS', 'P')])), [2, 2, 'same']);
+assert.deepStrictEqual(qc(prx('g', [ca('2026-10-12', 'right'), ca('2026-10-14', 'wrong', 'paper', 'uS', 'P')])), [2, 1, 'down']);
 // 保存前的重复提示：规范化后相同才算；数字里的点、逗号与括号不能丢
 const dupDraft = (o) => Object.assign({ subject: 'science', format: 'mcq', stem: 'Which of the following is a non-flowering plant?', options: ['hibiscus', 'fern', 'rice', 'mango'], editId: null }, o || {});
 assert.strictEqual(L.dupKey('science', 'Which is a [[fern]]?', []), L.dupKey('science', '  which is a  FERN ', []));   // 大小写、空白、[[ ]]、句末标点不算不同
@@ -808,4 +819,107 @@ assert.strictEqual(L.findDuplicate(dupDraft({ stem: 'name a fern', format: 'shor
 assert.strictEqual(L.findDuplicate(dupE1, [], []), null);                                                         // 前面没有同样的：不标
 assert.strictEqual(L.findDuplicate(dupE1, [], [dupDraft({ stem: 'Name a fern.', format: 'short', editId: 's9' })]), null);   // 编辑草稿不当作「前面的草稿」
 assert.strictEqual(L.findDuplicate(dupDraft(), [dupSv], [dupDraft()]).kind, 'saved');                                        // 已录与草稿都命中：报已录的
-console.log('all logic tests passed');
+
+// ---- 讨论 0039 落实：新卷空交卷确认、受保护的未交每日卷、评定完整、预览与题组归属校验 ----
+// 新每日卷明确写 handedIn: {}：已存作答不会被当作旧式交卷；缺这个字段的旧卷仍按作答推断
+assert.deepStrictEqual({ ...dpx.handedIn }, {});
+const n39_pAtt = (paperId, result, by, response) => ({ by: by || 'uA', date: '2026-10-16', mode: 'daily', paperId, result, response: response || '', judgedBy: 'auto', at: '2026-10-16T08:00' });
+const n39_pEx = (id, attempts, o) => Object.assign({ id, subject: 'english', createdAt: '2026-10-01', attempts }, o || {});
+const n39_mkDaily = (id, o) => Object.assign({ id, kind: 'daily', for: 'uA', owner: 'uS', subject: 'english', exerciseIds: ['x1', 'x2', 'x3'], createdAt: '2026-10-16', madeAt: '2026-10-16T07:30', handedIn: {} }, o || {});
+const n39_pExs = L.viewFor([n39_pEx('x1', [n39_pAtt('D1', 'right', 'uA', 'B'), n39_pAtt('D6', 'right', 'uA', 'B')]), n39_pEx('x2', []), n39_pEx('x3', [n39_pAtt('D1', 'wrong', 'uB', 'Z')])], 'uA');
+assert.strictEqual(L.handedInAt(n39_mkDaily('D1'), n39_pExs, 'uA'), null);                                    // 现代卷：有已存作答也不算已交
+const n39_legacyDaily = n39_mkDaily('D1'); delete n39_legacyDaily.handedIn;
+assert.strictEqual(L.handedInAt(n39_legacyDaily, n39_pExs, 'uA'), '2026-10-16T08:00');                        // 旧卷（无字段）保留原推断
+// 受保护：给我、有科目、没交确认、有我的已存作答；别人的作答、别人的卷、已交卷、旧式混合卷、没有已存作答的草稿都不是
+const n39_dProt = n39_mkDaily('D1'), n39_dFresh = n39_mkDaily('D2', { madeAt: '2026-10-16T09:00', exerciseIds: ['x2'] });
+const n39_dDone = n39_mkDaily('D3', { handedIn: { uA: '2026-10-16T08:05' } }), n39_dOther = n39_mkDaily('D4', { for: 'uB' }), n39_dMixed = n39_mkDaily('D5', { subject: null });
+const n39_dProt2 = n39_mkDaily('D6', { madeAt: '2026-10-16T10:00', exerciseIds: ['x1'] });
+assert.deepStrictEqual(ids(L.protectedDailyPapers([n39_dFresh, n39_dDone, n39_dOther, n39_dMixed, n39_dProt], n39_pExs, 'uA')), ['D1']);
+assert.deepStrictEqual(ids(L.protectedDailyPapers([n39_dProt, n39_dProt2], n39_pExs, 'uA')), ['D6', 'D1']);        // 多张时最新的在前，都可发现
+assert.deepStrictEqual(ids(L.protectedDailyPapers([n39_dProt], n39_pExs, 'uA', 'math')), []);                 // 按科目取
+assert.deepStrictEqual(ids(L.protectedDailyPapers([n39_dProt, n39_dProt2], n39_pExs, 'uB')), []);                 // 别的用户看不到别人的卷
+// 开始新批次只取代没有我的已存作答的未交草稿；受保护的与旧式混合卷不取代
+assert.deepStrictEqual(ids(L.replaceableDailyPapers([n39_dProt, n39_dFresh, n39_dDone, n39_dOther, n39_dMixed], n39_pExs, 'uA', 'english')), ['D2']);
+// 恢复：已存作答还原为回答、判定并标已存；其余回答取卷上暂存的 responses；别人的作答不进来
+const n39_rec = L.recoverRun(n39_mkDaily('D1', { responses: { x2: 'draft', x1: 'stale' } }), n39_pExs);
+assert.deepStrictEqual([{ ...n39_rec.responses }, { ...n39_rec.results }, { ...n39_rec.saved }], [{ x2: 'draft', x1: 'B' }, { x1: 'right' }, { x1: true }]);
+// 评定完整与已交分开；未判的现有题留在分母；没有剩余题不算完整
+const n39_asmP = n39_mkDaily('D1', { exerciseIds: ['x1', 'gone', 'x2'], handedIn: { uA: '2026-10-16T08:05' } });
+assert.deepStrictEqual({ ...L.paperAssessment(n39_asmP, n39_pExs, 'uA') }, { handedIn: true, judged: 1, total: 2, pending: 1, complete: false, empty: false });
+const n39_asmDone = L.paperAssessment(n39_mkDaily('D1', { exerciseIds: ['x1'], handedIn: { uA: '2026-10-16T08:05' } }), n39_pExs, 'uA');
+assert.deepStrictEqual([n39_asmDone.handedIn, n39_asmDone.complete, n39_asmDone.pending], [true, true, 0]);
+const n39_asmEmpty = L.paperAssessment(n39_mkDaily('D1', { exerciseIds: ['gone'], handedIn: { uA: '2026-10-16T08:05' } }), n39_pExs, 'uA');
+assert.deepStrictEqual([n39_asmEmpty.handedIn, n39_asmEmpty.complete, n39_asmEmpty.empty], [true, false, true]);
+// 检验卷预览：同范围且题都还在才可创建；换归属人、题不在或不在该归属人名下都要重新预览
+const n39_vp = [{ id: 'x1' }, { id: 'x2' }], n39_vex = [{ id: 'x1', owner: 'uS' }, { id: 'x2', owner: 'uS' }];
+assert.deepStrictEqual({ ...L.previewCheck(n39_vp, 'uS', 'uS', n39_vex), ids: undefined }, { ok: true, reason: '', ids: undefined });
+assert.deepStrictEqual(Array.from(L.previewCheck(n39_vp, 'uS', 'uS', n39_vex).ids), ['x1', 'x2']);
+assert.deepStrictEqual([L.previewCheck(n39_vp, 'uS', 'uB', n39_vex).ok, L.previewCheck(n39_vp, 'uS', 'uB', n39_vex).reason], [false, 'scope']);
+assert.deepStrictEqual([L.previewCheck(n39_vp, 'uS', 'uS', n39_vex.slice(0, 1)).reason, Array.from(L.previewCheck(n39_vp, 'uS', 'uS', n39_vex.slice(0, 1)).ids)], ['missing', ['x2']]);
+assert.strictEqual(L.previewCheck(n39_vp, 'uS', 'uS', [{ id: 'x1', owner: 'uS' }, { id: 'x2', owner: 'uB' }]).reason, 'missing');
+assert.strictEqual(L.previewCheck([], 'uS', 'uS', n39_vex).reason, 'empty');
+assert.strictEqual(L.previewCheck(null, 'uS', 'uS', n39_vex).reason, 'empty');
+// 题组归属：无 owner 为旧题组；owner 与可见成员冲突；其余有效
+const n39_sOwned = { id: 'S1', owner: 'uS', subject: 'english' }, n39_sLegacy = { id: 'S2', subject: 'english' };
+const n39_mem = [{ id: 'm1', setId: 'S1', owner: 'uS' }, { id: 'm2', setId: 'S2', owner: 'uS' }, { id: 'm3', setId: 'S3', owner: 'uB' }];
+assert.deepStrictEqual([L.setOwnership(n39_sOwned, n39_mem), L.setOwnership(n39_sLegacy, n39_mem), L.setOwnership({ id: 'S2', owner: ' ' }, n39_mem), L.setOwnership(null, n39_mem), L.setOwnership({ id: 'S3', owner: 'uS' }, n39_mem)], ['owned', 'legacy', 'legacy', 'legacy', 'conflict']);
+// 新链接：同归属人、同科目才可；旧题组、冲突、别的归属人、别的科目、缺失都拒绝，原因可区分
+const n39_lk = (set, subj, owner) => L.checkSetLink(set, subj, owner, n39_mem).reason;
+assert.deepStrictEqual([n39_lk(n39_sOwned, 'english', 'uS'), n39_lk(n39_sOwned, 'english', 'uB'), n39_lk(n39_sOwned, 'math', 'uS'), n39_lk(n39_sLegacy, 'english', 'uS'), n39_lk({ id: 'S3', owner: 'uS', subject: 'english' }, 'english', 'uS'), n39_lk(undefined, 'english', 'uS')], ['', 'owner', 'subject', 'legacy', 'conflict', 'missing']);
+// 最后成员清理：归属有效且新读到的成员除去刚移出的为空才删；读失败、旧归属、仍有成员都保留并说明原因
+assert.deepStrictEqual({ ...L.cleanupDecision(n39_sOwned, [], 'g', n39_mem) }, { del: true, reason: '' });
+assert.deepStrictEqual({ ...L.cleanupDecision(n39_sOwned, [{ id: 'g' }], 'g', n39_mem) }, { del: true, reason: '' });          // 刚移出的还在读结果里不算
+assert.deepStrictEqual({ ...L.cleanupDecision(n39_sOwned, [{ id: 'g' }, { id: 'k' }], 'g', n39_mem) }, { del: false, reason: 'members' });
+assert.deepStrictEqual({ ...L.cleanupDecision(n39_sOwned, null, 'g', n39_mem) }, { del: false, reason: 'membership' });
+assert.deepStrictEqual({ ...L.cleanupDecision(n39_sLegacy, [], 'g', n39_mem) }, { del: false, reason: 'ownership' });
+assert.deepStrictEqual({ ...L.cleanupDecision(undefined, [], 'g', n39_mem) }, { del: false, reason: 'gone' });
+// 词表：只加词、重排不用查成员；删词要完整成员，读不到就阻止；答案会掉出词表的选词题列为 lost；非选词题不受影响
+const n39_pk = (id, a) => ({ id, format: 'pick', answer: a, stem: id }), n39_shortQ = { id: 'sq', format: 'short', answer: 'zzz' };
+assert.deepStrictEqual(JSON.parse(JSON.stringify(L.bankEdit(['a', 'b'], ['b', 'a', 'c'], null))), { destructive: false, blocked: false, lost: [] });
+assert.deepStrictEqual(JSON.parse(JSON.stringify(L.bankEdit(['a', 'b'], ['a'], null))), { destructive: true, blocked: true, lost: [] });
+const n39_be = L.bankEdit(['a', 'b'], ['a'], [n39_pk('q1', 'a'), n39_pk('q2', 'B'), n39_shortQ]);
+assert.deepStrictEqual([n39_be.destructive, n39_be.blocked, Array.from(n39_be.lost, x => x.id)], [true, false, ['q2']]);
+assert.deepStrictEqual(Array.from(L.bankEdit(['a', 'b'], ['a'], [n39_pk('q1', 'a')]).lost), []);
+// 材料编辑只写真改的字段：没改的词表、owner、subject 不会被旧表单回写
+const n39_base = { title: 'T', text: 'x', source: '', images: ['i1'], wordBank: 'a; b' };
+assert.deepStrictEqual({ ...L.setPatch(n39_base, Object.assign({}, n39_base, { title: ' T2 ' })) }, { title: 'T2' });
+assert.deepStrictEqual({ ...L.setPatch(n39_base, n39_base) }, {});
+assert.deepStrictEqual({ ...L.setPatch(n39_base, Object.assign({}, n39_base, { wordBank: 'a;\nb; c', images: [] })), wordBank: undefined }, { wordBank: undefined, images: [] });
+assert.deepStrictEqual(Array.from(L.setPatch(n39_base, Object.assign({}, n39_base, { wordBank: 'a;\nb; c' })).wordBank), ['a', 'b', 'c']);
+assert.ok(!('owner' in L.setPatch(n39_base, Object.assign({}, n39_base, { owner: 'x', subject: 'math', createdAt: '2020-01-01' }))));
+// 验收 #8 与 #11：补录来源在旧题组、冲突或别的归属人时不可选；卷上已删的题数明示
+const n39_sets = [n39_sOwned, n39_sLegacy, { id: 'S3', owner: 'uS', subject: 'english' }];
+const n39_sb = (m, owner) => L.supplementBlock(m, n39_sets, n39_mem, owner);
+assert.deepStrictEqual([n39_sb({ kind: 'set', id: 'S1', subject: 'english' }, 'uS'), n39_sb({ kind: 'set', id: 'S2', subject: 'english' }, 'uS'), n39_sb({ kind: 'set', id: 'S3', subject: 'english' }, 'uS'), n39_sb({ kind: 'set', id: 'S1', subject: 'english' }, 'uB'), n39_sb({ kind: 'photos', id: 'photos:k', subject: 'english' }, 'uS'), n39_sb({ kind: 'set', id: 'nope', subject: 'english' }, 'uS')], ['', 'legacy', 'conflict', 'owner', '', 'missing']);
+assert.strictEqual(L.missingRefCount({ exerciseIds: ['x1', 'gone', 'gone2'] }, [{ id: 'x1' }]), 2);
+assert.strictEqual(L.missingRefCount({ exerciseIds: ['x1'] }, [{ id: 'x1' }]), 0);
+assert.strictEqual(L.missingRefCount({}, []), 0);
+
+// ---- 写入重试（生产版已有的行为并回仓库）：只对 unavailable 重试，最多 retries 次，延迟 0.5–1.5 秒；只包写入 ----
+(async () => {
+  const mkFn = (codes) => { let n = 0; return { calls: () => n, fn: async () => { const c = codes[n++]; if (c === 'ok' || c === undefined) return 'done'; const e = new Error(c); e.code = c; throw e; } }; };
+  const slept = [];
+  const sleep = async ms => { slept.push(ms); };
+  let f = mkFn(['ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length], [1, 0]);   // 一次成功不等待
+  f = mkFn(['unavailable', 'ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0.5, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length, slept[0]], [2, 1, 1000]);   // 重试一次，延迟 500 + 0.5×1000
+  slept.length = 0; f = mkFn(['unavailable', 'unavailable', 'ok']);
+  assert.strictEqual(await L.retryUnavailable(f.fn, sleep, () => 0.999, 2), 'done'); assert.deepStrictEqual([f.calls(), slept.length], [3, 2]); assert.ok(slept.every(ms => ms >= 500 && ms < 1500));
+  slept.length = 0; f = mkFn(['unavailable', 'unavailable', 'unavailable', 'ok']);
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === 'unavailable'); assert.strictEqual(f.calls(), 3);   // 最多重试两次，之后原样抛出
+  f = mkFn(['quota_exceeded', 'ok']);
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2), e => e.code === 'quota_exceeded'); assert.strictEqual(f.calls(), 1);   // 别的错误码立刻抛出，不重试
+  f = { n: 0, fn: async () => { f.n++; throw new Error('no code'); } };
+  await assert.rejects(L.retryUnavailable(f.fn, sleep, () => 0, 2)); assert.strictEqual(f.n, 1);
+  // 包装只管写：写入经过重试；读（get）直接转发；id、path 保留；collection().doc() 无参时让平台生成 id
+  const log = []; let failNext = 1;
+  const fakeRef = { id: 'r1', path: 'x/r1', get: async () => 'got', set: async d => { log.push(['set', d]); if (failNext-- > 0) { const e = new Error('u'); e.code = 'unavailable'; throw e; } }, update: async d => { log.push(['update', d]); }, delete: async () => { log.push(['delete']); } };
+  const fakeDb = { doc: p => { log.push(['doc', p]); return fakeRef; }, collection: p => ({ doc: id => { log.push(['cdoc', p, id === undefined ? 'auto' : id]); return fakeRef; }, where: () => { throw new Error('should not be reached through the wrapper'); } }) };
+  const w = L.retryingDb(fakeDb, async () => {}, () => 0, 2);
+  const d = w.doc('x/r1'); assert.deepStrictEqual([d.id, d.path, await d.get()], ['r1', 'x/r1', 'got']);
+  await d.set({ a: 1 }); assert.deepStrictEqual(log.filter(x => x[0] === 'set').length, 2);                       // unavailable 后重试成功
+  await d.update({ b: 2 }); await d.delete();
+  w.collection('x').doc(); w.collection('x').doc('given'); assert.deepStrictEqual(log.filter(x => x[0] === 'cdoc'), [['cdoc', 'x', 'auto'], ['cdoc', 'x', 'given']]);
+  assert.strictEqual(typeof w.collection('x').where, 'undefined');   // 包装没有读查询：页面的成员查询要用原来的 db（S.rawDb）
+})().then(() => console.log('all logic tests passed'), e => { console.error(e); process.exit(1); });   // 重试断言是异步的：全部过了才报通过

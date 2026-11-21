@@ -2,7 +2,7 @@
 
 Use the applicable outline and omit unused sections. Workspace creation already supplies the journey indexes and container inventory. Add operation contracts and tools when needed.
 
-## Journey index (`journey/user/INDEX.md` or `journey/operator/INDEX.md`)
+## Journey index (`journey/USER.md` or `journey/OPERATOR.md`)
 
 ```markdown
 # <User or operator> journeys
@@ -24,7 +24,7 @@ Status describes the body only (`detailed` or `planned`). Use `—` for an absen
 |---|---|---|---|---|
 ```
 
-## Journey (`journey/<user|operator>/NNNN-<slug>.md`)
+## Journey (`journey/NNNN-<slug>.md`)
 
 ```markdown
 # NNNN <Active verb phrase for the goal>
@@ -166,6 +166,11 @@ For one context, omit the context map, subdomain table and context heading.
 ## Deploy contract additions (`model/operate/deploy/SPEC.md`)
 
 ```markdown
+## Target environments and release channels
+
+| Class | Environment / channel | Purpose and verification gate |
+|---|---|---|
+
 ## Artifact flow
 
 <Mermaid diagram from source to each runtime or storage location, naming artifacts and containers.>
@@ -181,20 +186,22 @@ For one context, omit the context map, subdomain table and context heading.
 ```markdown
 # <Workspace> acceptance contract
 
-<Workspace-specific rules. See design-verify for the process and journeys for success conditions.>
+<Workspace-specific rules. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration, including unaffected-journey regression) and journeys for success conditions.>
 
 ## Journeys served
 
-- <Journeys for slice acceptance and pre-delivery verification.>
+- <Journeys for Feature Verify and Integration Verify.>
 
 ## Environments and substitutes
 
 | Environment or dependency | How provided | Real or substitute |
 |---|---|---|
 
-## Entries and coverage
+<If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated entries and prod-only unverified boundaries.>
 
-| Acceptance entry | Steps or scenarios | Criterion |
+## Entries and modes
+
+| Acceptance entry | Steps or scenarios | Mode split (`feature` vs. `integration`) and criterion |
 |---|---|---|
 
 ## Sizing by change
