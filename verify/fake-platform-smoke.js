@@ -112,12 +112,13 @@ add('paper-page-reopened-outcome-and-pending', ['0002', '0004'], async c => {
   const { pg, txt, click, assertOk } = c;
   await click('open-paper', { id: 'DP1' }); await pg.waitForTimeout(200);
   let t = await txt();
-  assertOk('re-opened daily paper shows score, coins, ladder and what is left to judge', /1\/3/.test(t) && /coin/.test(t) && !!(await pg.$('.run-ladder svg')) && /Handed in, not fully assessed: 1 to judge/.test(t));
+  // 值按规则推出：e1 做对升到 2 级得 2 枚，e2 做错得 1 枚，共 3 枚（1 climbed、1 tried）；梯子上 1 题升到 2 级
+  assertOk('re-opened daily paper shows score, coins, ladder and what is left to judge', /1\/3/.test(t) && /\+3 coins \(1 climbed · 1 tried\)/.test(t) && /1 climbed to level 2/.test(await pg.getAttribute('.run-ladder svg', 'aria-label')) && /Handed in, not fully assessed: 1 to judge/.test(t));
   assertOk('a re-opened page does not lock the tabs', await pg.$$eval('nav.tabs button', bs => bs.every(b => !b.disabled)));
   await pg.locator('.cardpager .pg-n').nth(2).click(); await pg.waitForTimeout(100); t = await txt();
   assertOk('pending written answer reads Not judged yet, with no self-mark and no created attempt', /Not judged yet/.test(t) && !/No answer to this question/.test(t) && !(await pg.$('.selfmark')) && await pg.evaluate(() => window.__data.exercises.e5.attempts.length === 0));
   await click('exit-run'); await click('tab', { v: 'papers' }); await click('paper-tab', { v: 'daily' });
-  assertOk('the same paper from the Papers Daily list opens the same page', /1\/3/.test(await txt()) && /1 to judge/.test(await txt()));
+  assertOk('the Papers Daily row shows the same score and count to judge (opening it from a row: paper-page-opens-from-every-row)', /1\/3/.test(await txt()) && /1 to judge/.test(await txt()));
 }, { seed: paperPageSeed });
 
 add('paper-page-override-and-detail-back', ['0004', '0009'], async c => {
@@ -148,6 +149,127 @@ add('check-paper-hand-in-self-judge-and-review', ['0003', '0009'], async c => {
   assertOk('self-judgment is saved once and the card offers Override', await pg.evaluate(() => window.__data.exercises.e5.attempts.filter(a => a.paperId === 'CP1').length === 1 && window.__data.exercises.e5.attempts[0].judgedBy === 'self') && !!(await pg.$('select.ov-sel')));
   assertOk('fully assessed and tabs free again', /Fully assessed/.test(await txt()) && await pg.$$eval('nav.tabs button', bs => bs.every(b => !b.disabled)));
 }, { seed: paperPageSeed });
+
+// ---- 卷页补充用例：真实点击、改判后的数值与失败、检验卷删题、旧卷、每日卷主观题自评 ----
+// 三个入口行都是整行可点的 data-act="open-paper"；这里用真实点击（不是合成动作），并走 Back 回到来处
+const rowsSeed = s => {
+  paperPageSeed(s);
+  s.papers.CP1.handedIn = { uS: T + 'T09:00' };
+  s.exercises.e2.attempts.push({ by: 'uS', date: T, mode: 'paper', paperId: 'CP1', response: 'q', result: 'wrong', judgedBy: 'auto', at: T + 'T09:00' });
+};
+add('paper-page-opens-from-every-row', ['0003', '0004'], async c => {
+  const { pg, txt, assertOk } = c;
+  const isPage = id => pg.evaluate(id => !!S.run && S.run.paperId === id && S.run.phase === 'review', id);
+  // Today 的 Exam 行
+  await pg.locator('[data-act="open-paper"][data-id="CP1"]').click(); await pg.waitForTimeout(200);
+  assertOk('Today Exam row opens the handed-in check paper as the review page', await isPage('CP1') && !!(await pg.$('.run-ladder svg')) && /Handed in/.test(await txt()));
+  await pg.locator('.progress .back').click(); await pg.waitForTimeout(200);
+  assertOk('Back returns to Today', await pg.evaluate(() => !S.run && S.tab === 'today'));
+  // Papers 的 Exam 行
+  await pg.locator('nav.tabs button[data-v="papers"]').click(); await pg.locator('[data-act="paper-tab"][data-v="check"]').click(); await pg.waitForTimeout(150);
+  await pg.locator('[data-act="open-paper"][data-id="CP1"]').click(); await pg.waitForTimeout(200);
+  assertOk('Papers Exam row opens the same page', await isPage('CP1') && !!(await pg.$('.run-ladder svg')));
+  await pg.locator('.progress .back').click(); await pg.waitForTimeout(200);
+  assertOk('Back returns to the Exam list', await pg.evaluate(() => !S.run && S.tab === 'papers' && S.paperTab === 'check'));
+  // Papers 的 Daily 行
+  await pg.locator('[data-act="paper-tab"][data-v="daily"]').click(); await pg.waitForTimeout(150);
+  await pg.locator('[data-act="open-paper"][data-id="DP1"]').click(); await pg.waitForTimeout(200);
+  assertOk('Papers Daily row opens the daily paper with its coins', await isPage('DP1') && /\+3 coins/.test(await txt()));
+  await pg.locator('.progress .back').click(); await pg.waitForTimeout(200);
+  assertOk('Back returns to the Daily list', await pg.evaluate(() => !S.run && S.tab === 'papers' && S.paperTab === 'daily'));
+}, { seed: rowsSeed });
+
+add('paper-page-detail-button-real-click', ['0004', '0009'], async c => {
+  const { pg, txt, assertOk } = c;
+  await pg.locator('nav.tabs button[data-v="papers"]').click(); await pg.locator('[data-act="paper-tab"][data-v="daily"]').click(); await pg.waitForTimeout(150);
+  await pg.locator('[data-act="open-paper"][data-id="DP1"]').click(); await pg.waitForTimeout(200);
+  await pg.locator('.cardpager .pg-n').nth(1).click(); await pg.waitForTimeout(100);
+  await pg.locator('button[data-act="goto-ex"]').click(); await pg.waitForTimeout(150);
+  assertOk('the Detail button opens the exercise with a way back to the paper', /Back to the paper/.test(await txt()) && await pg.evaluate(() => !S.run && S.detailId === 'e2'));
+  await pg.locator('button:has-text("Back to the paper")').click(); await pg.waitForTimeout(150);
+  assertOk('the real Back button returns to the same card with the page state', await pg.evaluate(() => !!S.run && S.run.paperId === 'DP1' && S.run.idx === 1 && S.run.phase === 'review') && /Handed in/.test(await txt()));
+}, { seed: paperPageSeed });
+
+add('paper-page-override-recalculates-outcome', ['0004', '0009'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  const bal = async () => { await click('tab', { v: 'games' }); const b = await pg.locator('.coin-nums .big').innerText(); await click('tab', { v: 'papers' }); return b.trim(); };
+  await click('open-paper', { id: 'DP1' }); await pg.waitForTimeout(200);
+  assertOk('before the override: 3 coins, one climb to level 2, balance 3', /\+3 coins \(1 climbed · 1 tried\)/.test(await txt()) && /1 climbed to level 2/.test(await pg.getAttribute('.run-ladder svg', 'aria-label')) && await bal() === '3');
+  await click('open-paper', { id: 'DP1' }); await pg.waitForTimeout(150);
+  await pg.selectOption('select.ov-sel', 'wrong'); await pg.waitForTimeout(300);
+  // e1 改判为错：不再升级，改按「尝试」得 1 枚，两题都只得 1 枚；梯子上没有升级；余额随之为 2
+  assertOk('after the override: 2 coins, no climb, score 0/3', /\+2 coins \(2 tried\)/.test(await txt()) && /No climbs yet/.test(await pg.getAttribute('.run-ladder svg', 'aria-label')) && /0\/3/.test(await txt()));
+  assertOk('no attempt was added by the override', await pg.evaluate(() => window.__data.exercises.e1.attempts.length === 1 && window.__data.exercises.e2.attempts.length === 1));
+  assertOk('the balance on Games follows (2)', await bal() === '2');
+}, { seed: paperPageSeed });
+
+add('paper-page-override-write-fails', ['0009'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  await click('open-paper', { id: 'DP1' }); await pg.waitForTimeout(200);
+  await pg.evaluate(() => { window.__failWrite = { n: 99, code: 'permission-denied', calls: 0, match: 'exercises/' }; });
+  await pg.selectOption('select.ov-sel', 'wrong'); await pg.waitForTimeout(400);
+  assertOk('the failed override leaves the stored judgment and the outcome unchanged', await pg.evaluate(() => window.__data.exercises.e1.attempts.length === 1 && window.__data.exercises.e1.attempts[0].result === 'right' && window.__data.exercises.e1.attempts[0].judgedBy === 'auto') && /1\/3/.test(await txt()) && /\+3 coins/.test(await txt()));
+  assertOk('the failure is shown on the paper page and the select shows the stored result', await pg.evaluate(() => !!S.run && !!S.run.err) && !!(await pg.$('.note.err')) && await pg.$eval('select.ov-sel', x => x.value) === 'right');
+  await pg.evaluate(() => { window.__failWrite = null; });
+  await pg.selectOption('select.ov-sel', 'wrong'); await pg.waitForTimeout(300);
+  assertOk('retrying after the fault clears writes the judgment and clears the error', await pg.evaluate(() => window.__data.exercises.e1.attempts[0].result === 'wrong' && !S.run.err) && /0\/3/.test(await txt()));
+}, { seed: paperPageSeed });
+
+add('check-paper-with-deleted-question', ['0003'], async c => {
+  const { pg, txt, assertOk } = c;
+  await pg.locator('[data-act="open-paper"][data-id="CP1"]').click(); await pg.waitForTimeout(200);
+  assertOk('taking page names the deleted question and keeps the rest', /1 question on this paper was deleted/.test(await txt()) && await pg.evaluate(() => S.run.phase === 'answer'));
+  await pg.fill('.answer-in', 'y');
+  await pg.locator('.progress button:has-text("Hand in")').click(); await pg.waitForTimeout(200);
+  const again = pg.locator('.progress button:has-text("Hand in anyway")'); if (await again.count()) { await again.first().click(); await pg.waitForTimeout(300); }
+  let t = await txt();
+  assertOk('the score counts only the remaining questions, the unjudged written one stays in it', /1\/2/.test(t) && /Handed in, not fully assessed: 1 to judge/.test(t) && /1 question on this paper was deleted/.test(t));
+  assertOk('only the remaining objective answer was saved as a paper attempt, and the marker written', await pg.evaluate(() => window.__data.exercises.e2.attempts.filter(a => a.paperId === 'CP1' && a.mode === 'paper' && a.result === 'right').length === 1 && window.__data.exercises.e5.attempts.length === 0 && !!window.__data.papers.CP1.handedIn.uS));
+  await pg.locator('.cardpager .pg-n').nth(2).click(); await pg.waitForTimeout(100);
+  assertOk('the deleted question card says so and offers no judgment', /This exercise has been deleted/.test(await txt()) && !(await pg.$('.selfmark')) && !(await pg.$('select.ov-sel')));
+}, { seed: s => { paperPageSeed(s); s.papers.CP1.exerciseIds = ['e2', 'e5', 'gone7']; s.papers.CP1.count = 3; } });
+
+add('legacy-handed-in-paper-reads-no-answer', ['0002', '0004'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  await click('open-paper', { id: 'LG1' }); await pg.waitForTimeout(200);
+  assertOk('a legacy paper (no hand-in marker) opens as the review page, handed in from its last attempt', await pg.evaluate(() => !!S.run && S.run.phase === 'review') && /Handed in/.test(await txt()));
+  await pg.locator('.cardpager .pg-n').nth(1).click(); await pg.waitForTimeout(100);
+  assertOk('an objective question with no attempt on the legacy paper reads "No answer", not "Not judged yet"', /No answer to this question on this paper/.test(await txt()) && !/Not judged yet/.test(await txt()) && !(await pg.$('.selfmark')));
+  await pg.locator('.cardpager .pg-n').nth(2).click(); await pg.waitForTimeout(100);
+  assertOk('a written question with no attempt reads "Not judged yet" on the same paper', /Not judged yet/.test(await txt()) && !/No answer to this question/.test(await txt()) && await pg.evaluate(() => window.__data.exercises.e5.attempts.length === 0));
+}, { seed: s => {
+  paperPageSeed(s);
+  s.exercises.e5.format = 'open';
+  s.papers.LG1 = { owner: 'uS', madeBy: 'uS', subject: 'english', title: 'legacy', createdAt: Y, madeAt: Y + 'T06:00', topics: [], count: 3, exerciseIds: ['e2', 'e1', 'e5'] };
+  s.exercises.e2.attempts.push({ by: 'uS', date: Y, mode: 'paper', paperId: 'LG1', response: 'y', result: 'right', judgedBy: 'auto', at: Y + 'T08:00' });
+} });
+
+add('daily-paper-written-answer-self-judge', ['0002'], async c => {
+  const { pg, txt, assertOk } = c;
+  await pg.locator('[data-act="start-daily"]').first().click(); await pg.waitForTimeout(250);
+  assertOk('the daily batch is the saved paper with the written question on it', await pg.evaluate(() => S.run.paperId === 'DP1' && S.run.phase === 'answer'));
+  await pg.locator('.cardpager .pg-n').nth(1).click(); await pg.waitForTimeout(100);
+  await pg.fill('.answer-in', 'y');
+  await pg.locator('.cardpager .pg-n').nth(2).click(); await pg.waitForTimeout(100);
+  await pg.fill('.answer-in', 'my written answer');
+  await pg.locator('.progress button:has-text("Hand in")').click(); await pg.waitForTimeout(250);
+  const again = pg.locator('.progress button:has-text("Hand in anyway")'); if (await again.count()) { await again.first().click(); await pg.waitForTimeout(300); }
+  let t = await txt();
+  assertOk('after hand-in the daily paper is acknowledged but not fully assessed, with tabs locked for the pending written answer', /Handed in, not fully assessed: 1 to judge/.test(t) && await pg.$$eval('nav.tabs button', bs => bs.every(b => b.disabled)));
+  assertOk('the objective attempts and the marker are saved; the written answer has no attempt yet', await pg.evaluate(() => !!window.__data.papers.DP1.handedIn.uS && window.__data.exercises.e2.attempts.filter(a => a.paperId === 'DP1').length === 1 && window.__data.exercises.e5.attempts.length === 0));
+  await pg.locator('.cardpager .pg-n').nth(2).click(); await pg.waitForTimeout(100);
+  await pg.locator('.selfmark button[data-r="right"]').click(); await pg.waitForTimeout(300);
+  assertOk('self-judgment saves exactly one daily attempt with the written response', await pg.evaluate(() => { const a = window.__data.exercises.e5.attempts.filter(x => x.paperId === 'DP1'); return a.length === 1 && a[0].mode === 'daily' && a[0].judgedBy === 'self' && a[0].result === 'right' && a[0].response === 'my written answer'; }));
+  t = await txt();
+  // 三题都做对，各升到 2 级：2 + 2 + 2 = 6 枚
+  assertOk('the paper reads Fully assessed with 3/3 and 6 coins, the card offers Override and the tabs are free', /Fully assessed/.test(t) && /3\/3/.test(t) && /\+6 coins \(3 climbed\)/.test(t) && !!(await pg.$('select.ov-sel')) && await pg.$$eval('nav.tabs button', bs => bs.every(b => !b.disabled)));
+}, { seed: s => {
+  paperPageSeed(s);
+  s.exercises.e5.format = 'open';
+  s.exercises.e2.attempts = [];
+  s.papers.DP1.handedIn = {}; s.papers.DP1.responses = {};
+  s.papers.DP1.exerciseIds = ['e1', 'e2', 'e5'];
+} });
 
 // ---- 0002/0004 保留期 ----
 const retentionSeed = s => {
