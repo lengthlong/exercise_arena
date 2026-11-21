@@ -154,7 +154,7 @@ function expand_indent(s,    i, col, ch, prefix) {
 # 围栏所在容器按外层引用 → 列表缩进 → 内层引用拆开，保留交错顺序。
 function strip_quotes(s, limit) {
     removed_quotes = 0
-    while (removed_quotes < limit && sub(/^ {0,3}>[ \t]?/, "", s)) {
+    while (removed_quotes < limit && sub(/^ ? ? ?>[ \t]?/, "", s)) {
         removed_quotes++; s = expand_indent(s)
     }
     return s
@@ -177,7 +177,7 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
     if (fence_char != "") {
         fence = container_text(original[line], fence_outer_quotes, fence_indent, fence_inner_quotes)
         if (container_ok) {
-            sub(/^ {0,3}/, "", fence)
+            sub(/^ ? ? ?/, "", fence)
             n = run_size(fence, 1, fence_char)
             rest = substr(fence, n + 1)
             if (n >= fence_size && rest ~ /^[ \t]*$/) fence_char = ""
@@ -190,7 +190,7 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
     # 引用与列表里的围栏也属于代码块；普通引用正文仍扫描。
     quotes = 0
     text = expand_indent(text)
-    while (sub(/^ {0,3}>[ \t]?/, "", text)) {
+    while (sub(/^ ? ? ?>[ \t]?/, "", text)) {
         quotes++; text = expand_indent(text)
     }
     outer_quotes = quotes
@@ -204,7 +204,7 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
     base = list_depth > 0 ? list_columns[list_depth] : 0
     text = substr(text, base + 1)
     # 扣除列表容器的缩进，再判断代码缩进；新的列表项先结束前一段。
-    if (match(text, /^ {0,3}([-+*]|[0-9]+[.)]) +/)) {
+    if (match(text, /^ ? ? ?([-+*]|[0-9]+[.)]) +/)) {
         prefix = substr(text, 1, RLENGTH)
         match(prefix, /^ */); indent = RLENGTH
         rest = substr(prefix, indent + 1)
@@ -217,12 +217,12 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
         boundary[line] = 1; open_paragraph = 0
     }
     inner_quotes = 0
-    while (sub(/^ {0,3}>[ \t]?/, "", text)) {
+    while (sub(/^ ? ? ?>[ \t]?/, "", text)) {
         inner_quotes++; text = expand_indent(text)
     }
     quotes += inner_quotes
     previous_quotes = quotes
-    fence = text; sub(/^ {0,3}/, "", fence)
+    fence = text; sub(/^ ? ? ?/, "", fence)
     ch = substr(fence, 1, 1)
     n = (ch == "`" || ch == "~") ? run_size(fence, 1, ch) : 0
     if (n >= 3 && (ch != "`" || index(substr(fence, n + 1), "`") == 0)) {
@@ -235,11 +235,11 @@ function prepare_line(line,    text, quotes, outer_quotes, inner_quotes, indent,
         hidden[line] = 1; open_paragraph = 0; return
     }
     # 标题与分隔线都是块边界，行内代码不能跨这些块配对。
-    heading = text ~ /^ {0,3}#{1,6}([ \t]|$)/
+    heading = text ~ /^ ? ? ?##?#?#?#?#?([ \t]|$)/
     compact = text; gsub(/ /, "", compact)
-    if (heading || compact ~ /^(\*{3,}|_{3,}|-{3,})$/) {
+    if (heading || compact ~ /^(\*\*\*+|___+|---+)$/) {
         boundary[line] = 1; after[line] = 1; open_paragraph = 0
-    } else if (text ~ /^ {0,3}(=+|-+)[ \t]*$/) {
+    } else if (text ~ /^ ? ? ?(=+|-+)[ \t]*$/) {
         after[line] = 1; open_paragraph = 0
     } else open_paragraph = 1
     prose[line] = text
@@ -300,17 +300,17 @@ function record_table_fields(line, fields,    i, char, cell, count) {
 }
 
 function table_separator(fields, count,    i) {
-    for (i = 1; i <= count; i++) if (fields[i] !~ /^:?-{3,}:?$/) return 0
+    for (i = 1; i <= count; i++) if (fields[i] !~ /^:?---+:?$/) return 0
     return 1
 }
 
-function scan_record(    file, kind, name, state, location, baseline, confirmations, modern, legacy, header, i, line, heading, pending, section, marker, seen, row, question, fields, count, verdict, table, table_columns, judgments, failed, before, upstream, html_comment, shape_error, legacy_state, legacy_location, legacy_final, legacy_upstream, legacy_refs) {
+function scan_record(    file, kind, name, state, location, scope, baseline, candidate, confirmations, modern, legacy, header, i, line, heading, pending, section, marker, seen, row, question, fields, count, verdict, table, table_columns, judgments, failed, before, upstream, html_comment, shape_error, legacy_state, legacy_location, legacy_final, legacy_upstream, legacy_refs) {
     file = cur_file; sub(/^\.\//, "", file)
     if (mode == "release") file = "record/verify/input.md"
     name = file; sub(/^.*\//, "", name); sub(/\.md$/, "", name)
     kind = file; sub(/\/[^\/]+$/, "", kind); sub(/^.*\//, "", kind)
     record_file[file] = 1
-    if (kind == "discuss" && name ~ /^[0-9]{4}-/ && !(substr(name, 1, 4) in discussions))
+    if (kind == "discuss" && name ~ /^[0-9][0-9][0-9][0-9]-/ && !(substr(name, 1, 4) in discussions))
         discussions[substr(name, 1, 4)] = file
 
     header = 1; before = record_errors
@@ -330,7 +330,7 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
             continue
         }
         heading = line
-        sub(/^ {0,3}/, "", heading)
+        sub(/^ ? ? ?/, "", heading)
         if (html_comment) {
             if (heading ~ /-->/) html_comment = 0
             continue
@@ -339,7 +339,7 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
             html_comment = 1; pending = ""
             continue
         }
-        if (header && line ~ /^> (status|location|confirmation|baseline):/) {
+        if (header && line ~ /^> (status|location|confirmation|baseline|scope):/) {
             modern = 1
             if (line ~ /^> status:/) {
                 if (state != "") record_error(file, "Duplicate status field")
@@ -347,6 +347,9 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
             } else if (line ~ /^> location:/) {
                 if (location != "") record_error(file, "Duplicate location field")
                 location = line
+            } else if (line ~ /^> scope:/) {
+                if (scope != "") record_error(file, "Duplicate scope field")
+                scope = line
             } else if (line ~ /^> baseline:/) {
                 if (baseline != "") record_error(file, "Duplicate baseline field")
                 baseline = line
@@ -360,7 +363,7 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
         header = 0
 
         if (heading ~ /^##?([ \t]|$)/ || (i < file_lines && !hidden[i+1] &&
-            line !~ /^[ \t]/ && original[i+1] ~ /^ {0,3}(=+|-+)[ \t]*$/)) {
+            line !~ /^[ \t]/ && original[i+1] ~ /^ ? ? ?(=+|-+)[ \t]*$/)) {
             section = ""; table = 0
         }
         if (pending && heading ~ /^<!-- (upstream|write-off-plan|write-off|acceptance-judgments) -->[ \t]*$/) {
@@ -374,9 +377,9 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
         pending = (heading ~ /^##[ \t]/)
         if (kind == "discuss") {
             question = heading
-            sub(/^#{2,6}[ \t]+/, "", question)
+            sub(/^###?#?#?#?[ \t]+/, "", question)
             sub(/^([-+*][ \t]+)?\*\*/, "", question)
-            if ((question != heading) && match(question, /^Q[0-9]+([^[:alnum:]_]|$)/)) {
+            if ((question != heading) && match(question, /^Q[0-9]+([^A-Za-z0-9_]|$)/)) {
                 question = substr(question, 1, RLENGTH)
                 sub(/[^0-9]$/, "", question)
                 record_question[file, question] = 1
@@ -407,9 +410,10 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
             if (legacy_state !~ /^> 状态：\*\*✅ 已完成/) return
             for (i = 1; i <= file_lines; i++) {
                 if (original[i] ~ /^\|[^|]*\|[^|]*\| *未通过 *\|/) return
-                if (baseline == "" && match(original[i], /^> 位置：.*基线 `[0-9a-f]{7,40}`/)) {
-                    baseline = substr(original[i], 1, RLENGTH-1)
-                    sub(/^.*`/, "", baseline)
+                if (baseline == "" && match(original[i], /^> 位置：.*基线 `[0-9a-f]+`/)) {
+                    candidate = substr(original[i], 1, RLENGTH-1)
+                    sub(/^.*`/, "", candidate)
+                    if (length(candidate) >= 7 && length(candidate) <= 40) baseline = candidate
                 }
             }
             if (baseline != "") print baseline
@@ -434,7 +438,7 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
     sub(/^> status: /, "", state)
     sub(/^> location: /, "", location)
     sub(/^> baseline: /, "", baseline)
-    if (state !~ /^(in-progress|completed|aborted|pending-write-off) \([0-9]{4}-[0-9]{2}-[0-9]{2}\)[ \t]*$/ ||
+    if (state !~ /^(in-progress|completed|aborted|pending-write-off) \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)[ \t]*$/ ||
         (state ~ /^pending-write-off / && kind != "discuss")) record_error(file, "Invalid record status")
     if (trim(location) == "" || location ~ /^> location:/) record_error(file, "Missing or empty location field")
     if (kind == "discuss") {
@@ -443,12 +447,20 @@ function scan_record(    file, kind, name, state, location, baseline, confirmati
         if (state ~ /^completed / && ((seen["write-off"] && !confirmations) || seen["write-off-plan"]))
             record_error(file, "A completed discussion requires confirmation and a finished write-off")
     } else if (!upstream[0]) record_error(file, "Missing marked upstream entries")
+    if (scope != "") {
+        if (kind != "verify") record_error(file, "Scope field is only allowed on verify records")
+        else {
+            if (!sub(/^> scope: /, "", scope)) scope = ""
+            scope = trim(scope)
+            if (scope != "feature" && scope != "integration") record_error(file, "Invalid acceptance scope")
+        }
+    }
     if (kind == "verify") {
-        if (baseline !~ /^[0-9a-f]{7,64}$/) record_error(file, "Missing or malformed acceptance baseline")
+        if (baseline !~ /^[0-9a-f]+$/ || length(baseline) < 7 || length(baseline) > 64) record_error(file, "Missing or malformed acceptance baseline")
         if (state ~ /^completed / && !judgments) record_error(file, "Missing numbered acceptance judgments")
     }
     if (mode == "release") {
-        if (before == record_errors && state ~ /^completed / && !failed) print baseline
+        if (before == record_errors && state ~ /^completed / && !failed && scope != "feature") print baseline
     } else {
         for (i = 1; i <= upstream[0]; i++) {
             ref_file[++ref_count] = file; ref_item[ref_count] = upstream[i]
@@ -475,12 +487,12 @@ function check_record_ref(file, item,    kind, words, name, id, target, outcome)
     item = trim(item)
     split(item, words, /[ \t]+/)
     name = words[1]; id = words[2]
-    if (kind == "implement" && (item ~ /^cutover: [0-9]{4}$/ || item ~ /^切换点：[0-9]{4}$/)) {
+    if (kind == "implement" && (item ~ /^cutover: [0-9][0-9][0-9][0-9]$/ || item ~ /^切换点：[0-9][0-9][0-9][0-9]$/)) {
         name = substr(item, length(item) - 3)
         if (!(name in discussions)) record_error(file, "Cutover discussion does not exist: " name)
         return
     }
-    if (kind == "implement" && name ~ /^[0-9]{4}$/) {
+    if (kind == "implement" && name ~ /^[0-9][0-9][0-9][0-9]$/) {
         target = discussions[name]
         if (target == "") record_error(file, "Upstream discussion does not exist: " name)
         else if (id ~ /^#[0-9]+$/) {

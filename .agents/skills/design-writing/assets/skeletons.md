@@ -186,20 +186,22 @@ For one context, omit the context map, subdomain table and context heading.
 ```markdown
 # <Workspace> acceptance contract
 
-<Workspace-specific rules. See design-verify for the process and journeys for success conditions.>
+<Workspace-specific rules. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration, including unaffected-journey regression) and journeys for success conditions.>
 
 ## Journeys served
 
-- <Journeys for slice acceptance and pre-release verification.>
+- <Journeys for Feature Verify and Integration Verify.>
 
 ## Environments and substitutes
 
 | Environment or dependency | How provided | Real or substitute |
 |---|---|---|
 
-## Entries and coverage
+<If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated entries and prod-only unverified boundaries.>
 
-| Acceptance entry | Steps or scenarios | Criterion |
+## Entries and modes
+
+| Acceptance entry | Steps or scenarios | Mode split (`feature` vs. `integration`) and criterion |
 |---|---|---|
 
 ## Sizing by change

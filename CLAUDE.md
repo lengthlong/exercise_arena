@@ -11,7 +11,7 @@ This guide states the workflow, map, rules and terms. Skills in `.agents/skills/
 
 ### Journey-driven design
 
-Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks integrated behavior (deploying to an `OFFLINE` environment when needed) against journey success conditions and `model/verify/SPEC.md`, and release deploys to an `ONLINE` environment when applicable and announces the verified version to users. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
+Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks user-perspective behavior in Feature Verify (`scope: feature`) or Integration Verify (`scope: integration`, deploying to an `OFFLINE` environment when needed) against journey success conditions and `model/verify/SPEC.md`, and release deploys to an `ONLINE` environment when applicable and announces the verified version to users. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
 
 ```mermaid
 flowchart LR
@@ -49,14 +49,14 @@ flowchart LR
 | verify | `verify/` (`verify/README.md`) | Journey-based acceptance entries | Written by implementation, run by acceptance; map below |
 | record | `record/research/NNNN-*.md` | Point-in-time external research | Freezes with consuming discussion |
 | record | `record/discuss/NNNN-*.md` | Decisions and write-off | Freezes on completion or abort |
-| record | `record/implement/YYYYMMDD-*.md` | Upstream rows, paired entries, tests | Freezes when implementation ends |
-| record | `record/verify/YYYYMMDD-*.md` | Baseline, upstream records, verdicts | Freezes when acceptance ends |
-| record | `record/release/<version>[-<environment>][-<sequence>].md` | Candidate, target, release notes, verification | Freezes when release ends |
+| record | `record/implement/YYYYMMDD-*.md` | Upstream rows, paired entries, tests | Updatable in place across unreleased loops; freezes globally on a covering completed release (or abort) |
+| record | `record/verify/YYYYMMDD-*.md` | Scope, baseline, upstream records, verdicts | Updatable in place across unreleased loops; freezes globally on a covering completed release (or abort) |
+| record | `record/release/<version>[-<environment>][-<sequence>].md` | Candidate, target, release notes, verification | Freezes on completion or abort |
 | doc | `doc/NNNN-<topic>.*` | Reader hubs with two sync baselines | Sync both ways; design edits go through discussion |
 
 - Read `model/domain/GLOSSARY.md`, relevant ADRs, and both sides of a mapped pair before changing either. Journeys and `model/` files are authoritative design; create directories as needed and name model files by responsibility. A root `README.md` belongs to the workspace.
 - Extend this map below the managed block with one row per relevant `impl/`, `operate/` or `verify/` subpath, retained existing source directory, workspace skill or other workspace-owned path—naming its paired design, test/acceptance/deploy commands, authority in a conflict and plain category (`impl`, `operate`, `verify`, `guide`). `./check.sh` checks top-level coverage.
-- Records carry status, location and upstream references, freeze when their stage ends, and drive pending handoffs from the baseline tree; skills define formats and `./check.sh` validates them.
+- Records carry status, location and upstream references, drive pending handoffs from the baseline tree, and freeze per the map above; skills define formats and `./check.sh` validates them.
 
 ### Rules
 
@@ -83,7 +83,7 @@ flowchart LR
 - **Deploy vs. release:** **Deploy** places an artifact into an environment—an `OFFLINE` environment for QA or `verify/` tools, or an `ONLINE` environment for live users; **release** announces a new verified version of the solution to users.
 - **Handoff** passes frozen discussion design rows and the current model to implementation, which traces impact through the workspace map and returns design gaps with evidence.
 - **Write-off** applies, verifies and commits confirmed design edits and records results in the discussion file.
-- **Freeze** ends edits to a completed or aborted record; a discussion freezes the research it consumes.
+- **Freeze** ends edits to a record permanently: discussions (with consumed research) and releases freeze on completion or abort; implementation and acceptance records stay updatable in place across unreleased loops and freeze globally once a completed release covers their work (or on abort).
 <!-- design-kernel:end -->
 
 ## 本工作区的地图
