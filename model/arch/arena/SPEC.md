@@ -63,7 +63,7 @@ The source header records its platform runtime declaration; this review does not
 - **Submission** Save missing objective attempts, stop at first write failure, then save the actor marker. Retry skips already-saved actor/paper attempts and preserves saved judgments. Marker failure is partial submission, not a transaction rollback.
 - **Written items** Save a written Attempt at self-judgment in the current session. Pending existing questions stay in the score denominator with no invented result. A handed-in paper may still be incomplete.
 - **Full assessment** All remaining referenced questions have actor judgments. No remaining content is an empty/deleted-content case, not mastery evidence.
-- **Override** Change only an existing own judgment, not another actor's or a missing Attempt. Acknowledged correction replays derived consequences, including later ladder/rewards; failed write leaves prior stored result authoritative.
+- **Override** Change only an existing own judgment, not another actor's or a missing Attempt. Acknowledged correction replays derived consequences, including later ladder/rewards; failed write leaves prior stored result authoritative. The Paper page (C10) offers it for every judged card.
 - **Legacy references** Own attempt/judgment writes may preserve existing compatible legacy set references without material/owner repair.
 - **Durability limits** Unsaved written-answer/check-draft cross-session recovery is deferred. Daily response clearing, modern/legacy marker meaning and one-submission rule remain in DATA.
 - **Concurrency** Embedded arrays and per-actor marker maps can lose concurrent writes; the single logical gateway does not solve these distinct risks.
@@ -101,6 +101,19 @@ The source header records its platform runtime declaration; this review does not
 - **Failure** Settings failure is unsaved, not success. Retention deletes are best-effort; unavailable scope cannot authorize a global purge.
 - **Boundary** Runtime cleanup is not deployment, maintenance or ownership-migration authorization.
 
+## C10 Open and use a paper page
+
+- **Journeys / scenarios** user/0002 1/4-7, user/0003 1-6, user/0004 4-5, user/0009 1-5; S5, S7-S9, S13.
+- **One page** Every paper the actor opens is one Paper page for that paper and actor, Taking before the actor's hand-in and Reviewing after. Right after hand-in and re-opened later are the same Reviewing page; its content is derived from the actor's stored attempts plus unsaved results of the current session, never from a second store. Daily and Exam papers differ only by the outcome rules below.
+- **Entry rows** A paper row means Start when the actor has not handed in and Review when they have, wherever it appears (Today Exam rows, Papers Exam and Daily lists). Daily rows group by day and omit the creation time, otherwise rows carry the same name, tags and score. Unsubmitted daily papers stay out of Papers lists; their entry is C4. Back returns to the origin view; Detail on a card opens the exercise history and its Back returns to the same card.
+- **Taking** One card at a time with a question pager and Hand in. Hand-in, partial-write and retry follow C5. Leaving keeps a daily draft's responses and discards an Exam draft (C6).
+- **Reviewing** One outcome block, one card per remaining question and one judgment control per card:
+  - Outcome block: score as right over remaining questions; assessment status, either fully assessed or "N to judge"; deleted questions are marked and leave the denominator. Daily papers add coins earned on this paper; every paper shows the ladder before and after, where Exam papers show only wrong answers sending a question back to level 1 and no coins (C6). Pending written answers stay at their original level.
+  - Card states: judged (response, correct answer, explanation, result), pending (written, handed in, no saved judgment), no answer (an existing question on a legacy paper with no attempt of the actor), deleted. Pending reads "Not judged yet", never "No answer".
+  - Judgment control: a pending written answer whose response is still in the current session offers Right/Partial/Wrong, saved per C5; once judged, the card offers the Override of C5 in both the just-handed-in and the re-opened page. A pending question without its response cannot get a created attempt (user/0009 1b).
+- **Derived, not stored** Score, status, ladder and coins are recomputed from attempts after every acknowledged write, including an override; no field is added to DATA.
+- **Failure/limits** A missing paper or question is explicit. A failed judgment or override write leaves the prior stored result authoritative. Unsaved written responses and Exam drafts are not recovered across sessions.
+
 ## Baseline gaps and handoff
 
 | Target boundary | Current source evidence | Downstream work |
@@ -109,5 +122,6 @@ The source header records its platform runtime declaration; this review does not
 | Stored set ownership/legacy restrictions | New-set save omits owner; cleanup/edit validation uses scoped members | Owned writes, compatible loading, strict new links, validated bank edits and retain/defer cleanup |
 | Retained scope references | Supplementary drafts retain set references; check preview survives owner reload | Validate recording references and check preview scope at save/create |
 | Assessment/readiness honesty | Hand-in helper is not completeness; required/supporting reads have distinct errors | Pending assessments and correct readiness/failure presentation and evidence |
+| Paper page consistency | Baseline had separate taking and detail renderers: outcome, judgment control, pending wording and row actions differed by entry | Single Paper page and row behavior of C10, pure helpers for score, status and outcome, and page-level acceptance cases |
 
 The current pure-logic suite does not exercise these DOM/platform commands. Implementation must update affected handlers/tests and actual operate/verify entries under a later handoff; acceptance must supply runtime evidence. Full written-answer recovery, ownership repair tools/migration and stronger concurrent integrity remain deferred. No production operation is authorized by this SPEC.

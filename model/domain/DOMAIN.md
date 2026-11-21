@@ -99,6 +99,7 @@ Attempt/Judgment are embedded values changed through Exercise. Word bank and Sta
 | Review ladder and mastery | One actor's daily attempts and wrong check attempts, from Exercise creation | user/0002, 0003, 0004, 0009 |
 | Daily redo | Actor ladder, selected owner, local date, subject and effective batch size | user/0002, 0006 |
 | Paper assessment | Remaining references, saved actor judgments, distinct hand-in fact | user/0002, 0003, 0004, 0009 |
+| Paper outcome | One actor's saved attempts on one paper: ladder before and after, daily coins, assessment status (judged, pending, deleted) | user/0002, 0003, 0004, 0009 |
 | Progress, Streak, Mastery transition | Actor history in subscribed scope; conditional forecast | user/0004, 0009 |
 | Coin and Balance | Weekly daily rewards minus committed match spending | user/0004, 0005, 0009 |
 | Star and Starboard | Saved rounds, period and users' Default-owner grouping | user/0004, 0005 |

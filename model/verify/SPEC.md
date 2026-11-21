@@ -31,6 +31,7 @@ The actual entry index is [verify/README.md](../../verify/README.md). Its presen
 | Access/settings integration | user/0010 and user/0006; S1/S11, C1/C9 | Identity versus owner, defaults versus read failure, current subscription generation, material readiness and failure outcomes |
 | Recording/library integration | user/0001 and user/0007; S2-S4, C2-C3 | Upload/AI/confirmation, duplicate decisions, per-write outcomes, new ownership, legacy restrictions and preservation |
 | Daily/check integration | user/0002, user/0003, user/0008; S5-S7, C4-C6 | Batches, preview scope, actual attempts/markers/judgments, partial writes/restarts and truthful completeness |
+| Paper page integration | user/0002, user/0003, user/0004, user/0009; S5, S7-S9, S13, C5-C7/C10 | Same page right after hand-in and re-opened from each row (Today Exam, Papers Exam, Papers Daily); outcome block (daily coins and ladder, check ladder only); pending shown as not judged; inline override; Detail and Back return to the card |
 | Progress/override integration | user/0004, user/0009; S8-S9, C5/C7 | Actor projections, own-only override, recalculation, missing details and scope limits |
 | Match integration | user/0005; S10, C8 | Eligible actors/stakes, saved start/result, offline entrants and failure spending |
 | Retention integration | user/0002/user/0004; S12, C9 | Exact 30-day boundary, current scope/actor, attempt survival and failed delete limits |
@@ -42,6 +43,7 @@ Local functions do not run DOM handlers, registration/profiles, subscriptions, A
 
 - New Daily/Exam paper creation initializes an empty marker map; existing absent-map legacy documents retain their inference. Then test a new modern daily paper: objective attempt saved, marker fails, reopen after no questions remain due; recovery stays visible and preserves the paper/saved judgment.
 - Partial attempt writes, multiple protected papers, missing/deleted paper, untouched fresh replacement and all-written zero-saved-attempt limits.
+- Paper page: a handed-in mixed paper re-opened in a new session shows pending written answers as not judged with "N to judge", no self-mark control, no created attempt, and an outcome block equal to the one shown right after hand-in for the answers that were judged.
 - Handed-in mixed paper with pending written judgments; existing unjudged questions stay in denominator; empty/deleted-content papers are not mastery evidence.
 - Existing A-set supplementary draft, including partially saved new sets, then owner switch B before save: reject incompatible new links.
 - Preview check paper under A, switch B or lose referenced questions, then create: require re-preview, not B ownership with A references.

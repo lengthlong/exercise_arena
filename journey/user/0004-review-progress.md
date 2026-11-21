@@ -22,7 +22,7 @@ sequenceDiagram
 1. The user opens Today or Exercises and checks the selected content owner.
 2. The user inspects their own due work, ladder distribution, streak and recent attempts on those exercises.
 3. The user reviews weekly progress, newly mastered exercises, coins/balance and any conditional forecast.
-4. The user opens available exercise history or paper details to understand an outcome.
+4. The user opens available exercise history, or a handed-in paper from Today or Papers, to understand an outcome. The Paper page shows the same outcome block as right after hand-in: score and assessment status, ladder movement and, for daily papers, coins.
 5. The user returns to the overview without changing content or judgments.
 
 ## Extensions
@@ -31,10 +31,11 @@ sequenceDiagram
 - **2a. There is no activity.** Show an empty state, not a loading/subscription failure disguised as zero progress.
 - **3a. A forecast is shown.** It assumes on-time right answers; it is not a fixed assignment.
 - **3b. A late correction or concurrent match spending affects balance.** Recompute from saved attempts/stakes; balance may be negative.
+- **4d. A written answer has no saved judgment.** The paper page shows it as not judged and counts it in "N to judge", never as no answer.
 - **4a. Daily-paper retention or exercise deletion removed details.** Show their unavailability; attempts survive paper retention but not exercise deletion.
 - **4b. Content needs correction.** Start [user/0007](./0007-maintain-exercise-library.md).
 - **4c. An own judgment needs correction.** Start [user/0009](./0009-correct-own-judgment.md).
 
 ## Runtime trace
 
-Progress reads Session/settings snapshots; it writes no aggregate. See [scenarios](../../model/arch/SCENARIO.md) S9, [runtime contracts](../../model/arch/arena/SPEC.md) C7 and [domain](../../model/domain/DOMAIN.md). Detailed algorithms remain executable in the mapped source/tests.
+Progress reads Session/settings snapshots; it writes no aggregate. See [scenarios](../../model/arch/SCENARIO.md) S9/S13, [runtime contracts](../../model/arch/arena/SPEC.md) C7/C10 and [domain](../../model/domain/DOMAIN.md). Detailed algorithms remain executable in the mapped source/tests.

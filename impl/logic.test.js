@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,tally,localToday,paperAttempts,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,runMarks,sheetMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -67,7 +67,6 @@ const px = [
   { id: 'p5', subject: 'math', topic: 'F-frac', wrongCount: 9, mastered: false, lastAttemptAt: null }];
 assert.deepStrictEqual(ids(L.drawPaper(px, { subject: 'science', topics: [], count: 10 })), ['p2', 'p3', 'p4', 'p1']);
 assert.deepStrictEqual(ids(L.drawPaper(px, { subject: 'science', topics: ['C-water'], count: 2 })), ['p2', 'p3']);
-assert.deepStrictEqual({ ...L.tally(['right', 'wrong', 'right', 'partial']) }, { right: 2, partial: 1, wrong: 1 });
 // 题组：每日清单按组连排
 const g = [
   { id: 's1', due: '2026-10-12', createdAt: '2026-10-05', mastered: false },
@@ -106,7 +105,7 @@ const hx = [
   { id: 'x2', attempts: [{ date: '2026-10-13', mode: 'daily', result: 'wrong', judgedBy: 'auto' }, { date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'wrong', judgedBy: 'self', at: '2026-10-14T19:41' }] },
   { id: 'x3', attempts: [{ date: '2026-10-14', mode: 'daily', result: 'partial', judgedBy: 'self', at: '2026-10-14T08:05' }, { date: '2026-10-14', mode: 'paper', paperId: 'P1', result: 'right', judgedBy: 'auto', at: '2026-10-14T19:42' }, { date: '2026-10-14', mode: 'daily', result: 'right', judgedBy: 'auto' }] }];
 // 卷上作答按卷面顺序，已删题为空
-assert.deepStrictEqual(Array.from(L.paperAttempts(P, hx), r => r.ex ? r.attempt.result : null), ['right', null, 'wrong', 'right']);
+assert.deepStrictEqual(Array.from(L.paperRows(P, hx), r => r.ex ? r.attempt.result : null), ['right', null, 'wrong', 'right']);
 // 得分只算仍在的题
 assert.deepStrictEqual({ ...L.paperScore(P, hx) }, { right: 2, partial: 0, wrong: 1, total: 3 });
 // 选词判对、必须用的词、一句检查
@@ -318,8 +317,9 @@ const PH2 = Object.assign({}, PH, { id: 'PH2', handedIn: { uA: '2026-10-16T07:00
 const PY2 = Object.assign({}, PY, { id: 'PY2', createdAt: '2026-10-15' });
 const PY1 = Object.assign({}, PY, { id: 'PY1', createdAt: '2026-10-14' });
 assert.deepStrictEqual(ids(L.todayPapers([PX, PH2, PY1, PY2], pwA, 'uS', 'uA', '2026-10-16')), ['PY2', 'PY1', 'PH2', 'PX']);   // 没交的组卷新的在前；交过的交卷早的在前
-// 卷上的进度：卷上仍在的题数，与其中我有作答的题数
-assert.deepStrictEqual([{ ...L.paperProgress(PX, pwA) }, { ...L.paperProgress(PY, pwA) }, { ...L.paperProgress(Object.assign({}, PX, { exerciseIds: ['w1', 'w2', 'gone'] }), pwA) }],
+// 卷上的进度：卷上仍在的题数，与其中我有判定的题数（paperAssess 的 judged 与 total）
+const prg = (p, v) => { const a = L.paperAssess(L.paperRows(p, v)); return { done: a.judged, total: a.total }; };
+assert.deepStrictEqual([prg(PX, pwA), prg(PY, pwA), prg(Object.assign({}, PX, { exerciseIds: ['w1', 'w2', 'gone'] }), pwA)],
   [{ done: 1, total: 2 }, { done: 0, total: 1 }, { done: 1, total: 2 }]);
 // 组卷排序：按卷子归属人的阶梯
 assert.deepStrictEqual(ids(L.drawPaper(L.viewFor(shared, 'uS'), { subject: 'science', topics: [], count: 1 })), ['v2']);   // Sophia 在 v2 错 3 次
@@ -447,12 +447,45 @@ assert.deepStrictEqual(sp('done', 'desc'), ['D1', 'C1', 'C2', 'C3']);   // 没�
 assert.deepStrictEqual(sp('score', 'desc'), ['C1', 'D1', 'C2', 'C3']);  // C1 2/2，D1 1/2；没交的没有分数
 assert.deepStrictEqual(sp('score', 'asc'), ['D1', 'C1', 'C2', 'C3']);
 assert.deepStrictEqual(sp('questions', 'desc'), ['C3', 'D1', 'C1', 'C2']);   // 题数只算卷上仍在的题：C3 3、D1 2、C1 2、C2 1；并列按 created 新的在前
-// 卡片翻页条：交卷前空白算没答；交卷后主观题未自评为 tomark、客观题按结果；没答的题号从 1 起
-const rmx = [{ id: 'r1', format: 'mcq' }, { id: 'r2', format: 'short' }, { id: 'r3', format: 'open' }, { id: 'r4', format: 'open' }];
-assert.deepStrictEqual(Array.from(L.runMarks(rmx, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' }, {}, {})), ['answered', 'todo', 'todo', 'answered']);
-assert.deepStrictEqual(Array.from(L.unansweredNos(L.runMarks(rmx, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' }, {}, {}))), [2, 3]);
-assert.deepStrictEqual(Array.from(L.runMarks(rmx, 'review', {}, { r1: 'right', r2: 'wrong', r4: 'partial' }, { r4: true })), ['right', 'wrong', 'tomark', 'partial']);
-assert.deepStrictEqual(Array.from(L.sheetMarks([{ ex: null }, { ex: {}, attempt: null }, { ex: {}, attempt: { result: 'partial' } }])), ['gone', 'none', 'partial']);
+// 卷页（作答与对答案同一页）：每题状态、评定、本次会话刚判的临时作答、翻页条
+const PG = { id: 'PG', kind: 'daily', for: 'uS', exerciseIds: ['g1', 'gone', 'g2', 'g3', 'g4'] };
+const gA = (result, extra) => Object.assign({ by: 'uS', date: '2026-10-14', mode: 'daily', paperId: 'PG', result }, extra);
+const gx = [
+  { id: 'g1', format: 'mcq', createdAt: '2026-10-01', attempts: [gA('right')] },
+  { id: 'g2', format: 'open', createdAt: '2026-10-01', attempts: [] },
+  { id: 'g3', format: 'open', createdAt: '2026-10-01', attempts: [gA('partial')] },
+  { id: 'g4', format: 'short', createdAt: '2026-10-01', attempts: [] }];
+assert.deepStrictEqual(Array.from(L.paperRows(PG, gx), r => r.state), ['judged', 'gone', 'pending', 'judged', 'none']);   // 未判的主观题是 pending，不是没作答
+assert.deepStrictEqual({ ...L.paperAssess(L.paperRows(PG, gx)) }, { right: 1, partial: 1, wrong: 0, total: 4, judged: 2, toJudge: 2, gone: 1, complete: false });
+assert.strictEqual(L.paperAssess(L.paperRows({ id: 'PG', exerciseIds: ['g1', 'g3'] }, gx)).complete, true);   // 现有的题都判了才算评定完整
+assert.strictEqual(L.paperAssess(L.paperRows({ id: 'PE', exerciseIds: ['nothing'] }, [])).complete, false);   // 空卷、题全删不算评定完整
+assert.deepStrictEqual({ ...L.paperScore(PG, gx) }, { right: 1, partial: 1, wrong: 0, total: 4 });   // 未判的题留在分母里
+// 会话里刚判的：客观题交卷即有，主观题自评存好后才有；已存的不动，也不改原数据
+assert.strictEqual(L.withLiveAttempts(PG, gx, 'uS', null, '2026-10-14'), gx);
+const lv1 = L.withLiveAttempts(PG, gx, 'uS', { results: { g1: 'wrong', g2: 'right', g4: 'wrong' }, saved: {} }, '2026-10-14');
+assert.deepStrictEqual(Array.from(L.paperRows(PG, lv1), r => r.state), ['judged', 'gone', 'pending', 'judged', 'judged']);
+assert.deepStrictEqual([lv1[0].attempts.length, lv1[3].attempts[0].live, gx[3].attempts.length], [1, true, 0]);
+assert.strictEqual(L.paperRows(PG, lv1)[0].attempt.result, 'right');   // 已存的判定优先于会话里的结果
+const lv2 = L.withLiveAttempts(PG, gx, 'uS', { results: { g2: 'right' }, saved: { g2: true } }, '2026-10-14');
+assert.deepStrictEqual(Array.from(L.paperRows(PG, lv2), r => r.state), ['judged', 'gone', 'judged', 'judged', 'none']);
+// 临时作答与已存作答算出同样的梯子；与旧的 results/saved 参数同结果，主观题未自评留在原级
+const pgl = [{ id: 'a', format: 'mcq', createdAt: '2026-10-01', attempts: [] }, { id: 'b', format: 'open', createdAt: '2026-10-01', attempts: [] }];
+const PL = { id: 'PL', kind: 'daily', for: 'uS', exerciseIds: ['a', 'b'] };
+const lres = { a: 'right', b: 'wrong' };
+assert.deepStrictEqual(L.paperLadders(L.withLiveAttempts(PL, pgl, 'uS', { results: lres, saved: {} }, '2026-10-14'), 'uS', 'PL'), L.paperLadders(pgl, 'uS', 'PL', lres, {}));
+// 检验卷：做错退回第 1 级，做对不动；没有金币
+const cx = c => [{ id: 'c', createdAt: '2026-10-01', attempts: [{ by: 'uS', date: '2026-10-05', mode: 'daily', result: 'right' }, { by: 'uS', date: '2026-10-14', mode: 'paper', paperId: 'PC', result: c }] }];
+assert.deepStrictEqual([L.paperLadders(cx('wrong'), 'uS', 'PC').down, L.paperLadders(cx('right'), 'uS', 'PC').down], [1, 0]);
+assert.deepStrictEqual({ ...L.paperCoins(cx('wrong'), 'uS', 'PC') }, { coins: 0, up: 0, mastered: 0, tried: 0 });
+// 卡片翻页条：已删为 gone；交卷前空白算没答；交卷后为判定结果，主观题未判为 pending，旧卷没有作答为 none；没答的题号从 1 起
+const rmx = ['mcq', 'short', 'open', 'open'].map((format, i) => ({ id: 'r' + (i + 1), format, attempts: [] }));
+const rmp = { id: 'RM', exerciseIds: ['r1', 'r2', 'r3', 'r4', 'gone'] };
+const rmr = L.paperRows(rmp, rmx);
+assert.deepStrictEqual(Array.from(L.paperMarks(rmr, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' })), ['answered', 'todo', 'todo', 'answered', 'gone']);
+assert.deepStrictEqual(Array.from(L.unansweredNos(L.paperMarks(rmr, 'answer', { r1: 'B', r2: '  ', r4: 'It melts.' }))), [2, 3]);
+const rml = L.paperRows(rmp, L.withLiveAttempts(rmp, rmx, 'uS', { results: { r1: 'right', r2: 'wrong', r4: 'partial' }, saved: { r4: true } }, '2026-10-14'));
+assert.deepStrictEqual(Array.from(L.paperMarks(rml, 'review', {})), ['right', 'wrong', 'pending', 'partial', 'gone']);
+assert.deepStrictEqual(Array.from(L.paperMarks(L.paperRows(rmp, rmx), 'review', {})), ['none', 'none', 'pending', 'pending', 'gone']);
 // 卷子短名字：检验卷为组卷人加前两个专题（多的 +N），没有 madeBy 为 Someone；每日卷同一人同一天跨科目按 madeAt 编 Batch，没交的不占号，正在做的排最后，别人的卷不计
 const pnm = id => ({ uA: 'Aaron', uS: 'Sophia' })[id] || 'Someone', tn = (s, t) => t.toUpperCase();
 const pn = (p, ps) => L.paperName(p, ps || [], [], 'uS', pnm, tn);

@@ -11,6 +11,7 @@
   重复：保存前把与已录错题或同批前面的草稿重复的草稿标出来，「保存全部」跳过它们（discuss 0037）。
   界面：设置改一项存一项，没有每周目标与导出，不再声明 downloads（discuss 0034）。
   新掌握：Today 的 Newly mastered 用科目子标签、按 Key idea 列出（前 3 行 + more），展开看题干，点开详情可返回 Today（discuss 0038）。第 88 版发布 0037 与 0038。
+  卷页：每日卷与检验卷、作答与对答案是同一页（S.run）；刚交与重新打开同一页，结果块、改判、未判提示与卷子行的开始/查看规则只有一份（discuss 0040）。
   录入：两个子标签（新照片或文字、从已存材料补录），材料列表有搜索与分页；草稿区分组、左放弃右确认（discuss 0035、0036）。
 -->
 <title>Exercise Arena</title>
@@ -180,6 +181,7 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .answer-in.res-wrong { background: var(--red-soft); border-color: var(--red); }
 .qhead-r select.ov-sel { width: auto; }
 .ov-sel.res-right { color: var(--green); } .ov-sel.res-partial { color: var(--amber); } .ov-sel.res-wrong { color: var(--red); }
+.chip.res-right { color: var(--green); } .chip.res-partial { color: var(--amber); } .chip.res-wrong { color: var(--red); }
 .solution { border-top: 1px dashed var(--line); padding-top: 10px; display: grid; gap: 6px; }
 .solution .ans { font-weight: 500; }
 .solution .exp { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -194,10 +196,6 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .progress { display: flex; align-items: center; gap: 8px; }
 .progress .btn, .progress > .small { white-space: nowrap; }
 .progress .ellip { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.progress.sheet-top { flex-wrap: wrap; }
-.progress .score { font-size: 32px; }
-.sum-name { display: grid; min-width: 0; flex: 1 1 100%; }
-.sum-name .ellip { white-space: nowrap; }
 .bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--pen); }
 .score { font: 400 48px/1 var(--font-hand); color: var(--red); }
@@ -370,7 +368,7 @@ select.compact.on { border-color: var(--pen); color: var(--pen); background: var
 .pg-n.m-right { background: var(--green-soft); border-color: var(--green-soft); color: var(--green); }
 .pg-n.m-partial { background: var(--amber-soft); border-color: var(--amber-soft); color: var(--amber); }
 .pg-n.m-wrong { background: var(--red-soft); border-color: var(--red-soft); color: var(--red); }
-.pg-n.m-tomark { border-style: dashed; border-color: var(--amber); color: var(--amber); }
+.pg-n.m-pending { border-style: dashed; border-color: var(--amber); color: var(--amber); }
 .pg-n.m-gone { color: var(--muted); opacity: .6; }
 .pg-n[aria-pressed="true"] { outline: 2px solid var(--pen); outline-offset: 1px; font-weight: 700; }
 .linkbtn { border: 0; background: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
@@ -647,21 +645,41 @@ function drawPaper(exs, opt) {
   c.sort((a, b) => (b.wrongCount - a.wrongCount) || ((b.mastered ? 1 : 0) - (a.mastered ? 1 : 0)) || cmpLast(a, b));
   return c.slice(0, Math.max(0, opt.count));
 }
-function tally(results) {
-  const s = { right: 0, partial: 0, wrong: 0 };
-  for (const r of results) if (s[r] != null) s[r]++;
-  return s;
-}
 function nowLocal(d) { d = d || new Date(); return localToday(d) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
-function paperAttempts(paper, exs) {
-  // 检验卷上每题的作答：按卷面顺序，取 paperId 为本卷的那条；错题已删时 ex 为 null
+function paperRows(paper, exs) {
+  // 一张卷每题的状态：按卷面顺序，作答取 paperId 为本卷的那条（exs 是我的视图，只含我的作答）；卷页、卷子行、得分都从这里来
+  // state：gone 错题已删 · judged 有已存判定 · pending 主观题还没有判定 · none 其他题没有作答（旧卷）
   const byId = {};
   for (const e of exs) byId[e.id] = e;
   return (paper.exerciseIds || []).map(id => {
     const e = byId[id];
-    if (!e) return { id, ex: null, attempt: null };
-    return { id, ex: e, attempt: (e.attempts || []).find(x => x.paperId === paper.id) || null };
+    if (!e) return { id, ex: null, attempt: null, state: 'gone' };
+    const attempt = (e.attempts || []).find(x => x.paperId === paper.id) || null;
+    return { id, ex: e, attempt, state: attempt ? 'judged' : e.format === 'open' ? 'pending' : 'none' };
   });
+}
+function withLiveAttempts(paper, exs, uid, live, today) {
+  // 本次会话刚交的卷：还没回到快照里的判定补成一条临时作答（live: true），客观题交卷即有，主观题自评存好后才有；已有本人本卷作答的题不动
+  // live 为 { results, saved }，没有（重新打开的卷）时原样返回
+  if (!live) return exs;
+  return exs.map(e => {
+    if ((e.attempts || []).some(a => a.paperId === paper.id && a.by === uid)) return e;
+    const r = live.results[e.id];
+    if (!r || (e.format === 'open' && !live.saved[e.id])) return e;
+    return Object.assign({}, e, { attempts: (e.attempts || []).concat([{ by: uid, date: today, mode: isDaily(paper) ? 'daily' : 'paper', paperId: paper.id, result: r, live: true }]) });
+  });
+}
+function paperAssess(rows) {
+  // 一张卷的得分与评定：已删的题不计入 total；未判的现有题留在 total 里，toJudge 是还没有判定的题数，complete 要有题且全判
+  const s = { right: 0, partial: 0, wrong: 0, total: 0, judged: 0, toJudge: 0, gone: 0, complete: false };
+  for (const r of rows) {
+    if (r.state === 'gone') { s.gone++; continue; }
+    s.total++;
+    if (r.state === 'judged') { s.judged++; if (r.attempt.result === 'right' || r.attempt.result === 'partial' || r.attempt.result === 'wrong') s[r.attempt.result]++; }
+  }
+  s.toJudge = s.total - s.judged;
+  s.complete = s.total > 0 && s.toJudge === 0;
+  return s;
 }
 function isDaily(p) { return p.kind === 'daily'; }
 function handedInAt(paper, view, uid) {
@@ -679,11 +697,6 @@ function todayPapers(papers, view, defaultOwner, uid, today) {
   const done = papers.filter(p => !isDaily(p) && sameOwner(p.owner, defaultOwner) && at(p) && String(at(p)).slice(0, 10) === today)
     .sort((a, b) => String(at(a)).localeCompare(String(at(b))) || String(a.id).localeCompare(String(b.id)));
   return open.concat(done);
-}
-function paperProgress(paper, view) {
-  // 卷上仍在的题数，与其中我在本卷有作答的题数
-  const rows = paperAttempts(paper, view).filter(r => r.ex);
-  return { done: rows.filter(r => r.attempt).length, total: rows.length };
 }
 function visiblePapers(papers, view, uid) {
   // 卷子列表：全部检验卷，加我交过的每日卷；没交的每日卷不列（再开始这一科的重做时被新卷取代，回答带到新卷上）
@@ -743,10 +756,8 @@ function openDailyPaper(papers, view, uid, subject) {
     .sort((a, b) => key(b).localeCompare(key(a)) || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
 function paperScore(paper, exs) {
-  const rows = paperAttempts(paper, exs).filter(r => r.ex);
-  const s = tally(rows.map(r => r.attempt && r.attempt.result).filter(Boolean));
-  s.total = rows.length;
-  return s;
+  const a = paperAssess(paperRows(paper, exs));
+  return { right: a.right, partial: a.partial, wrong: a.wrong, total: a.total };
 }
 function escRe(t) { return String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function mustUseCheck(answer, mustUse) {
@@ -1118,12 +1129,12 @@ function sortPapers(papers, key, dir, view, uid) {
     return created(b.p).localeCompare(created(a.p)) || String(a.p.id).localeCompare(String(b.p.id));
   }).map(x => x.p);
 }
-function runMarks(exs, phase, responses, results, saved) {
-  // 作答页翻页条每题的状态：交卷前 answered / todo；交卷后主观题未自评为 tomark，其余为结果，没有结果为 none
-  return exs.map(e => {
-    if (phase === 'answer') return String((responses || {})[e.id] == null ? '' : responses[e.id]).trim() ? 'answered' : 'todo';
-    if (e.format === 'open' && !(saved || {})[e.id]) return 'tomark';
-    return (results || {})[e.id] || 'none';
+function paperMarks(rows, phase, responses) {
+  // 翻页条每题的状态（作答与对答案同一套）：已删为 gone；交卷前 answered / todo；交卷后为判定结果，主观题未判为 pending，旧卷没有作答为 none
+  return rows.map(r => {
+    if (r.state === 'gone') return 'gone';
+    if (phase === 'answer') return String((responses || {})[r.id] == null ? '' : responses[r.id]).trim() ? 'answered' : 'todo';
+    return r.state === 'judged' ? r.attempt.result : r.state;
   });
 }
 function pagerSlots(n, idx, max) {
@@ -1141,10 +1152,6 @@ function pagerSlots(n, idx, max) {
   if (b < n - 2) out.push(null);
   out.push(n - 1);
   return out;
-}
-function sheetMarks(rows) {
-  // View details 翻页条每题的状态：错题已删为 gone，没有作答为 none，否则为作答结果
-  return rows.map(r => !r.ex ? 'gone' : !r.attempt ? 'none' : r.attempt.result);
 }
 function unansweredNos(marks) {
   // 交卷前还没答的题号（从 1 起）
@@ -1423,9 +1430,9 @@ const S = {
   sets: [], setDrafts: [], setEdit: null,
   drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
-  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperIdx: 0, paperOpenSets: {}, paperOpenPhotos: {}, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
-  detailId: null, detailFrom: null, todayScroll: 0, nmSubj: {}, nmOpen: {}, confirmDel: null,
-  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, paperView: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
+  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
+  detailId: null, detailFrom: null, backScroll: 0, pageBack: null, nmSubj: {}, nmOpen: {}, confirmDel: null,
+  paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
   settingsMsg: null, errMsg: null,   // errMsg：写数据出错，显示在当前标签页最上方
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
@@ -1484,8 +1491,8 @@ async function cleanupSet(setId, goneId) {
   if (!setId) return;
   if (!S.exercises.some(e => e.setId === setId && e.id !== goneId)) await S.db.doc('sets/' + setId).delete();
 }
-// 照片展开或收起记在哪：作答页 S.run.openPhotos，卷子详情 S.paperOpenPhotos；按这组照片（id 用逗号连起来）记，翻到有同一组照片的题时沿用；别处不记
-function photoStore() { return S.run ? (S.run.openPhotos = S.run.openPhotos || {}) : (S.tab === 'papers' && S.paperView) ? S.paperOpenPhotos : null; }
+// 照片展开或收起记在哪：卷页的 S.run.openPhotos（卷页之外不记）；按这组照片（id 用逗号连起来）记，翻到有同一组照片的题时沿用
+function photoStore() { return S.run ? (S.run.openPhotos = S.run.openPhotos || {}) : null; }
 function photosBlock(ids, alt) {
   // 照片默认收起：「Show photo (n)」，点开才显示
   if (!ids || !ids.length) return '';
@@ -1526,8 +1533,15 @@ function dupFlags() {
 
 /* ---------- 渲染 ---------- */
 function matchLive() { return !!(S.lift && (S.lift.phase === 'saving' || S.lift.phase === 'anim')); }
+function runBusy() {
+  // 卷页上有离开会丢的东西：作答中、正在存、本次会话刚交的卷还没存完，或本次会话里还有没自评的主观题；重新打开的卷页没有这些，可以直接换标签
+  const R = S.run;
+  if (!R) return false;
+  if (R.phase === 'answer' || R.saving) return true;
+  return !!R.live && (!R.handed || runRows().some(r => r.state === 'pending'));
+}
 function locked() {
-  if (S.run || matchLive() || (S.hist && S.hist.phase === 'anim')) return true;
+  if ((S.run && S.run.phase === 'answer') || matchLive() || (S.hist && S.hist.phase === 'anim')) return true;
   if (S.tab === 'record' && (S.drafts.length || S.setDrafts.length)) return true;
   if (S.tab === 'exercises' && (S.drafts.some(d => d.editId) || S.setEdit)) return true;
   return false;
@@ -1537,7 +1551,7 @@ function softRender() { if (!locked()) render(); }
 const TABS = [['today', 'Today'], ['record', 'Record'], ['exercises', 'Exercises'], ['papers', 'Papers'], ['games', 'Games'], ['settings', 'Settings']];
 function render() {
   const app = $('#app');
-  let h = `<nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${S.run || matchLive() ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
+  let h = `<nav class="tabs" aria-label="Tabs">${TABS.map(t => `<button type="button" data-act="tab" data-v="${t[0]}" aria-pressed="${S.tab === t[0]}" ${runBusy() || matchLive() ? 'disabled' : ''}>${t[1]}</button>`).join('')}</nav>`;
   if (S.status === 'loading') h += `<div class="panel"><p class="muted">Opening the exercise book…</p></div>`;
   else if (S.status === 'nodb') h += `<div class="panel"><p class="h2">Data unavailable</p><p class="muted">Sign in with an invited Claude account, then open this page again. The exercises and answers live in this page's database, which can only be read and written after signing in.</p></div>`;
   else if (S.errMsg && !S.run) h += `<p class="note err">${esc(S.errMsg)}</p>`;
@@ -1611,15 +1625,7 @@ function todayBlock(today, redo, cps, todo, view) {
       <p class="muted small">${!todo.length ? `No questions for ${esc(userName(S.settings.defaultOwner))} yet — choose a default owner in Settings.` : n ? whatsLeft : !next ? 'Everything here is mastered.' : tc.total.done ? `Next redo: ${wd(next)} ${fmtDate(next)}.` : `Next redo comes up on ${fmtDate(next)}.`}</p>
       ${tc.total.all ? `<div class="row">${redo.map(b => `<button type="button" class="btn primary" data-act="start-daily" data-subject="${b.subject}">${esc(SUBJ[b.subject].en)} · ${frac(subjC[b.subject])}</button>`).join('')}${tc.bySubject.filter(([s]) => !redo.some(b => b.subject === s)).map(([s, c]) => `<span class="done-tag">✓ ${esc(SUBJ[s].en)} · ${frac(c)}</span>`).join('')}</div>` : ''}
     </div>`;
-  if (cps.length) {
-    // 没交的是按钮，点了开始做；今天交的只显示进度与得分，不能点
-    h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => {
-      const pr = paperProgress(p, view), handed = handedInAt(p, view, S.me);
-      const side = `<span class="side"><span class="num">${pr.done}/${pr.total}${handed ? ` · ${paperScore(p, view).right} right` : ''}</span></span>`;
-      const body = `<span class="t">${paperTag(p)} ${esc(pname(p))}</span>${side}<span class="meta"><span>set ${fmtDate(p.createdAt)}</span></span>`;
-      return handed ? `<div class="item" style="cursor:default">${body}</div>` : `<button type="button" class="item" data-act="start-paper" data-id="${esc(p.id)}">${body}</button>`;
-    }).join('')}</div></div>`;
-  }
+  if (cps.length) h += `<div class="today-papers"><p class="h3">Exam papers</p><div class="list">${cps.map(p => paperRow(p, view)).join('')}</div></div>`;
   return h + `</section>`;
 }
 
@@ -1883,9 +1889,9 @@ function solutionBlock(e) {
   </div>`;
 }
 
-const MARK_TITLE = { todo: 'not answered yet', answered: 'answered', right: 'right', partial: 'partly right', wrong: 'wrong', tomark: 'to self-mark', none: 'no answer', gone: 'deleted' };
+const MARK_TITLE = { todo: 'not answered yet', answered: 'answered', right: 'right', partial: 'partly right', wrong: 'wrong', pending: 'not judged yet', none: 'no answer', gone: 'deleted' };
 function cardPager(marks, idx, act) {
-  // 卡片上方的翻页条（一行，占满宽度）：只有题号（按状态着色，当前题 aria-pressed；放不下时按 pagerSlots 用省略号）；作答页与 View details 共用
+  // 卡片上方的翻页条（一行，占满宽度）：只有题号（按状态着色，当前题 aria-pressed；放不下时按 pagerSlots 用省略号）；卷页的作答与对答案共用
   // 一行放得下的位置数按页面宽度估：每个题号约 27px
   const n = marks.length, vw = window.innerWidth || 880, avail = Math.min(vw, 880) - (vw >= 720 ? 56 : 32);
   const max = Math.floor(avail / 27);
@@ -1893,60 +1899,89 @@ function cardPager(marks, idx, act) {
     ${pagerSlots(n, idx, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n m-${marks[i]}" data-act="${act}" data-v="${i}" aria-pressed="${i === idx}" title="Question ${i + 1}: ${MARK_TITLE[marks[i]] || marks[i]}">${i + 1}</button>`).join('')}</div></nav>`;
 }
 function cardNav(idx, n, act, lastLabel, backAct) {
-  // 题卡底部：左边 Previous、右边 Next；第一张的 Previous 换成 Back（backAct，与页面左上角的 Back 同一动作）；最后一张给了 lastLabel 时 Next 换成交卷按钮（作答阶段），否则不可点；作答页与 View details 共用
+  // 题卡底部：左边 Previous、右边 Next；第一张的 Previous 换成 Back（backAct，与页面左上角的 Back 同一动作）；最后一张给了 lastLabel 时 Next 换成交卷按钮（作答阶段），否则不可点；卷页共用
   const next = idx >= n - 1 && lastLabel
     ? `<button type="button" class="btn primary small" data-act="paper-submit">${lastLabel}</button>`
     : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx + 1}" ${idx >= n - 1 ? 'disabled' : ''}>Next →</button>`;
   const prev = idx <= 0 ? `<button type="button" class="btn ghost small" data-act="${backAct}">‹ Back</button>` : `<button type="button" class="btn ghost small" data-act="${act}" data-v="${idx - 1}">← Previous</button>`;
   return `<div class="card-nav">${prev}${next}</div>`;
 }
-function runCoinsLine(p, exs) {
-  // 每日卷交卷后：这张卷挣的金币；用本次判好的作答加原有历史即时算，不等 snapshot；主观题自评存好后才算进
-  const R = S.run, today = localToday();
-  const aug = exs.map(e => {
-    const has = (e.attempts || []).some(a => a.paperId === p.id && a.by === S.me), r = R.results[e.id];
-    const ready = r && (e.format !== 'open' || R.saved[e.id]);
-    return has || !ready ? e : Object.assign({}, e, { attempts: (e.attempts || []).concat([{ by: S.me, date: today, mode: 'daily', paperId: p.id, result: r }]) });
-  });
-  const c = paperCoins(aug, S.me, p.id);
+function coinsLine(c) {
+  // 每日卷这张卷挣的金币：由本卷的作答（含本次会话刚判好的）现算
   const parts = [[c.up, 'climbed'], [c.mastered, 'mastered'], [c.tried, 'tried']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`);
   return `<p class="coin-earn">🪙 +${c.coins} coin${c.coins === 1 ? '' : 's'}${parts.length ? ` <span class="small muted">(${parts.join(' · ')})</span>` : ''}</p>`;
 }
-function runExs() { const p = S.run && S.papers.find(x => x.id === S.run.paperId); return p ? p.exerciseIds.map(exById).filter(Boolean) : []; }
+function runExs() {
+  // 本次会话刚交的卷：判定还没回到快照里的，补成临时作答（withLiveAttempts），与已存的一起算；重新打开的卷页没有临时作答
+  const R = S.run, p = R && S.papers.find(x => x.id === R.paperId);
+  return p ? withLiveAttempts(p, mine(), S.me, R.live ? R : null, localToday()) : [];
+}
+function runRows() {
+  const R = S.run, p = R && S.papers.find(x => x.id === R.paperId);
+  return p ? paperRows(p, runExs()) : [];
+}
+function openPaper(paperId, carried) {
+  // 打开一张卷的卷页：我没交过是作答，交过是对答案；从哪个页面点进来就留在哪里，Back 回到那里
+  const p = S.papers.find(x => x.id === paperId);
+  if (!p) return;
+  const handed = !!handedInAt(p, mine(), S.me);
+  S.run = { kind: 'paper', paperId, phase: handed ? 'review' : 'answer', handed, live: false, responses: handed ? {} : Object.assign({}, carried || (isDaily(p) && p.responses) || {}), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} };
+}
+function paperRow(p, view, o) {
+  // 卷子的一行（Today 的 Exam papers、Papers 的 Exam 与 Daily 共用）：整行可点，没交的开始作答，交过的进卷页；o.day 为按天分组下的每日卷（组头已有日期，不写 Created，Done 只写时刻）
+  const a = paperAssess(paperRows(p, view)), done = handedInAt(p, view, S.me), day = o && o.day;
+  const side = done ? `<span class="num">${a.right}/${a.total}</span>${a.toJudge ? `<span class="small muted"> · ${a.toJudge} to judge</span>` : ''}` : '<span>Not done by me</span>';
+  return `<div class="item" role="button" tabindex="0" data-act="open-paper" data-id="${esc(p.id)}">
+    <span class="t">${paperTag(p)} ${esc(pname(p))}</span>
+    <span class="side">${side}</span>
+    <span class="meta">${day ? '' : `<span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>`}${done ? `<span class="num">Done ${esc(day ? done.slice(11, 16) || fmtWhen(done) : fmtWhen(done))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}</span></div>`;
+}
 function renderPaperRun() {
-  // 检验卷与每日卷同一个作答页：一次一张卡，翻页条在卡片上方，Hand in 在顶上一行、作答阶段也在最后一张卡的底部；交卷即存客观题，主观题自评即存并锁定
+  // 卷页：每日卷与检验卷、作答与对答案共用。交卷前作答；交卷后（刚交或以后再打开）对答案、自评、改判、看结果，内容都由已存作答现算。
+  // 一次一张卡，翻页条在卡片上方；Hand in 在顶上一行、作答阶段也在最后一张卡的底部；交卷即存客观题，主观题自评即存
   const R = S.run;
   const p = S.papers.find(x => x.id === R.paperId);
   if (!p) return `<div class="panel"><p>That paper is gone.</p><div><button class="btn" type="button" data-act="exit-run">Back</button></div></div>`;
-  const exs = runExs();
-  R.idx = Math.min(Math.max(0, R.idx || 0), Math.max(0, exs.length - 1));
-  const marks = runMarks(exs, R.phase, R.responses, R.results, R.saved);
+  const exs = runExs(), rows = paperRows(p, exs), a = paperAssess(rows), review = R.phase === 'review';
+  R.idx = Math.min(Math.max(0, R.idx || 0), Math.max(0, rows.length - 1));
+  const marks = paperMarks(rows, R.phase, R.responses);
   // 顶上一行：左上角 Back（每日卷先存好回答再走，检验卷没交的回答不留），右边作答阶段的 Hand in
-  let h = `<div class="progress"><button type="button" class="btn ghost small back" data-act="exit-run">‹ Back</button>${paperTag(p)}<span class="small muted ellip">${esc(pname(p))}</span><div class="grow"></div>${R.phase === 'answer' ? `<button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button>` : ''}</div>`;
-  if (R.phase === 'review') {
-    // 得分立即显示，一行：客观题交卷即判，主观题自评存好后算进；对错分布看翻页条的颜色
-    const s = tally(exs.filter(e => e.format === 'open' ? R.saved[e.id] : R.results[e.id]).map(e => R.results[e.id]));
-    const toMark = exs.filter(e => e.format === 'open' && !R.saved[e.id]).length;
-    h += `<section class="panel"><div class="row"><span class="score num">${s.right}/${exs.length}</span>${isDaily(p) ? runCoinsLine(p, exs) : ''}${R.saving ? '<span class="small muted">Saving…</span>' : R.handed ? '' : '<span class="small muted">Not saved yet</span>'}${toMark ? '<span class="small muted">Mark your written answers</span>' : ''}</div>${isDaily(p) ? `<div class="run-ladder">${ladderPair(paperLadders(exs, S.me, p.id, R.results, R.saved), 'run')}</div>` : ''}</section>`;
-  }
-  if (R.phase === 'answer' && R.warn) {
+  let h = `<div class="progress"><button type="button" class="btn ghost small back" data-act="exit-run">‹ Back</button>${paperTag(p)}<span class="small muted ellip">${esc(pname(p))}</span><div class="grow"></div>${review ? '' : `<button type="button" class="btn primary" data-act="paper-submit">${R.warn ? 'Hand in anyway' : 'Hand in'}</button>`}</div>`;
+  if (review) {
+    // 结果块：得分与评定状态一行（没判的主观题留在分母里），每日卷再加这张卷挣的金币；梯子画本卷每题交卷前后的级（检验卷只有做错退回第 1 级，没有金币）
+    const pe = rows.filter(r => r.ex).map(r => r.ex), doneAt = handedInAt(p, mine(), S.me);
+    const state = R.saving ? 'Saving…' : R.live && !R.handed ? 'Not saved yet' : '';
+    h += `<section class="panel"><div class="row"><span class="score num">${a.right}/${a.total}</span>${isDaily(p) ? coinsLine(paperCoins(pe, S.me, p.id)) : ''}${state ? `<span class="small muted">${state}</span>` : ''}${a.toJudge ? `<span class="small muted">${a.toJudge} to judge</span>` : a.total ? '<span class="small muted">All judged</span>' : ''}</div>${doneAt ? `<p class="small muted">Handed in ${esc(doneAt.replace('T', ' '))}</p>` : ''}<div class="run-ladder">${ladderPair(paperLadders(pe, S.me, p.id), 'run')}</div></section>`;
+  } else if (R.warn) {
     // 交卷前的提醒：必用词（每题一行）与没答的题（题号可点，跳到那张卡）
     h += `<div class="note err">${R.warn.must.map(w => `<div>${esc(w)}</div>`).join('')}${R.warn.missing.length ? `<div>No answer yet: questions ${R.warn.missing.map(n => `<button type="button" class="linkbtn" data-act="card-go" data-v="${n - 1}">${n}</button>`).join(', ')}.</div>` : ''}<div>You can fix them, or hand in anyway.</div></div>`;
   }
-  if (exs.length) {
-    const i = R.idx, e = exs[i], key = 'p' + i;
+  if (!rows.length) h += `<p class="note">This paper has no questions.</p>`;
+  else {
+    const i = R.idx, r = rows[i], e = r.ex, at = r.attempt, key = 'p' + i;
     h += cardPager(marks, i, 'card-go');
-    // 交卷后的对错看作答的底色（选项、作答框）；题组材料放在卡片下方，每张卡都放、默认展开，收起后同组各卡保持收起（R.openSets）
-    const res = R.results[e.id], shown = R.phase === 'review' && res && (e.format !== 'open' || R.saved[e.id]);
-    h += `<article class="sheet">${questionBody(e, { key, response: R.responses[e.id] || '', locked: R.phase !== 'answer', showCorrect: R.phase === 'review', result: shown ? res : '' })}`;
-    if (R.phase === 'review') {
-      h += solutionBlock(e);
-      if (e.format === 'open' && !R.saved[e.id]) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(r => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${r}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[r].sym} ${RESULT[r].en}</button>`).join('')}</div>`;
+    const nav = cardNav(i, rows.length, 'card-go', review ? '' : (R.warn ? 'Hand in anyway' : 'Hand in'), 'exit-run');
+    if (!e) h += `<article class="sheet"><p class="muted">This exercise has been deleted.</p>${nav}</article>`;
+    else {
+      // 卡片右上角（对答案时）：已存的判定是改判下拉（不加标签，选中项即当前结果），刚判好还没回到快照的只显示结果；再加 Detail；对错另看作答的底色
+      let top = '';
+      if (review && at) top += at.live ? `<span class="chip res-${esc(at.result)}">${RESULT[at.result].sym} ${RESULT[at.result].en}</span>` : `<select id="pv-ov-${i}" class="compact ov-sel res-${esc(at.result)}" data-act-change="override" data-id="${esc(e.id)}" data-i="${e.allAttempts.indexOf(at)}" aria-label="Override the result">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${at.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select>`;
+      if (review) top += `<button type="button" class="btn ghost small" data-act="goto-ex" data-from="paper" data-id="${esc(e.id)}">Detail</button>`;
+      const response = at && at.response != null ? at.response : R.responses[e.id] || '';
+      h += `<article class="sheet">${questionBody(e, { key, response, locked: review, showCorrect: review, result: review && at ? at.result : '', right: top })}`;
+      if (review) {
+        h += solutionBlock(e);
+        // 没有判定的题：本次会话里还留着回答的主观题自评（存后改判走上面的下拉）；其余如实写没判，不写成没作答
+        if (r.state === 'pending' && R.live) h += `<div class="selfmark" role="group" aria-label="Self-mark">${['right', 'partial', 'wrong'].map(x => `<button type="button" data-act="paper-self" data-id="${esc(e.id)}" data-r="${x}" ${R.handed && !R.saving ? '' : 'disabled'}>${RESULT[x].sym} ${RESULT[x].en}</button>`).join('')}</div>`;
+        else if (r.state === 'pending') h += `<p class="small muted">Not judged yet. Its written answer was not kept, so it can't be judged here.</p>`;
+        else if (r.state === 'none') h += `<p class="small muted">No answer to this question on this paper.</p>`;
+      }
+      h += nav + '</article>';
+      // 题组材料放在卡片下方，每张卡都放、默认展开，收起后同组各卡保持收起（R.openSets）
+      if (e.setId) h += materialBlock(setById(e.setId), !(R.openSets && R.openSets[e.setId] === false));
     }
-    h += cardNav(i, exs.length, 'card-go', R.phase === 'answer' ? (R.warn ? 'Hand in anyway' : 'Hand in') : '', 'exit-run') + '</article>';
-    if (e.setId) h += materialBlock(setById(e.setId), !(R.openSets && R.openSets[e.setId] === false));
   }
-  if (R.phase === 'review' && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;
+  if (review && R.live && !R.handed) h += `<div class="row"><button type="button" class="btn primary" data-act="paper-submit" ${R.saving ? 'disabled' : ''}>${R.saving ? 'Saving…' : 'Save again'}</button></div>`;
   if (R.err) h += `<p class="note err">${esc(R.err)}</p>`;
   return h;
 }
@@ -1956,7 +1991,7 @@ function renderManage() {
   let h = '';
   if (S.tab === 'record') h = renderRecord();
   else if (S.tab === 'exercises') h = renderExercises();
-  else if (S.tab === 'papers') h = S.paperView ? renderPaperSheet(S.paperView) : renderPapers();
+  else if (S.tab === 'papers') h = renderPapers();
   else if (S.tab === 'games') h = renderGames();
   else h = renderSettings();
   return `<div style="display:grid;gap:12px">${h}</div>`;
@@ -1979,7 +2014,7 @@ function materialCard(m, picked, off) {
   </button>`;
 }
 function matPager(n, page) {
-  // 材料列表的翻页：参照卷子详情页（cardPager 与 cardNav）——列表上方一行紧凑页码，下方左 Previous、右 Next；只有一页时都不显示。页码按钮的位置数按宽度估，面板的内边距与边框再减 26 px
+  // 材料列表的翻页：参照卷页（cardPager 与 cardNav）——列表上方一行紧凑页码，下方左 Previous、右 Next；只有一页时都不显示。页码按钮的位置数按宽度估，面板的内边距与边框再减 26 px
   if (n <= 1) return { top: '', bottom: '' };
   const vw = window.innerWidth || 880, avail = Math.min(vw, 880) - (vw >= 720 ? 56 : 32) - 26, max = Math.floor(avail / 27);
   const top = `<nav class="cardpager" aria-label="Pages"><div class="cp-row">${pagerSlots(n, page - 1, max).map(i => i === null ? '<span class="pg-gap" aria-hidden="true">…</span>' : `<button type="button" class="pg-n" data-act="mat-page" data-v="${i + 1}" aria-pressed="${i + 1 === page}" title="Page ${i + 1}">${i + 1}</button>`).join('')}</div></nav>`;
@@ -2224,9 +2259,9 @@ function draftToDoc(d) {
 }
 
 function renderExercises() {
-  // 从 Today 打开的详情优先于编辑表单（不丢未保存的修改）；有几份编辑草稿时显示最新的
+  // 从 Today 或卷页打开的详情优先于编辑表单（不丢未保存的修改）；有几份编辑草稿时显示最新的
   const editing = S.drafts.slice().reverse().find(d => d.editId);
-  if (S.detailId && S.detailFrom === 'today') return renderDetail();
+  if (S.detailId && S.detailFrom) return renderDetail();
   if (editing) return draftForm(editing);
   if (S.detailId) return renderDetail();
   const F = S.filters, today = localToday();
@@ -2316,7 +2351,7 @@ function renderDetail() {
   const e = myEx(S.detailId);
   if (!e) { S.detailId = null; return renderExercises(); }
   const c = nameOf(e.subject, 'concept', e.concept), q = nameOf(e.subject, 'qtype', e.qtype);
-  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">${S.detailFrom === 'today' ? '← Back to Today' : '← Back to the list'}</button></div>`;
+  let h = `<div class="row"><button type="button" class="btn ghost" data-act="back-list">${S.detailFrom === 'today' ? '← Back to Today' : S.detailFrom === 'paper' ? '← Back to the paper' : '← Back to the list'}</button></div>`;
   const qs = e.setId && setById(e.setId);
   if (qs) {
     if (S.setEdit && S.setEdit.id === qs.id) h += setForm(S.setEdit);
@@ -2378,7 +2413,7 @@ function renderPapers() {
     ${S.paperPreview ? (S.paperPreview.length ? `<div class="list">${S.paperPreview.map((e, i) => `<div class="item" style="cursor:default"><span class="t">${i + 1}. ${esc(plain(e.stem) || (e.setId ? '(see the set material)' : '(photo only)'))}</span><span class="side">${ladderHtml(e)}</span><span class="meta"><span>${esc(topicLabel(e.subject, e.topic))}</span><span>· wrong ${e.wrongCount}×</span>${setChip(e)}</span></div>`).join('')}</div>` : '<p class="note">No exercises in this range.</p>') : ''}
     ${S.paperMsg ? `<p class="note ${S.paperMsg.kind}">${esc(S.paperMsg.text)}</p>` : ''}
   </section>`;
-  // 检验卷列表：筛选一行与排序同 Exercises；20 张一页
+  // 检验卷列表：筛选一行与排序同 Exercises；20 张一页；行与 Today、Daily 同一种（paperRow）
   const PF = S.paperFilters, view = view0;
   const shown = shown0.filter(p => !isDaily(p));
   const sorted = sortPapers(filterPapers(shown, Object.assign({}, PF, { kind: 'check' }), view, S.me), S.paperSort.key, S.paperSort.dir, view, S.me);
@@ -2400,15 +2435,7 @@ function renderPapers() {
     </div>`;
   if (!shown.length) h += `<p class="small muted">No exam papers yet. A new paper shows up on Today for every user whose default owner matches; anyone can start it here.</p>`;
   else if (!sorted.length) h += `<p class="small muted">No papers match these filters.</p>`;
-  else h += `<div class="list">${pg.items.map(p => {
-    const done = handedInAt(p, view, S.me);
-    // 整行可点：交过的进详情，没交的开始作答；Delete 与删除确认在行里，点它们不触发整行
-    return `<div class="item" role="button" tabindex="0" data-act="${done ? 'paper-view' : 'start-paper'}" data-id="${esc(p.id)}">
-      <span class="t">${p.subject ? subjChip(p.subject) : ''} ${esc(pname(p))}</span>
-      <span class="side">${done ? (() => { const sc = paperScore(p, view); return `<span class="num">${sc.right}/${sc.total}</span>`; })() : '<span>Not done by me</span>'}</span>
-      <span class="meta"><span class="num">Created ${esc(fmtWhen(p.madeAt || p.createdAt))}</span>${done ? `<span class="num">Done ${esc(fmtWhen(done))}</span>` : ''}${p.test ? '<span class="chip test">TEST</span>' : ''}
-      </span></div>`;
-  }).join('')}</div>`;
+  else h += `<div class="list">${pg.items.map(p => paperRow(p, view)).join('')}</div>`;
   if (pg.pages > 1) h += `<nav class="pager row" aria-label="Pages"><button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page - 1}" ${pg.page <= 1 ? 'disabled' : ''}>Previous</button>${Array.from({ length: pg.pages }, (_, i) => `<button type="button" class="btn ghost small" data-act="paper-page" data-v="${i + 1}" aria-pressed="${pg.page === i + 1}">${i + 1}</button>`).join('')}<button type="button" class="btn ghost small" data-act="paper-page" data-v="${pg.page + 1}" ${pg.page >= pg.pages ? 'disabled' : ''}>Next</button></nav>`;
   return h + `</section>`;
 }
@@ -2425,43 +2452,13 @@ function renderDailyPapers(shown, view) {
   if (!list.length) h += `<p class="small muted">${shown.some(isDaily) ? 'No daily papers match this subject.' : 'No daily papers yet. Each one shows up here once it is handed in.'}</p>`;
   else if (!dg.groups.length) h += `<p class="small muted">No daily papers in the last 7 days.</p>`;
   for (const g of dg.groups) {
-    h += `<p class="h3 day-h">${esc(head(g.date))}</p><div class="list">${g.papers.map(p => {
-      const sc = paperScore(p, view), done = handedInAt(p, view, S.me);
-      return `<div class="item" role="button" tabindex="0" data-act="paper-view" data-id="${esc(p.id)}">
-        <span class="t">${p.subject ? subjChip(p.subject) : ''} <span class="num">${sc.right}/${sc.total}</span>${p.test ? ' <span class="chip test">TEST</span>' : ''}</span>
-        <span class="side"><span class="num">Done ${esc(done ? done.slice(11, 16) || fmtWhen(done) : '—')}</span></span></div>`;
-    }).join('')}</div>`;
+    h += `<p class="h3 day-h">${esc(head(g.date))}</p><div class="list">${g.papers.map(p => paperRow(p, view, { day: true })).join('')}</div>`;
   }
   if (dg.older) h += `<div class="row"><button type="button" class="btn ghost small" data-act="daily-older">Show older (${dg.older})</button></div>`;
   return h + `</section>`;
 }
 
 const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
-function renderPaperSheet(paperId) {
-  // 卷子详情（可改判）：顶上一行返回与摘要，下面一次一张卡，翻页条在卡片上方；题组材料同作答页
-  const p = S.papers.find(x => x.id === paperId);
-  const back = `<button type="button" class="btn ghost small back" data-act="paper-view-close">‹ Back</button>`;
-  if (!p) return `<div class="row">${back}</div><p class="note">This paper has been deleted.</p>`;
-  const rows = paperAttempts(p, mine()), sc = paperScore(p, mine());
-  const doneAt = handedInAt(p, mine(), S.me), when = doneAt ? doneAt.replace('T', ' ') : 'not done';
-  // 摘要：左上角返回、类型标签、分数一行，卷名与交卷时刻在下一行
-  let h = `<div class="progress sheet-top">${back}${paperTag(p)}<div class="grow"></div><span class="score num">${sc.right}/${sc.total}</span><div class="sum-name"><span class="h3 ellip">${esc(pname(p))}</span><span class="small muted ellip">Handed in ${esc(when)}</span></div></div>`;
-  if (!rows.length) return h;
-  const i = S.paperIdx = Math.min(Math.max(0, S.paperIdx || 0), rows.length - 1), r = rows[i];
-  h += cardPager(sheetMarks(rows), i, 'sheet-go');
-  if (!r.ex) return h + `<article class="sheet"><p class="muted">This exercise has been deleted.</p>${cardNav(i, rows.length, 'sheet-go', '', 'paper-view-close')}</article>`;
-  const e = r.ex, a = r.attempt;
-  // 卡片右上角：改判下拉（不加标签，选中项即当前结果）与 Detail 按钮；对错另看作答的底色；题组材料在卡片下方
-  const ov = a ? `<select id="pv-ov-${i}" class="compact ov-sel res-${esc(a.result)}" data-act-change="override" data-id="${esc(e.id)}" data-i="${e.allAttempts.indexOf(a)}" aria-label="Override the result">${['right', 'partial', 'wrong'].map(x => `<option value="${x}" ${a.result === x ? 'selected' : ''}>${RESULT[x].en}</option>`).join('')}</select>` : '';
-  const top = ov + `<button type="button" class="btn ghost small" data-act="goto-ex" data-id="${esc(e.id)}">Detail</button>`;
-  h += `<article class="sheet">${questionBody(e, { key: 'pv' + i, response: a ? a.response : '', locked: true, showCorrect: true, result: a ? a.result : '', right: top })}`;
-  if (!a) h += `<p class="small muted">No answer to this question on this paper.</p>`;
-  h += solutionBlock(e);
-  h += cardNav(i, rows.length, 'sheet-go', '', 'paper-view-close') + '</article>';
-  if (e.setId) h += materialBlock(setById(e.setId), S.paperOpenSets[e.setId] !== false);
-  return h;
-}
-
 function renderSettings() {
   // 一块两行（左标签、右控件），改一项存一项，存好在块底出一个小 Saved；阶梯说明默认展开
   return `<section class="panel">
@@ -2681,6 +2678,18 @@ async function writeAttempts(e, attempts) {
   // e 是原文档，attempts 是所有人的全部作答；阶梯按人现算，不写派生字段
   await S.db.doc('exercises/' + e.id).update({ attempts });
 }
+async function saveRunAttempt(R, p, e, judgedBy) {
+  // 把卷页上这道题的判定写成我的一条作答（已有本人本卷作答的不重写），记入 R.saved；交卷（客观题）与自评（主观题）共用。e 是原文档
+  if (!(e.attempts || []).some(a => a.paperId === p.id && a.by === S.me))
+    await addAttempt(e, { date: localToday(), at: nowLocal(), mode: isDaily(p) ? 'daily' : 'paper', paperId: p.id, response: String(R.responses[e.id] || ''), result: R.results[e.id], judgedBy });
+  R.saved[e.id] = true;
+}
+function failed(err) {
+  // 写失败：开着卷页就写在卷页底部，否则写在页面顶部
+  const msg = dbErr(err);
+  if (S.run) S.run.err = msg; else S.errMsg = msg;
+  render();
+}
 async function addAttempt(e, a) { await writeAttempts(e, (e.attempts || []).concat([Object.assign({ by: S.me }, a)])); }
 function dbErr(err) {
   const c = err && err.code;
@@ -2697,7 +2706,7 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.paperView = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.pageBack = null; S.run = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -2735,12 +2744,11 @@ document.addEventListener('click', async ev => {
         const p = Object.assign({ id: ref.id }, doc);
         if (!S.papers.some(x => x.id === p.id)) S.papers = S.papers.concat([p]);
         for (const o of olds) { await S.db.doc('papers/' + o.id).delete(); S.papers = S.papers.filter(x => x.id !== o.id); }
-        S.run = { kind: 'paper', paperId: p.id, phase: 'answer', responses: Object.assign({}, carried), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} };
+        openPaper(p.id, carried);
         render(); window.scrollTo(0, 0); break;
       }
-      case 'pick': { const e = runExs()[Number(b.dataset.key.slice(1))]; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
+      case 'pick': { const e = (runRows()[Number(b.dataset.key.slice(1))] || {}).ex; if (e) { R.responses[e.id] = b.dataset.v; queueResponses(); } render(); break; }
       case 'card-go': R.idx = Number(b.dataset.v) || 0; render(); break;
-      case 'sheet-go': S.paperIdx = Number(b.dataset.v) || 0; render(); break;
       case 'exit-run': {
         // 每日卷：先把回答记进本地的卷子（快照还没回来时，马上再开始这一科也能带上），再把没写的写掉
         const run = S.run, rp = run && S.papers.find(x => x.id === run.paperId);
@@ -2748,7 +2756,7 @@ document.addEventListener('click', async ev => {
         S.run = null; render(); await flushResponses(run); break;
       }
 
-      case 'start-paper': { const sp = S.papers.find(x => x.id === b.dataset.id); S.run = { kind: 'paper', paperId: b.dataset.id, phase: 'answer', responses: Object.assign({}, (sp && isDaily(sp) && sp.responses) || {}), results: {}, saved: {}, idx: 0, openSets: {}, openPhotos: {} }; render(); window.scrollTo(0, 0); break; }
+      case 'open-paper': openPaper(b.dataset.id); render(); window.scrollTo(0, 0); break;
       case 'paper-submit': {
         // 交卷即存：先写客观题的作答（已写过的跳过），再在卷子的 handedIn 记下我；失败时留在本页，可再点补写
         if (R.saving) break;
@@ -2756,26 +2764,23 @@ document.addEventListener('click', async ev => {
         if (R.phase === 'answer') {
           if (!R.warned) {
             // 题号按卷上仍在的题编号：必用词提醒每题一行，没答的题列题号
-            const exs = runExs();
-            const must = exs.map((e, i) => { const w = e.format === 'open' ? mustUseNote(e, R.responses[e.id] || '') : ''; return w ? `Question ${i + 1}: ${w}` : ''; }).filter(Boolean);
-            const missing = unansweredNos(runMarks(exs, 'answer', R.responses));
+            const rows = runRows();
+            const must = rows.map((r, i) => { const w = r.ex && r.ex.format === 'open' ? mustUseNote(r.ex, R.responses[r.id] || '') : ''; return w ? `Question ${i + 1}: ${w}` : ''; }).filter(Boolean);
+            const missing = unansweredNos(paperMarks(rows, 'answer', R.responses));
             if (must.length || missing.length) { R.warn = { must, missing }; R.warned = true; render(); window.scrollTo(0, 0); break; }
           }
           R.warn = null;
           for (const id of p.exerciseIds) { const e = exById(id); if (e && e.format !== 'open') R.results[id] = judgeAuto(e, R.responses[id] || ''); }
-          R.phase = 'review'; R.idx = 0;
+          R.phase = 'review'; R.live = true; R.idx = 0;
         }
         R.saving = true; R.err = null; R.handing = true; render(); window.scrollTo(0, 0);
         try {
           // 交卷前停掉自动存：清掉计时器、等在途的写入完成，交卷时一并把 responses 写成 null
           clearTimeout(R.saveTimer); R.saveTimer = null;
           if (R.saveP) await R.saveP.catch(() => {});
-          const today = localToday(), mode = isDaily(p) ? 'daily' : 'paper';
           for (const id of p.exerciseIds) {
             const e = exById(id); if (!e || e.format === 'open' || R.saved[id]) continue;
-            if (!(e.attempts || []).some(a => a.paperId === p.id && a.by === S.me))
-              await addAttempt(e, { date: today, at: nowLocal(), mode, paperId: p.id, response: String(R.responses[id] || ''), result: R.results[id], judgedBy: 'auto' });
-            R.saved[id] = true;
+            await saveRunAttempt(R, p, e, 'auto');
           }
           const cur = S.papers.find(x => x.id === p.id) || p;
           if (!(cur.handedIn && cur.handedIn[S.me])) await S.db.doc('papers/' + p.id).update(Object.assign({ handedIn: Object.assign({}, cur.handedIn, { [S.me]: nowLocal() }) }, isDaily(p) ? { responses: null } : {}));
@@ -2785,15 +2790,11 @@ document.addEventListener('click', async ev => {
         render(); break;
       }
       case 'paper-self': {
-        // 主观题自评即存，存后锁定；要改去卷面详情改判
+        // 主观题自评即存；存后与其他判定一样，在卡片右上角改判
         const id = b.dataset.id, e = exById(id), p = S.papers.find(x => x.id === R.paperId);
-        if (!e || !R.handed || R.saved[id] || R.saving) break;
+        if (!e || !R.live || !R.handed || R.saved[id] || R.saving) break;
         R.results[id] = b.dataset.r; R.saving = true; render();
-        try {
-          if (!(e.attempts || []).some(a => a.paperId === p.id && a.by === S.me))
-            await addAttempt(e, { date: localToday(), at: nowLocal(), mode: isDaily(p) ? 'daily' : 'paper', paperId: p.id, response: String(R.responses[id] || ''), result: R.results[id], judgedBy: 'self' });
-          R.saved[id] = true;
-        } catch (err) { R.err = dbErr(err); }
+        try { await saveRunAttempt(R, p, e, 'self'); } catch (err) { R.err = dbErr(err); }
         finally { R.saving = false; }
         render(); break;
       }
@@ -2840,12 +2841,15 @@ document.addEventListener('click', async ev => {
 
       case 'detail': S.detailId = b.dataset.id; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
       case 'back-list': {
-        const back = S.detailFrom === 'today';
-        S.detailId = null; S.confirmDel = null; S.detailFrom = null;
-        if (back) { S.tab = 'today'; store.set('arena.tab', S.tab); render(); window.scrollTo(0, S.todayScroll); } else render();
+        // 回到来处：Today（新掌握）、卷页（同一张卡，卷页的状态原样放回）、或 Exercises 列表
+        const from = S.detailFrom, pb = S.pageBack;
+        S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.pageBack = null;
+        if (from === 'today') { S.tab = 'today'; store.set('arena.tab', S.tab); render(); window.scrollTo(0, S.backScroll); }
+        else if (from === 'paper' && pb) { S.tab = pb.tab; S.run = pb.run; render(); window.scrollTo(0, S.backScroll); }
+        else render();
         break;
       }
-      case 'edit': { const e = exById(b.dataset.id); S.detailFrom = null; S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
+      case 'edit': { const e = exById(b.dataset.id); S.detailFrom = null; S.pageBack = null; S.drafts.push(newDraft(Object.assign({}, e, { editId: e.id }))); render(); window.scrollTo(0, 0); break; }
       case 'ask-del': S.confirmDel = b.dataset.id; render(); break;
       case 'cancel-del': S.confirmDel = null; render(); break;
       case 'delete-ex': { const e = exById(b.dataset.id); await S.db.doc('exercises/' + b.dataset.id).delete(); if (e && e.setId) await cleanupSet(e.setId, e.id); S.detailId = null; S.confirmDel = null; render(); break; }
@@ -2862,20 +2866,16 @@ document.addEventListener('click', async ev => {
         await S.db.collection('papers').doc().set(doc);
         S.paperPreview = null; S.paperMsg = { kind: 'ok', text: 'Exam paper created.' }; render(); break;
       }
-      case 'paper-view': S.tab = 'papers'; S.paperView = b.dataset.id; S.paperIdx = 0; S.paperOpenSets = {}; S.paperOpenPhotos = {}; render(); window.scrollTo(0, 0); break;
-      case 'paper-view-close': S.paperView = null; render(); break;
       case 'goto-ex':
-        // 从 Today 的新掌握来：记下来源与滚动位置，不丢编辑草稿；其他地方照旧丢掉编辑草稿
-        if (b.dataset.from === 'today') { S.detailFrom = 'today'; S.todayScroll = window.scrollY; } else { S.detailFrom = null; S.drafts = S.drafts.filter(d => !d.editId); }
-        S.tab = 'exercises'; S.detailId = b.dataset.id; S.paperView = null; render(); window.scrollTo(0, 0); break;
+        // 从 Today 的新掌握、或卷页的卡片来：记下来源与滚动位置（卷页连同它的状态整个收起，Back 原样放回），不丢编辑草稿；其他地方照旧丢掉编辑草稿
+        if (b.dataset.from === 'today') { S.detailFrom = 'today'; S.backScroll = window.scrollY; }
+        else if (b.dataset.from === 'paper' && S.run) { S.detailFrom = 'paper'; S.backScroll = window.scrollY; S.pageBack = { run: S.run, tab: S.tab }; S.run = null; }
+        else { S.detailFrom = null; S.pageBack = null; S.drafts = S.drafts.filter(d => !d.editId); }
+        S.tab = 'exercises'; S.detailId = b.dataset.id; render(); window.scrollTo(0, 0); break;
       case 'nm-subj': S.nmSubj[b.dataset.blk] = b.dataset.v; render(); break;
 
     }
-  } catch (err) {
-    const msg = dbErr(err);
-    if (S.run) { S.run.err = msg; } else { S.errMsg = msg; }
-    render();
-  }
+  } catch (err) { failed(err); }
 });
 
 function draftByKey(k) { return S.drafts.find(d => d.key === Number(k)); }
@@ -2884,9 +2884,9 @@ document.addEventListener('input', ev => {
   const t = ev.target;
   if (t.dataset.ans != null && S.run) {
     // 只写作答并重画翻页条（题号随即变实心），不整页重画，以免打断输入
-    const e = runExs()[Number(t.dataset.ans.slice(1))]; if (e) { S.run.responses[e.id] = t.value; queueResponses(); }
+    const rows = runRows(), e = (rows[Number(t.dataset.ans.slice(1))] || {}).ex; if (e) { S.run.responses[e.id] = t.value; queueResponses(); }
     const pg = document.querySelector('.cardpager');
-    if (pg) pg.outerHTML = cardPager(runMarks(runExs(), S.run.phase, S.run.responses, S.run.results, S.run.saved), S.run.idx, 'card-go');
+    if (pg) pg.outerHTML = cardPager(paperMarks(rows, S.run.phase, S.run.responses), S.run.idx, 'card-go');
   } else if (t.dataset.d) {
     const d = draftByKey(t.dataset.d); if (!d) return;
     if (t.dataset.f === 'opt') d.options[Number(t.dataset.i)] = t.value; else if (!t.dataset.rerender) d[t.dataset.f] = t.value;
@@ -2951,18 +2951,20 @@ document.addEventListener('change', async ev => {
       if (!e || !e.attempts[i] || e.attempts[i].by !== S.me) return;   // 只改判自己的作答
       const attempts = e.attempts.map((a, j) => j === i ? Object.assign({}, a, { result: t.value, judgedBy: 'parent' }) : a);
       await writeAttempts(e, attempts);
+      if (S.run && S.run.err) { S.run.err = null; render(); }
     }
-  } catch (err) { S.errMsg = dbErr(err); render(); }
+  } catch (err) { failed(err); }
 });
 
-// 题组材料与照片展开或收起时记下（材料：作答页记在 S.run.openSets，卷子详情页记在 S.paperOpenSets，都默认展开、收起记 false；照片按组记在 photoStore()，默认收起），重画与翻到同组或同一组照片的其他卡时沿用
+// 题组材料与照片展开或收起时记下（材料：卷页记在 S.run.openSets，默认展开、收起记 false；照片按组记在 photoStore()，默认收起），重画与翻到同组或同一组照片的其他卡时沿用
 document.addEventListener('toggle', ev => {
   const d = ev.target;
   if (d.classList && d.classList.contains('plog')) { S.plogOpen = d.open; return; }
   if (d.classList && d.classList.contains('nm') && d.dataset.nkey) { if (d.open) S.nmOpen[d.dataset.nkey] = true; else delete S.nmOpen[d.dataset.nkey]; return; }
   if (d.classList && d.classList.contains('photos') && d.dataset.pkey) { const st = photoStore(); if (st) { if (d.open) st[d.dataset.pkey] = true; else delete st[d.dataset.pkey]; } return; }
   if (!d.classList || !d.classList.contains('material') || !d.dataset.set) return;
-  const store = S.run ? (S.run.openSets = S.run.openSets || {}) : S.paperOpenSets;
+  if (!S.run) return;
+  const store = S.run.openSets = S.run.openSets || {};
   store[d.dataset.set] = d.open;
 }, true);
 // 整行可点的卷子：Enter 键同点击

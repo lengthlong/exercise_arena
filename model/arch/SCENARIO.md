@@ -277,6 +277,38 @@ sequenceDiagram
 
 Eligibility/30-day boundary and legacy hand-in inference belong to DATA. Attempts survive; failed deletions are best-effort and do not authorize a background global purge (C9).
 
+## S13 Open and use a paper page
+
+- **Trigger / journey steps** user/0002 1/4-7, user/0003 1-6, user/0004 4-5, user/0009 1-5.
+- **Entry responsibility** Papers; Progress supplies the outcome block.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant P as Arena page
+    participant D as Platform db
+    U->>P: Choose a paper row, or start a Subject batch
+    alt Actor has not handed in
+        P-->>U: Taking page, one card at a time
+        U->>P: Hand in (S5 or S7 writes)
+    else Actor has handed in
+        P-->>U: Reviewing page from stored attempts
+    end
+    P-->>U: Outcome block, status and cards
+    opt Written answer pending with its response in this session
+        U->>P: Choose Right, Partial or Wrong
+        P->>D: Save written attempt
+    end
+    opt Judged card
+        U->>P: Choose Override
+        P->>D: Replace own judgment
+    end
+    D-->>P: Acknowledgment or failure
+    P-->>U: Recomputed outcome, or prior result kept
+```
+
+The same page serves the first review right after hand-in and every later one; rows from Today and Papers share the Start-or-Review rule. Pending judgments are shown as not judged, never as no answer, and cannot be created without their response. No stored field is added (C10).
+
 ## Support scenarios
 
 Operator/0001 maps to [maintain SPEC](../operate/maintain/SPEC.md). Operator/0003 uses [acceptance SPEC](../verify/SPEC.md) and deploy-provided test candidates. Operator/0002 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
@@ -286,13 +318,13 @@ Operator/0001 maps to [maintain SPEC](../operate/maintain/SPEC.md). Operator/000
 | Journey | Runtime/support coverage |
 |---|---|
 | user/0001 | S1-S3; C1-C2 |
-| user/0002 | S5/S9/S12; C4-C5/C7/C9 |
-| user/0003 | S7/S9; C5-C7 |
-| user/0004 | S9/S12; C7/C9 |
+| user/0002 | S5/S9/S12/S13; C4-C5/C7/C9/C10 |
+| user/0003 | S7/S9/S13; C5-C7/C10 |
+| user/0004 | S9/S12/S13; C7/C9/C10 |
 | user/0005 | S10; C8 |
 | user/0006 | S1/S11; C1/C9 |
 | user/0007 | S4; C3 |
 | user/0008 | S6; C6 |
-| user/0009 | S8/S9; C5/C7 |
+| user/0009 | S8/S9/S13; C5/C7/C10 |
 | user/0010 | S1; C1 |
 | operator/0001-0003 | Owning maintain/deploy/acceptance contracts |

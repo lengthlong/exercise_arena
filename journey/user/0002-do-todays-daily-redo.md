@@ -28,10 +28,10 @@ sequenceDiagram
 1. The user opens Today and inspects the actor's due work by subject and protected unfinished submissions in the selected owner scope.
 2. The user recovers protected submissions before starting new batches in their subject. The page restores saved answers/judgments and retries only missing attempt or marker writes.
 3. The user starts one subject's current batch, capped by the effective daily limit. Untouched drafts are replaced with overlapping saved responses carried forward.
-4. The user answers the batch's questions, using material and answer controls as appropriate.
+4. The user answers the batch's questions on the Paper page, one card at a time, using material and answer controls as appropriate.
 5. The user hands in. The page saves missing objective attempts and then the actor's submission marker; acknowledged submission is distinct from full assessment.
-6. The user self-judges written answers in the current session until every remaining question has a saved judgment.
-7. The user reviews ladder, streak, coins and newly mastered outcomes, then repeats steps 3-7 while due work remains.
+6. The user self-judges written answers in the current session until every remaining question has a saved judgment. A mis-tapped judgment is corrected with Override on the same page.
+7. The user reviews the paper's score, ladder movement and coins on the same Paper page, then ladder, streak and newly mastered outcomes elsewhere, and repeats steps 3-7 while due work remains.
 
 ## Extensions
 
@@ -45,7 +45,8 @@ sequenceDiagram
 - **6b. The user leaves before saving written judgments.** Recovery of unsaved written responses across sessions is deferred. Show any surviving pending judgments truthfully; do not infer them from a hand-in marker.
 - **7a. An answer is partial or wrong.** Apply the agreed ladder/reward rules; late practice uses the actual attempt date.
 - **7b. The user stops before finishing.** Report the completed batches and remaining work rather than claiming the day's goal succeeded.
+- **7c. The user re-opens a handed-in daily paper later.** Papers lists it by day; the same Paper page shows the same outcome block, derived from saved attempts. Written answers still without a saved judgment read "Not judged yet" and count in "N to judge"; they cannot be judged without their response.
 
 ## Runtime trace
 
-Steps 1/7 read Progress; 2-6 use Papers and Platform/data gateway, scoped by Session/settings. See [scenarios](../../model/arch/SCENARIO.md) S5/S9, [runtime contracts](../../model/arch/arena/SPEC.md) C4-C5 and [data contract](../../DATA.md). The [domain](../../model/domain/DOMAIN.md) separates per-actor ladder, paper acknowledgment and assessment.
+Steps 1/7 read Progress; 2-6 use Papers and Platform/data gateway, scoped by Session/settings. See [scenarios](../../model/arch/SCENARIO.md) S5/S9/S13, [runtime contracts](../../model/arch/arena/SPEC.md) C4-C5/C10 and [data contract](../../DATA.md). The [domain](../../model/domain/DOMAIN.md) separates per-actor ladder, paper acknowledgment and assessment.
