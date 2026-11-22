@@ -98,6 +98,7 @@ flowchart LR
 | operate | `operate/README.md` | 实际工具索引，对应 `model/operate/INDEX.md` | 工具现状；约定边界以模型为准，条目扩展交实现 |
 | operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
 | operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
+| operate | `operate/capacity/` | 一次性缩小限长前的超大照片：盘点、页面同款缩图（Chrome 跑页面的 `shrinkPhoto`）、改 `images` 的计划、核对与删除清单，对应 `model/operate/capacity/SPEC.md` | `node operate/capacity/shrink-legacy.test.mjs`；只写本地文件，生产读写由 agent 用 Artifact 工具执行，金丝雀、改写、删除各需另行确认；约定以契约为准 |
 | verify | `verify/` | 验收条目目录与模拟/授权运行时入口，对应 `model/verify/SPEC.md` | 具体条目、命令与标签由 `verify/README.md` 独占维护；实现与验收均可在约定契约内调整 |
 | operate | `backups/` | 生产 Artifact 的本地备份：`db` 全量快照、按 asset id 增量存储的照片、发布页源码，对应 `model/operate/recover/SPEC.md`（旅程 0014） | 步骤见 `backups/README.md`；`node backups/backup.mjs verify <快照>`；数据目录不进 git；只读生产，恢复另行授权；约定以契约为准 |
 

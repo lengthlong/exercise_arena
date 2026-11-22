@@ -13,7 +13,7 @@ Copy this folder somewhere else (an external disk or private cloud storage) to k
 ```
 backups/
   backup.mjs                 need / finalize / verify (Node built-ins only)
-  assets/<assetId>.<ext>     shared, content-addressed photo store; grows incrementally, never pruned
+  assets/<assetId>.<ext>     shared photo store keyed by asset id (checked against sha256 hashes in each manifest); grows incrementally; never prune an asset a retained snapshot lists
   snapshots/<YYYYMMDD>/      one full db snapshot per run (add -2, -3 for more runs on one day)
     db/<collection>/<docId>.json   exercises, sets, papers, users, settings, matches
     page/index.html          published page source at backup time
@@ -22,7 +22,8 @@ backups/
 
 The backup is **full for the db and incremental for assets**. The db is small (~6 MB), so each
 snapshot holds a complete, self-contained copy. Asset ids are immutable uploads, so an asset
-is downloaded once into `assets/` and every later snapshot reuses it. `manifest.json` lists every
+is downloaded once into `assets/` and every later snapshot reuses it. The contract is
+[model/operate/recover/SPEC.md](../model/operate/recover/SPEC.md) (journey 0014); it governs retention and restore. `manifest.json` lists every
 asset with its sha256, so you can check any snapshot against the shared store.
 
 ## Taking a backup (agent procedure)

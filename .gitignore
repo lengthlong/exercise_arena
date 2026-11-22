@@ -7,3 +7,4 @@
 # Backup data stays local (child's photos, family usage data); only README and tool are tracked.
 /backups/assets/
 /backups/snapshots/
+/backups/repairs/
