@@ -4,3 +4,6 @@
 /.claude/skills/design-*
 !/.claude/skills/design-writing
 # design-init force-adds exact managed paths. The rules below ignore the design- prefix by default.
+# Backup data stays local (child's photos, family usage data); only README and tool are tracked.
+/backups/assets/
+/backups/snapshots/

@@ -99,6 +99,7 @@ flowchart LR
 | operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
 | operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
 | verify | `verify/` | 验收条目目录与模拟/授权运行时入口，对应 `model/verify/SPEC.md` | 具体条目、命令与标签由 `verify/README.md` 独占维护；实现与验收均可在约定契约内调整 |
+| operate | `backups/` | 生产 Artifact 的本地备份：`db` 全量快照、照片增量存储、发布页源码（用户直接指示，未开讨论；尚无 `model/operate/` 契约） | 步骤见 `backups/README.md`；`node backups/backup.mjs verify <快照>`；数据目录不进 git；只读生产，恢复另行授权 |
 
 其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管维护与发布，`verify/` 管验收入口。
 

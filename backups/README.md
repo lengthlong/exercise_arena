@@ -1,0 +1,64 @@
+# Backups
+
+Local backups of the production Exercise Arena artifact
+(`https://claude.ai/artifact/626tqFyFmmfXKdMHYnbJAh`): every `db` document and every uploaded
+asset (photos), plus the published page source.
+
+Only this README and `backup.mjs` are committed. `snapshots/` and `assets/` are git-ignored:
+they hold a child's homework photos and family usage data (~400 MB) and stay on this machine.
+Copy this folder somewhere else (an external disk or private cloud storage) to keep an off-machine copy.
+
+## Layout
+
+```
+backups/
+  backup.mjs                 need / finalize / verify (Node built-ins only)
+  assets/<assetId>.<ext>     shared, content-addressed photo store; grows incrementally, never pruned
+  snapshots/<YYYYMMDD>/      one full db snapshot per run (add -2, -3 for more runs on one day)
+    db/<collection>/<docId>.json   exercises, sets, papers, users, settings, matches
+    page/index.html          published page source at backup time
+    manifest.json            counts, hashes, asset references, server listing totals
+```
+
+The backup is **full for the db and incremental for assets**. The db is small (~6 MB), so each
+snapshot holds a complete, self-contained copy. Asset ids are immutable uploads, so an asset
+is downloaded once into `assets/` and every later snapshot reuses it. `manifest.json` lists every
+asset with its sha256, so you can check any snapshot against the shared store.
+
+## Taking a backup (agent procedure)
+
+Download with Claude Code's `ArtifactData` / `Artifact` tools. They read as the owner, so no
+credentials go on disk. Use `S` = today's `YYYYMMDD`.
+
+1. **DB**: for each collection in `exercises sets papers users settings matches`, call
+   `ArtifactData list` with `query.limit: 1000` and `out_dir: backups/snapshots/S/db`.
+   If a result has a `next_cursor`, keep paging until none is left.
+2. **Page**: `Artifact read` with `path: "index.html"`, `out_dir: backups/snapshots/S/page`.
+3. **Asset listing**: `Artifact list` with `scope: "assets"`. Page through with `after` until
+   nothing follows, and note the header totals (`N files, B bytes`) and every `/_blob/<id>`.
+   Put the ids in a scratch file, one per line.
+4. **What's new**: `node backups/backup.mjs need S <ids-file>` prints the ids not yet stored.
+5. **Download** each printed id with `Artifact read`, `path: <id>`, `out_dir: backups/assets`.
+   This takes one call per asset. Multi-path reads do not fetch assets.
+6. **Finalize**: `node backups/backup.mjs finalize S --artifact <url> --listed-count N --listed-bytes B`.
+   It fails if any referenced asset is missing. Expect `matchesServerListing: true`.
+7. **Verify**: `node backups/backup.mjs verify S`.
+
+Reads only. Never write to the production `db` or delete assets as part of a backup.
+
+## Restoring
+
+There is no automated restore. A restore writes production data, so it needs its own explicit
+authorization (`CLAUDE.md` rule: production data repair is never implied).
+
+- Documents: `ArtifactData batch` `set` from `snapshots/S/db/<collection>/<id>.json` (≤50 per batch).
+- Assets: these keep their ids only on the original artifact. Re-uploading creates **new** ids, so
+  `images` arrays would need remapping.
+- Page: `page/index.html` is the published source at backup time. Compare it with `impl/arena.html`
+  before republishing.
+
+## History
+
+| Snapshot | Docs | Assets (stored / referenced) | Notes |
+|---|---|---|---|
+| 20261122 | 1479 (975 exercises, 120 sets, 211 papers, 163 matches, 5 users, 5 settings) | 346 / 302, 412,096,799 bytes, matches server listing | First backup. 44 stored assets are unreferenced. Live page ≠ repo `impl/arena.html`. |
