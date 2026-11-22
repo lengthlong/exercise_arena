@@ -34,7 +34,7 @@ Each command below is run from the repository root, with `W=backups/repairs/<nam
    - On a version conflict, re-read that document, save the new version into `versions/`, re-plan and retry.
    - `map.json` is the operation map.
 5. **Verify.**
-   - Take a fresh snapshot. It downloads the new assets.
+   - Take a fresh snapshot of `exercises` and `sets`. The new assets must be in the local store: either download them, or copy `$W/shrunk/<old>.jpg` to `backups/assets/<new>.jpg` after the platform listing's count and byte totals equal the pre-repair totals plus the uploads exactly, every upload's reported size equals its local file, and a sample of listing sha256 values match.
    - Run `node operate/capacity/shrink-legacy.mjs verify $W <post-snapshot>`. Do not continue unless it prints `OK`.
 6. **Delete** (needs separate confirmation).
    - Read `exercises` and `sets` again into a fresh snapshot.

@@ -41,8 +41,10 @@ credentials go on disk. Use `S` = today's `YYYYMMDD`.
 4. **What's new**: `node backups/backup.mjs need S <ids-file>` prints the ids not yet stored.
 5. **Download** each printed id with `Artifact read`, `path: <id>`, `out_dir: backups/assets`.
    This takes one call per asset. Multi-path reads do not fetch assets.
-6. **Finalize**: `node backups/backup.mjs finalize S --artifact <url> --listed-count N --listed-bytes B`.
+6. **Finalize**: `node backups/backup.mjs finalize S --artifact <url> --listed-count N --listed-bytes B --ids <ids-file>`.
    It fails if any referenced asset is missing. Expect `matchesServerListing: true`.
+   `--ids` (the platform's asset ids from step 3) is needed once any asset was ever deleted on the platform:
+   the local store is never pruned, so only the listed ids belong in this snapshot's manifest.
 7. **Verify**: `node backups/backup.mjs verify S`.
 
 Reads only. Never write to the production `db` or delete assets as part of a backup.
@@ -63,3 +65,6 @@ authorization (`CLAUDE.md` rule: production data repair is never implied).
 | Snapshot | Docs | Assets (stored / referenced) | Notes |
 |---|---|---|---|
 | 20261122 | 1479 (975 exercises, 120 sets, 211 papers, 163 matches, 5 users, 5 settings) | 346 / 302, 412,096,799 bytes, matches server listing | First backup. 44 stored assets are unreferenced. Live page ≠ repo `impl/arena.html`. |
+| 20261122-2 | 1479 | 346 / 302, matches listing | Pre-repair snapshot for the legacy photo repair; retained indefinitely. |
+| 20261122-3-postrewrite, 20261122-4-predelete | exercises + sets only | — | Repair checkpoints (stage 5 verify, stage 6 deletion guard). |
+| 20261122-5-postrepair | 1479 | 302 / 302, 197,493,834 bytes, matches listing (`--ids`) | Post-repair baseline: 114 originals replaced by shrunk copies, 158 assets deleted. |

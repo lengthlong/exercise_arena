@@ -5,7 +5,10 @@
 //   node backups/backup.mjs need <snapshot> [listed-ids.txt]
 //       Asset ids referenced by the snapshot's db (plus ids in the optional listing file,
 //       one per line) that are not yet in backups/assets/ — i.e. what still has to be downloaded.
-//   node backups/backup.mjs finalize <snapshot> --artifact <url> --listed-count N --listed-bytes N
+//   node backups/backup.mjs finalize <snapshot> --artifact <url> --listed-count N --listed-bytes N [--ids ids.txt]
+//       --ids: the asset ids on the platform at snapshot time (one per line). The store is never pruned,
+//       so after assets are deleted on the platform the whole store no longer equals the listing;
+//       with --ids the manifest covers exactly those ids (all must be stored).
 //       Write <snapshot>/manifest.json: doc counts and hashes, asset references, asset store
 //       hashes, and the server's asset-listing totals for comparison.
 //   node backups/backup.mjs verify <snapshot>
@@ -90,7 +93,13 @@ function cmdFinalize(snapArg, o) {
   const snap = snapDir(snapArg);
   const db = readDb(snap);
   const refs = referencedAssets(db);
-  const store = assetStore();
+  let store = assetStore();
+  if (o.ids) {
+    const ids = readFileSync(o.ids, 'utf8').split(/\s+/).map((l) => l.replace(/^\/_blob\//, '')).filter(Boolean);
+    const missing = ids.filter((id) => !store.has(id));
+    if (missing.length) die(`--ids lists assets not in the store: ${missing.join(', ')}`);
+    store = new Map(ids.sort().map((id) => [id, store.get(id)]));
+  }
 
   const collections = {};
   for (const c of COLLECTIONS) {
