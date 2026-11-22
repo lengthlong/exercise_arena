@@ -8,7 +8,7 @@ Implementation-stage precondition (not acceptance evidence): `./check.sh` and `n
 
 | Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
 |---|---|---|---|---|---|
-| `simulated-runtime` | 0001–0004, 0007–0010 (page DOM, write sequences & injected faults) | `automated` | `always` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints live cases and journeys; `feature` runs affected journeys, `integration` runs all; mandatory `pass` before `ONLINE` release) |
+| `simulated-runtime` | 0001–0010 (0005/0006 only for owner-scoped balance and match-start `owner`; page DOM, write sequences & injected faults) | `automated` | `always` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints live cases and journeys; `feature` runs affected journeys, `integration` runs all; mandatory `pass` before `ONLINE` release) |
 | `offline-identity-owner` | 0006, 0010 (identity, first registration & owner-scoped subscriptions) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: (1) open candidate, verify Today loads and `users/<id>` exists; (2) switch default owner to a second seeded owner and back, verify lists follow the owner; (3) with seeded coins and one seeded match under the first owner, verify Games balance in the second owner excludes them (never negative from the switch) and returns on switching back |
 | `offline-db-writes-cleanup-retention` | 0002–0004, 0007, 0009 (real db writes, membership cleanup & retention delete) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: (1) delete last member of an owned set and a legacy set (owned removed, legacy kept); (2) hand in a protected daily paper (attempts and marker written); (3) open with a seeded daily paper handed in >30 days ago (paper deleted, attempts remain) |
 | `offline-photo-ai` | 0001 (photo upload & AI recognition) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: record one synthetic worksheet photo (never a child's), confirm and save; verify asset and saved exercises exist |
@@ -26,7 +26,7 @@ Before running any `manual` `on-touch` entry above, confirm through [deploy tool
 
 ## Known gaps (no automated case yet)
 
-- Journeys `0005` (match) and `0006` (settings), and the progress projections of `0004`.
+- Journeys `0005` (match) and `0006` (settings) beyond the owner-scoped balance case, and the progress projections of `0004`.
 - Multiple protected unfinished daily papers and owner switch before saving drafts.
 - 375px narrow layout of the Paper page outcome block, photo/material toggles on the Paper page, mastery recalculation after an override, and partial-write failures during check-paper hand-in.
 

@@ -299,6 +299,28 @@ add('check-paper-stale-preview-and-marker', ['0008'], async c => {
   assertOk('a new check paper starts with an empty marker map', made.length === 1 && made[0] === '{}');
 });
 
+// ---- 0004/0005/0006 余额跟着所选内容库 ----
+add('games-balance-follows-owner-scope', ['0004', '0005', '0006'], async c => {
+  const { pg, txt, click, assertOk } = c;
+  const games = async () => { await click('tab', { v: 'games' }); await pg.waitForTimeout(150); return pg.evaluate(() => [...document.querySelectorAll('.coin-nums .big, .coin-nums .mid')].map(x => x.textContent.trim()).join(',')); };   // 余额,挣的,用掉的
+  assertOk('in the opened library: 14 earned, 2 used (one stored-owner match, one legacy match), balance 12', await games() === '12,14,2');
+  await click('tab', { v: 'settings' }); await pg.selectOption('#set-owner', 'uB'); await pg.waitForTimeout(400);
+  assertOk('after switching Default owner the settings write is saved', await pg.evaluate(() => window.__data.settings.uS && window.__data.settings.uS.defaultOwner === 'uB'));
+  assertOk('in the other library nothing is earned and neither match is deducted: balance 0, not negative', await games() === '0,0,0');
+  await click('tab', { v: 'settings' }); await pg.selectOption('#set-owner', 'uS'); await pg.waitForTimeout(400);
+  assertOk('switching back restores the first library figures', await games() === '12,14,2');
+  await pg.locator('[data-act="game-start"]').first().click(); await pg.waitForTimeout(600);
+  const made = await pg.evaluate(() => Object.values(window.__data.matches).filter(m => m.owner && m.game === 'lift').map(m => JSON.stringify([m.owner, m.players])));
+  assertOk('a new match stores its opener\'s Default owner', made.some(x => x === JSON.stringify(['uS', ['uS', 'uB']])));
+}, { seed: s => {
+  const at = (by, i) => ({ by, date: T, mode: 'daily', paperId: 'DPx' + i, response: 'a', result: 'right', judgedBy: 'auto', at: T + 'T08:0' + i });
+  s.users.uB = { joinedAt: Y }; s.settings.uB = { dailyLimit: 10, defaultOwner: 'uS' };
+  s.exercises.e1.attempts.push(at('uB', 0));
+  for (let i = 1; i <= 6; i++) s.exercises['x' + i] = ex('x' + i, { attempts: [at('uS', i), at('uB', i)] });
+  s.matches.M1 = { game: 'lift', by: 'uS', owner: 'uS', players: ['uS', 'uB'], rounds: 1, stakes: { uS: 1, uB: 1 }, at: T + 'T07:00', points: [{ uS: 1, uB: 0 }] };
+  s.matches.M2 = { game: 'lift', by: 'uS', players: ['uS', 'uB'], rounds: 1, stakes: { uS: 1, uB: 1 }, at: T + 'T07:30', points: [{ uS: 0, uB: 1 }] };
+} });
+
 // ---- 0010 平台适配与故障呈现 ----
 add('read-failure-settings', ['0010'], async c => {
   const t = await c.txt(); c.assertOk('shows "Couldn\'t read your data" with the settings cause, not loading or empty',
