@@ -55,7 +55,7 @@ Evidence: all current matches lack the field; DATA already treats missing stakes
 | C | Count them in no scope | Past stakes disappear everywhere; free coins |
 
 ## Write-off plan
-<!-- write-off-plan -->
+<!-- write-off -->
 
 | # | Question | Target | Change | Verification | Actual result and verification |
 |---|---|---|---|---|---|
