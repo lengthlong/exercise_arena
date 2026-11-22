@@ -1188,9 +1188,16 @@ function stakeOf(mt, uid) {
   const v = mt.stakes ? Number(mt.stakes[uid]) : NaN;
   return Number.isFinite(v) ? v : (Number(mt.rounds) || 0) * ENTRY;
 }
-function coinsFor(exs, matches, uid, today) {
-  // 金币：本周（周一到今天）每日重做的作答按 attemptCoins 给；up 是升到 2、3、4 级各几次
-  // 余额：金币减去本周开赛、本人参赛的各场里本人的投入（开赛即扣）
+function matchInScope(mt, scope, owners) {
+  // 一场比赛属于哪个内容库：有 owner（开赛时开赛人的默认归属人）就按它；旧比赛没有 owner，所有参赛者当前的默认归属人都是 scope 时才算；scope 缺省时不分库（全部计入）
+  if (!scope) return true;
+  if (typeof mt.owner === 'string' && mt.owner) return mt.owner === scope;
+  const own = id => (owners && owners[id]) || id, ps = mt.players || [];
+  return ps.length > 0 && ps.every(id => own(id) === scope);
+}
+function coinsFor(exs, matches, uid, today, scope, owners) {
+  // 金币：本周（周一到今天）每日重做的作答按 attemptCoins 给；up 是升到 2、3、4 级各几次；exs 只是所选内容库（scope）的错题
+  // 余额：金币减去本周开赛、本人参赛、且属于 scope 这个内容库的各场里本人的投入（开赛即扣）；换默认归属人后，别的内容库开的比赛不扣
   const from = weekStart(today), inWin = d => d >= from && d <= today;
   const up = { 2: 0, 3: 0, 4: 0 };
   let mastered = 0, tried = 0, coins = 0;
@@ -1199,7 +1206,7 @@ function coinsFor(exs, matches, uid, today) {
     if (x.kind === 'up') up[x.n]++; else if (x.kind === 'mastered') mastered++; else tried++;
   }
   let spent = 0;
-  for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10))) spent += stakeOf(mt, uid);
+  for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10)) && matchInScope(mt, scope, owners)) spent += stakeOf(mt, uid);
   return { up, mastered, tried, coins, spent, balance: coins - spent };
 }
 function paperCoins(exs, uid, paperId) {
@@ -2481,7 +2488,7 @@ function renderSettings() {
 // 本组：默认归属人与我的默认归属人相同的用户（缺 settings 读成本人）
 function groupOf(id) { return S.owners[id] || id; }
 function myGroup() { const g = groupOf(S.me); return S.userIds.filter(id => groupOf(id) === g); }
-function coinInfo(id, today) { return coinsFor(S.exercises, S.matches, id, today || localToday()); }
+function coinInfo(id, today) { return coinsFor(S.exercises, S.matches, id, today || localToday(), S.settings.defaultOwner, S.owners); }
 // 这一局播完前，星榜、星与历史先不算它，免得提前看到结果
 function shownMatches() { return matchLive() && S.lift.id ? S.matches.filter(m => m.id !== S.lift.id) : S.matches; }
 function weekStars(id, today) { const r = scoreboard(shownMatches(), myGroup(), today, 'week').find(x => x.id === id); return r ? r.points : 0; }
@@ -2642,7 +2649,7 @@ async function startMatch() {
   const L = S.lift = { id: ref.id, players, stakes, phase: 'saving', kg: null, luck: null, pts: null, err: null }; S.hist = null; S.extra = 0; render();
   const res = liftRound(stakes, Math.random), pts = roundPoints(res.places);
   try {
-    await ref.set({ game: 'lift', by: S.me, players, rounds: 1, balances, stakes, at: nowLocal(), points: [], lifts: [], luck: [] });
+    await ref.set({ game: 'lift', by: S.me, owner: S.settings.defaultOwner, players, rounds: 1, balances, stakes, at: nowLocal(), points: [], lifts: [], luck: [] });
     await S.db.doc('matches/' + ref.id).update({ points: [pts], lifts: [res.kg], luck: [res.luck] });
   } catch (err) { if (S.lift === L) { L.phase = 'error'; L.err = dbErr(err); render(); } return; }
   if (S.lift !== L) return;

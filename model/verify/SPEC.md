@@ -49,6 +49,7 @@ Local functions do not run DOM handlers, registration/profiles, subscriptions, A
 - Word-bank add/reorder/remove preserving every member answer; invalidating edit rejected with affected questions; stale unrelated edits do not overwrite unchanged bank fields.
 - Ownerless single-owner-candidate, mixed-owner, memberless, invalid-owner and incomplete-membership legacy sets: readable practice/history, warning, blocked set mutation/new links/cleanup, no automatic owner persistence.
 - Compatible unchanged legacy Exercise content/attempt writes remain allowed without set repair.
+- Earn coins and join a match under owner A, then switch Default owner to B (same and other device), and back: balance in B excludes A's coins and A's match stakes, never negative because of the switch; switching back restores A's figures; a legacy match without owner counts only when all entrants share the scope; a new match stores its opener's Default owner.
 - Actor differs from content owner; own-only judgment correction and resulting ladder/reward/balance changes; missing supporting snapshots cannot prove match eligibility.
 
 Pure/fake-data cases may support portions of these, but command/lifecycle acceptance requires actual authorized runtime evidence. Do not mark deferred concurrent integrity or unsaved written-answer recovery as passed.

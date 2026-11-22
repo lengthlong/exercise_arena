@@ -20,15 +20,16 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The user opens Games and reviews balance, eligible entrants sharing the opener's Default owner, and recent matches.
+1. The user opens Games and reviews balance in the selected library, eligible entrants sharing the opener's Default owner, and recent matches.
 2. The user selects Lift and may add 0-10 extra coins to the opener's standard 10-coin stake.
-3. The user starts the match after confirming entrants and spending; every entrant must afford their stake and the opener must be included.
+3. The user starts the match after confirming entrants and spending; every entrant must afford their stake and the opener must be included. The match belongs to the opener's Default owner library at that moment.
 4. The page saves the committed start, computes one automatic round, and saves its result before animation.
 5. The user watches or skips the animation; opponents do not need to be online or make decisions.
 6. The user inspects lifts, stars, ranking and the updated Starboard.
 
 ## Extensions
 
+- **1a. The opener's Default owner changes after a match started.** The match stays in its original library: its stakes affect balances there only, not in the newly selected library.
 - **2a. Sprint or Climb is selected.** Their playable rules remain undefined/unavailable; do not invent them.
 - **3a. Fewer than two entrants qualify, the opener is absent, or extra stake is unaffordable.** Do not start.
 - **3b. Required snapshots are unavailable.** Do not infer eligibility from an incomplete group.

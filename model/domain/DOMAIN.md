@@ -82,6 +82,7 @@ classDiagram
     DailyPaper "0..*" --> "1" User : assigned to
     ExamPaper "0..*" --> "0..1" User : created by
     Match "0..*" --> "1" User : opened by
+    Match "0..*" --> "0..1" User : library owner
     Match "0..*" --> "2..*" User : entrants
     Match "1" *-- "2..*" Stake : committed stakes
     Stake "0..*" --> "1" User : committed by
@@ -100,7 +101,7 @@ Attempt/Judgment are embedded values changed through Exercise. Word bank and Sta
 | Daily redo | Actor ladder, selected owner, local date, subject and effective batch size | user/0002, 0006 |
 | Paper assessment | Remaining references, saved actor judgments, distinct hand-in fact | user/0002, 0003, 0004, 0009 |
 | Progress, Streak, Mastery transition | Actor history in subscribed scope; conditional forecast | user/0004, 0009 |
-| Coin and Balance | Weekly daily rewards minus committed match spending | user/0004, 0005, 0009 |
+| Coin and Balance | Weekly daily rewards in the selected library minus committed spending of matches belonging to that library | user/0004, 0005, 0009 |
 | Star and Starboard | Saved rounds, period and users' Default-owner grouping | user/0004, 0005 |
 
 These are computed models, not independently persisted aggregates.
@@ -118,6 +119,7 @@ These are computed models, not independently persisted aggregates.
 9. Unsubmitted daily papers with saved actor attempts are protected, with recovery visible even without due work. Restore saved responses/judgments and retry missing writes/marker; untouched drafts keep fresh replacement. Unsaved written/check-draft cross-session recovery is deferred (user/0002).
 10. Retention deletes eligible submitted daily Paper documents in the actor's current owner scope, not embedded attempts. Details may become unavailable (user/0002, 0004; DATA).
 11. Match start commits spending before round-result persistence. Result failure does not refund; derived eligibility cannot prevent concurrent overspending (user/0005).
+    - A Match belongs to its opener's Default owner library at start. Coins and Stakes are derived in the same library scope, so changing Default owner changes which purse is shown and never charges one library's stake against another's coins. Legacy matches without an owner are attributed only when all entrants currently share the scope; the inferred attribution is not persisted (user/0004, 0005, 0006; DATA).
 12. No writer label proves a transaction/complete snapshot. Attempt-array, marker-map, bank and membership writes retain distinct concurrent overwrite/reference risks.
 
 ## Implementation boundary
