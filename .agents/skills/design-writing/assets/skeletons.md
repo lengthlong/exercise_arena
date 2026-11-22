@@ -2,7 +2,7 @@
 
 Use the applicable outline and omit unused sections. Workspace creation already supplies the journey indexes and container inventory. Add operation contracts and tools when needed.
 
-## Journey index (`journey/user/INDEX.md` or `journey/operator/INDEX.md`)
+## Journey index (`journey/USER.md` or `journey/OPERATOR.md`)
 
 ```markdown
 # <User or operator> journeys
@@ -24,7 +24,7 @@ Status describes the body only (`detailed` or `planned`). Use `—` for an absen
 |---|---|---|---|---|
 ```
 
-## Journey (`journey/<user|operator>/NNNN-<slug>.md`)
+## Journey (`journey/NNNN-<slug>.md`)
 
 ```markdown
 # NNNN <Active verb phrase for the goal>
@@ -166,6 +166,11 @@ For one context, omit the context map, subdomain table and context heading.
 ## Deploy contract additions (`model/operate/deploy/SPEC.md`)
 
 ```markdown
+## Target environments and release channels
+
+| Class | Environment / channel | Purpose and verification gate |
+|---|---|---|
+
 ## Artifact flow
 
 <Mermaid diagram from source to each runtime or storage location, naming artifacts and containers.>
@@ -181,25 +186,27 @@ For one context, omit the context map, subdomain table and context heading.
 ```markdown
 # <Workspace> acceptance contract
 
-<Workspace-specific rules. See design-verify for the process and journeys for success conditions.>
+<Stable workspace acceptance policy only—do not list concrete case names, commands or flags here; maintain those solely in verify/README.md. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration) and journeys for success conditions.>
 
 ## Journeys served
 
-- <Journeys for slice acceptance and pre-delivery verification.>
+- <Journeys for Feature Verify and Integration Verify.>
 
 ## Environments and substitutes
 
 | Environment or dependency | How provided | Real or substitute |
 |---|---|---|
 
-## Entries and coverage
+<If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated boundary and prod-only unverified boundaries.>
 
-| Acceptance entry | Steps or scenarios | Criterion |
-|---|---|---|
+## Phase and cadence policy
+
+- **Catalog:** Concrete entries, commands and tags (`journey/area`, `cost: automated | manual`, `cadence: always | on-touch`, `default phase: feature | integration | both`) live solely in `verify/README.md`.
+- **Defaults and user direction:** `cost: automated` defaults to `always` on `integration` (affected subset on `feature`); `cost: manual` defaults to `on-touch`; explicit per-entry `cadence` overrides the default. Users may widen, narrow or skip cases on any run (skipped cases are marked `unverified` with reason); only `fail` keeps `record/verify/` `in-progress`.
 
 ## Sizing by change
 
-<Affected components or containers and their journey steps.>
+<Affected components or containers and their stable journey boundaries.>
 
 ## External writes and confirmation
 
@@ -207,19 +214,20 @@ For one context, omit the context map, subdomain table and context heading.
 
 ## Changes without implementation records
 
-- <Exempt categories or None.>
+- <Exempt categories (in addition to `verify/`-only commits, which are logged in `record/verify/`), or None.>
 ```
 
-## Acceptance entry index (`verify/README.md`)
+## Acceptance entry catalog (`verify/README.md`)
 
 ```markdown
 # Acceptance entries
 
-<Link to model/verify/SPEC.md and name actual entries.>
+<Link to model/verify/SPEC.md. Sole catalog of concrete entries, commands and tags. Editable by both design-implement and design-verify within the settled acceptance contract.>
 
-| Entry | Instructions | Coverage |
-|---|---|---|
+| Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
+|---|---|---|---|---|---|
 ```
+Tags: `Cost` = `automated` or `manual`; `Cadence` = `always` or `on-touch` (overrides `Cost` default); `Default phase` = `feature`, `integration` or `both`.
 
 ## Operation tool index (`operate/README.md`)
 

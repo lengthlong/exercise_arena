@@ -1,69 +1,55 @@
 # Exercise Arena acceptance contract
 
-Integrated slice acceptance verifies an identified candidate against journey success conditions, not merely helper tests. [Operator/0003](../../journey/operator/0003-accept-integrated-slice.md) owns this goal; [deploy SPEC](../operate/deploy/SPEC.md) supplies test candidates and separately authorized delivery.
+Stable workspace acceptance policy only; concrete entries, commands and tags live solely in [verify/README.md](../../verify/README.md). [0013](../../journey/0013-accept-integrated-slice.md) owns slice acceptance; [deploy SPEC](../operate/deploy/SPEC.md) supplies the `OFFLINE` test candidate when needed and defines release prerequisites; [ADR 0005](../adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md) records the two-tier trade-off. See `design-verify` for Feature Verify (`scope: feature`) versus Integration Verify (`scope: integration`) and `journey/` for success conditions.
 
 ## Journeys served
 
-- [User index](../../journey/user/INDEX.md): user/0001-0010, including their success conditions and affected extensions.
-- [Operator index](../../journey/operator/INDEX.md): operator/0001 aligned evidence, operator/0003 acceptance, operator/0002 target delivery.
+- [User index](../../journey/USER.md): 0001–0010, including their success conditions and affected extensions.
+- [Operator index](../../journey/OPERATOR.md): 0011 aligned local evidence, 0013 acceptance, 0012 target release.
 - Scope slices are owned by the initiating journey index, not duplicated here.
 
 ## Environments and substitutes
 
-| Environment/dependency | Provision | Real or substitute / limit |
+| Environment or dependency | How provided | Real or substitute |
 |---|---|---|
-| Workspace structure | `./check.sh` | Real local checker; no runtime integration |
-| Pure page logic | `node impl/logic.test.js impl/arena.html` | Real source helpers in VM; substitute for runtime only within named logic cases |
-| Authorized test Artifact | Candidate identity, compatible host and account supplied via deploy contract | Real integration; environment/data scope must be established |
-| Platform identity, db, assets, AI | Authorized test actors and permitted writes/uploads | Real when exercised; mocked/source inspection proves only its declared boundary |
-| Production target | Separately authorized accepted-candidate delivery | Real post-publication checks; not an acceptance sandbox |
+| Implementation-stage checks (`./check.sh`, `node impl/logic.test.js impl/arena.html`) | Run locally during implementation | Precondition only, not acceptance evidence; the acceptance baseline's product tree (outside `record/` and `verify/`) must match an implementation record whose registered tests passed |
+| Simulated runtime | Unmodified `impl/arena.html` in headless Chromium against an in-memory `db`/`user` fake with fault injection | Declared substitute for page-side DOM handlers, write sequences and injected failures against `DATA.md`; never proves real platform behavior |
+| Authorized `OFFLINE` runtime | Candidate on an authorized `OFFLINE` test Artifact with its own database and synthetic `test: true` data, supplied via [deploy SPEC](../operate/deploy/SPEC.md) | Real platform for platform boundaries only (identity/registration, real db subscriptions/queries/deletes/partial writes, photo upload and AI recognition, runtime contract and capabilities); never proves production state |
+| Production target (`ONLINE`) | Separately authorized release via [0012](../../journey/0012-publish-artifact.md) | Live post-release checks only; never an acceptance sandbox |
 
-Absent credentials, compatible runtime or authorized test data means unverified, not passed. The current source/tests have not implemented/accepted the new set, protected-submission or stale-preview boundaries.
+Absent credentials, compatible runtime or authorized test data leaves the affected platform boundaries `unverified`, never `pass`.
 
-## Entries and coverage
+## Phase and cadence policy
 
-The actual entry index is [verify/README.md](../../verify/README.md). Its present broad local-coverage wording and published-page walkthrough are incomplete for this contract; implementation must align scoped runtime entries before acceptance.
+- **Catalog:** Concrete entries, commands and tags (`Journey / area`, `Cost: automated | manual`, `Cadence: always | on-touch`, `Default phase: feature | integration | both`) live solely in [verify/README.md](../../verify/README.md). Both `design-implement` and `design-verify` may maintain `verify/` within this contract and `journey/`.
+- **Defaults:**
+  - `Cost: automated` defaults to `always` on `scope: integration` (full suite) and the affected journey subset on `scope: feature`.
+  - `Cost: manual` defaults to `on-touch` on `scope: integration` (only for platform boundaries touched since the last release) and is skipped on `scope: feature`.
+  - Explicit per-entry `Cadence` in `verify/README.md` overrides the `Cost` default.
+- **User direction and verdicts:** Users may widen, narrow or skip entries on any run. Mark unrun, simulated-only real boundaries, stale evidence and user-skipped entries `unverified` with the reason (never `pass`). Keep `record/verify/` `in-progress` **only** when any judgment is `fail`; zero `fail` marks `completed`. Passing automated simulated-runtime judgments are a mandatory release prerequisite under [deploy SPEC](../operate/deploy/SPEC.md); remaining `unverified` platform boundaries are disclosed to the user before `ONLINE` release.
 
-| Entry | Named coverage | Required evidence |
-|---|---|---|
-| Local consistency | Workspace structure/links and managed hash | Final checker exits 0 |
-| Pure-logic regression | Existing tested ladder/judging, due/draw/grouping, assessment helpers, rewards/matches, defaults/retention and duplicate/material projections | Current logic suite exits 0; identify actual helper/case coverage |
-| Access/settings integration | user/0010 and user/0006; S1/S11, C1/C9 | Identity versus owner, defaults versus read failure, current subscription generation, material readiness and failure outcomes |
-| Recording/library integration | user/0001 and user/0007; S2-S4, C2-C3 | Upload/AI/confirmation, duplicate decisions, per-write outcomes, new ownership, legacy restrictions and preservation |
-| Daily/check integration | user/0002, user/0003, user/0008; S5-S7, C4-C6 | Batches, preview scope, actual attempts/markers/judgments, partial writes/restarts and truthful completeness |
-| Progress/override integration | user/0004, user/0009; S8-S9, C5/C7 | Actor projections, own-only override, recalculation, missing details and scope limits |
-| Match integration | user/0005; S10, C8 | Eligible actors/stakes, saved start/result, offline entrants and failure spending |
-| Retention integration | user/0002/user/0004; S12, C9 | Exact 30-day boundary, current scope/actor, attempt survival and failed delete limits |
-| Support/delivery evidence | operator/0001-0003 and owning contracts | Candidate/upstream records, actual entries/verdict, separate authority, target identity/checks and honest recovery limits |
+## Sizing by change
 
-Local functions do not run DOM handlers, registration/profiles, subscriptions, AI, uploads, actual db writes or publication. They cannot certify all journeys.
+All 8 logical components live inside single-file `impl/arena.html` ([components](../arch/arena/COMPONENT.md)), so `on-touch` manual boundaries are sized by touched component or platform capability rather than by file path alone:
 
-## Required changed-boundary cases
+| Touched component or capability in `impl/arena.html` | Affected journeys | Simulated runtime (`automated`) | Authorized `OFFLINE` manual group (`on-touch`) |
+|---|---|---|---|
+| `Session/settings` (`boot()`, identity/registration, owner-scoped subscriptions) | 0006, 0010 | Affected journeys (`feature`) / full (`integration`) | Identity, registration & owner scope |
+| `Platform/data gateway` or `db` write/delete/membership-query paths in `Papers`, `Exercise library`, or `Record` | 0001–0004, 0007–0009 | Affected journeys (`feature`) / full (`integration`) | Real db writes, membership cleanup & retention |
+| `Record` `assets` / `sample` paths | 0001 | Affected journeys (`feature`) / full (`integration`) | Photo upload & AI recognition |
+| Source header runtime contract / capability declaration or target contract pin | 0010, 0012 | Affected journeys (`feature`) / full (`integration`) | Runtime contract & capabilities |
+| Pure UI, layout, or derived projections (`Page UI/state`, `Progress`, `Games`) reusing unchanged write/query paths | Affected user journeys | Affected journeys (`feature`) / full (`integration`) | None (manual groups untouched) |
 
-- New Daily/Exam paper creation initializes an empty marker map; existing absent-map legacy documents retain their inference. Then test a new modern daily paper: objective attempt saved, marker fails, reopen after no questions remain due; recovery stays visible and preserves the paper/saved judgment.
-- Partial attempt writes, multiple protected papers, missing/deleted paper, untouched fresh replacement and all-written zero-saved-attempt limits.
-- Handed-in mixed paper with pending written judgments; existing unjudged questions stay in denominator; empty/deleted-content papers are not mastery evidence.
-- Existing A-set supplementary draft, including partially saved new sets, then owner switch B before save: reject incompatible new links.
-- Preview check paper under A, switch B or lose referenced questions, then create: require re-preview, not B ownership with A references.
-- Valid owned set members and complete empty membership versus incomplete/failed reads; only the proven cleanup branch can delete, otherwise retain/defer.
-- Word-bank add/reorder/remove preserving every member answer; invalidating edit rejected with affected questions; stale unrelated edits do not overwrite unchanged bank fields.
-- Ownerless single-owner-candidate, mixed-owner, memberless, invalid-owner and incomplete-membership legacy sets: readable practice/history, warning, blocked set mutation/new links/cleanup, no automatic owner persistence.
-- Compatible unchanged legacy Exercise content/attempt writes remain allowed without set repair.
-- Earn coins and join a match under owner A, then switch Default owner to B (same and other device), and back: balance in B excludes A's coins and A's match stakes, never negative because of the switch; switching back restores A's figures; a legacy match without owner counts only when all entrants share the scope; a new match stores its opener's Default owner.
-- Actor differs from content owner; own-only judgment correction and resulting ladder/reward/balance changes; missing supporting snapshots cannot prove match eligibility.
-
-Pure/fake-data cases may support portions of these, but command/lifecycle acceptance requires actual authorized runtime evidence. Do not mark deferred concurrent integrity or unsaved written-answer recovery as passed.
-
-## Sizing and verdicts
-
-Select the smallest coverage spanning changed journeys/components, cross-root writes, compatibility and failure paths; preserve unaffected regression checks. Record candidate identity, upstream implementation rows, environment/substitutes, observations and passed/failed/unverified boundaries under `record/verify/`. Required incomplete coverage prevents an accepted verdict. A defect returns to implementation; a new design boundary returns to discussion.
+Do not mark deferred concurrent integrity or unsaved written-answer recovery as `pass`.
 
 ## External writes and confirmation
 
-- Test publication, db/asset changes and cleanup need named environment/data authorization; no production data is implicitly authorized.
-- Production publication/restoration needs separate delivery authority and matching acceptance evidence.
-- Field logs, credentials and child content stay outside the repo; records retain non-sensitive identity/coverage/verdict evidence.
+- Each authorized `OFFLINE` runtime run requires separate user confirmation for the named test Artifact, synthetic `test: true` data/asset writes and cleanup; production is never implicitly authorized.
+- `ONLINE` release requires separate authorization and matching integration acceptance under [deploy SPEC](../operate/deploy/SPEC.md).
+- Field logs, credentials and child content stay outside the repo; `record/verify/` retains only non-sensitive candidate identity, scope, judgments and disclosed unverified boundaries.
 
 ## Changes without implementation records
 
-None for runtime slice acceptance. A design-only write-off may verify local consistency/regression and hand off gaps, but does not itself establish integrated acceptance.
+- `verify/`-only commits are logged in `record/verify/` and covered by `baseline` rather than listed as unrecorded product changes.
+- Mechanical toolkit upgrades and design-only write-offs touching no `impl/` or `operate/` runtime behavior carry no runtime acceptance scope.
+- All other product commits outside `record/` and `verify/` require matching implementation records or explicit coverage in `record/verify/`.

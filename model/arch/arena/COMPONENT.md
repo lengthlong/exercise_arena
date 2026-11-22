@@ -46,7 +46,7 @@ flowchart TB
 | Session/settings | Open/register, settings, reload/readiness | User and own settings through gateway | Actor separate from owner; snapshots/generation; referenced legacy material |
 | Record | New/saved input, uploads/AI, draft validation and saves | Set and Exercise through gateway | Draft scope, duplicates, partial-write outcomes |
 | Exercise library | Search/details, content/material edits/delete, own override | Exercise/Set through gateway | History preservation, bank/membership checks, conditional cleanup |
-| Papers | Daily recovery, check creation/taking, submit/judge, runtime retention | Paper and Exercise attempts through gateway | Protected submissions, preview scope, acknowledgment versus assessment |
+| Papers | Daily recovery, check creation, paper rows and the Paper page (taking, review, submit/judge, override), runtime retention | Paper and Exercise attempts through gateway | Protected submissions, preview scope, acknowledgment versus assessment, one page for taking and reviewing |
 | Progress | Ladder/due work, assessment, streak/mastery, rewards/rankings | None | Actor projections in selected scope |
 | Games | Eligibility, stakes, start and automatic result | Match through gateway | Committed spending; animate after saved result |
 | Platform/data gateway | Identity/profiles, db reads/writes, assets and sample | Sole logical persistence adapter for six roots | Acknowledgment/failure, not transactions or automatic repair |
@@ -59,5 +59,6 @@ Coordinators validate actions and request gateway operations. Gateway snapshots 
 - New set links and check creation validate current owner scope. Existing compatible legacy references may survive ordinary content/attempt edits without automatic repair.
 - Progress never writes a second ladder, score or coin store.
 - [SPEC.md](./SPEC.md) owns runtime outcomes; [parent scenarios](../SCENARIO.md) map journey steps; DATA owns shapes/compatibility.
+- Papers shows one Paper page per paper and one row meaning (Start or Review) in every list; Progress supplies its outcome block (C10).
 - Cache/helper/animation layout, tested draw/tie/duplicate algorithms and source modularization remain implementation choices.
 - Current code has not implemented the new ownership/legacy, recovery or stale-preview boundaries. Strong concurrent integrity and complete unsaved written-answer recovery remain deferred.

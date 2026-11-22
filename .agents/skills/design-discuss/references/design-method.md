@@ -14,7 +14,7 @@ State the current behavior, pain and people affected, attributing user-supplied 
 
 ## Starting points
 
-- **New goal:** Open `journey/user/INDEX.md` and `journey/operator/INDEX.md`, identify goals and overlapping roles, and draft the most important journeys.
+- **New goal:** Open `journey/USER.md` and `journey/OPERATOR.md`, identify goals and overlapping roles, and draft the most important journeys.
 - **Existing design:** Locate affected journey steps, system scenarios and cross-role dependencies, then rederive the model. Raise conflicts with written journeys for decision.
 - **System trigger:** Trace runtime effects to container scenarios, explicit external/scheduled support to operation contracts, and impacts on people to their journeys.
 
@@ -28,7 +28,7 @@ State the current behavior, pain and people affected, attributing user-supplied 
 3. **Trace operational support steps:**
    - Assign each support item one work group: `observe` (monitoring), `respond` (alerts/incidents), `deploy` (install, deploy, release, rollback), `recover` (backup, restore, drills), `capacity` (performance/efficiency) or `maintain` (routine maintenance). Create only groups in use and call across groups without copying.
    - Keep runtime monitoring services, recovery controllers, scheduled backup services and formal diagnostic CLIs in `model/arch/` and `impl/` according to their runtime responsibilities.
-   - Define operator and existing authorization, environment and dependencies, object, allowed actions and entry, prerequisites, and observable success, failure, stop, verification and recovery boundaries (for `deploy`, include artifacts, sources and targets; both acceptance and delivery use deploy entries).
+   - Define operator and existing authorization, environment and dependencies, object, allowed actions and entry, prerequisites, and observable success, failure, stop, verification and recovery boundaries (for `deploy`, include artifacts, sources, `OFFLINE` and `ONLINE` target environments, release announcement channels, and any read-only live-identity check needed for pre-announcement dark launches; both acceptance and release use deploy entries).
    - Trace the user's machine, environment, credentials and dependencies to an operator journey or external owner. Do not commit field logs, credentials, incident examples or operational results into the design repo by default—govern retention explicitly by journey agreement. Record gaps, substitutes and exclusions (a substitute proves only its stated boundary).
 4. **Reconcile before write-off:**
    - Assign each responsibility to one component, each collaboration to one scenario, each aggregate one writer, and context relationships to the context map.

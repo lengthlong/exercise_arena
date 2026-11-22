@@ -4,7 +4,7 @@ The page is a black-box container here; [components](./arena/COMPONENT.md) own i
 
 ## S1 Open and reload owner scope
 
-- **Trigger / journey steps** user/0010 1-6; user/0006 4-5 and another-device settings change.
+- **Trigger / journey steps** 0010 1-6; 0006 4-5 and another-device settings change.
 - **Entry responsibility** Session/settings.
 
 ```mermaid
@@ -28,7 +28,7 @@ Identity/settings precede owner subscriptions. Reload cancels prior generation; 
 
 ## S2 Record new input
 
-- **Trigger / journey steps** user/0001 1-7, new photos/text alternative.
+- **Trigger / journey steps** 0001 1-7, new photos/text alternative.
 - **Entry responsibility** Record.
 
 ```mermaid
@@ -53,7 +53,7 @@ AI is not the decision maker. Upload/AI/parse cancellation and per-draft failure
 
 ## S3 Record from saved material
 
-- **Trigger / journey steps** user/0001 2-7, saved material alternative.
+- **Trigger / journey steps** 0001 2-7, saved material alternative.
 - **Entry responsibility** Record.
 
 ```mermaid
@@ -78,7 +78,7 @@ Saved photo groups are derived from scoped independent exercises; they are not a
 
 ## S4 Edit or delete library content
 
-- **Trigger / journey steps** user/0007 1-6.
+- **Trigger / journey steps** 0007 1-6.
 - **Entry responsibility** Exercise library.
 
 ```mermaid
@@ -103,7 +103,7 @@ Edits preserve history/owner/timestamps; usable material, subject and every memb
 
 ## S5 Daily batch, submission and protected recovery
 
-- **Trigger / journey steps** user/0002 1-7; recovery also when due count is zero.
+- **Trigger / journey steps** 0002 1-7; recovery also when due count is zero.
 - **Entry responsibility** Papers; Progress supplies actor-specific due work.
 
 ```mermaid
@@ -147,7 +147,7 @@ No multi-root transaction is claimed. On failed marker/attempt writes, protect o
 
 ## S6 Prepare an Exam paper
 
-- **Trigger / journey steps** user/0008 1-6.
+- **Trigger / journey steps** 0008 1-6.
 - **Entry responsibility** Papers.
 
 ```mermaid
@@ -167,7 +167,7 @@ An empty pool is not a successful paper. Stale scope/unavailable references requ
 
 ## S7 Take an Exam paper
 
-- **Trigger / journey steps** user/0003 1-6.
+- **Trigger / journey steps** 0003 1-6.
 - **Entry responsibility** Papers.
 
 ```mermaid
@@ -189,7 +189,7 @@ Each actor submits once. Wrong check judgments reset ladder; right/partial do no
 
 ## S8 Correct own saved judgment
 
-- **Trigger / journey steps** user/0009 1-5.
+- **Trigger / journey steps** 0009 1-5.
 - **Entry responsibility** Exercise library/Papers; Progress derives consequences.
 
 ```mermaid
@@ -207,7 +207,7 @@ This changes an existing own Attempt, not authorship or a new attempt/coin grant
 
 ## S9 Read progress
 
-- **Trigger / journey steps** user/0004 1-5; user/0002 1/7, user/0003 6, user/0009 5.
+- **Trigger / journey steps** 0004 1-5; 0002 1/7, 0003 6, 0009 5.
 - **Entry responsibility** Progress.
 
 ```mermaid
@@ -224,7 +224,7 @@ Reads create no durable projection store. Forecasts are conditional; corrections
 
 ## S10 Match start and result
 
-- **Trigger / journey steps** user/0005 1-6.
+- **Trigger / journey steps** 0005 1-6.
 - **Entry responsibility** Games.
 
 ```mermaid
@@ -244,7 +244,7 @@ The committed start records the opener's Default owner as the match's library. O
 
 ## S11 Save own settings
 
-- **Trigger / journey steps** user/0006 1-5.
+- **Trigger / journey steps** 0006 1-5.
 - **Entry responsibility** Session/settings.
 
 ```mermaid
@@ -263,7 +263,7 @@ Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered Use
 ## S12 Page-triggered daily-paper retention
 
 - **Trigger** Required Exercise/Paper/Set views ready, and after scope reload.
-- **Journeys served** user/0002, user/0004; system reaction, not a new operator journey.
+- **Journeys served** 0002, 0004; system reaction, not a new operator journey.
 - **Entry responsibility** Papers.
 
 ```mermaid
@@ -277,22 +277,54 @@ sequenceDiagram
 
 Eligibility/30-day boundary and legacy hand-in inference belong to DATA. Attempts survive; failed deletions are best-effort and do not authorize a background global purge (C9).
 
+## S13 Open and use a paper page
+
+- **Trigger / journey steps** 0002 1/4-7, 0003 1-6, 0004 4-5, 0009 1-5.
+- **Entry responsibility** Papers; Progress supplies the outcome block.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant P as Arena page
+    participant D as Platform db
+    U->>P: Choose a paper row, or start a Subject batch
+    alt Actor has not handed in
+        P-->>U: Taking page, one card at a time
+        U->>P: Hand in (S5 or S7 writes)
+    else Actor has handed in
+        P-->>U: Reviewing page from stored attempts
+    end
+    P-->>U: Outcome block, status and cards
+    opt Written answer pending with its response in this session
+        U->>P: Choose Right, Partial or Wrong
+        P->>D: Save written attempt
+    end
+    opt Judged card
+        U->>P: Choose Override
+        P->>D: Replace own judgment
+    end
+    D-->>P: Acknowledgment or failure
+    P-->>U: Recomputed outcome, or prior result kept
+```
+
+The same page serves the first review right after hand-in and every later one; rows from Today and Papers share the Start-or-Review rule. Pending judgments are shown as not judged, never as no answer, and cannot be created without their response. No stored field is added (C10).
+
 ## Support scenarios
 
-Operator/0001 maps to [maintain SPEC](../operate/maintain/SPEC.md). Operator/0003 uses [acceptance SPEC](../verify/SPEC.md) and deploy-provided test candidates. Operator/0002 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
+0011 maps to [maintain SPEC](../operate/maintain/SPEC.md). 0013 uses [acceptance SPEC](../verify/SPEC.md) and deploy-provided test candidates. 0012 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
 
 ## Journey coverage
 
 | Journey | Runtime/support coverage |
 |---|---|
-| user/0001 | S1-S3; C1-C2 |
-| user/0002 | S5/S9/S12; C4-C5/C7/C9 |
-| user/0003 | S7/S9; C5-C7 |
-| user/0004 | S9/S12; C7/C9 |
-| user/0005 | S10; C8 |
-| user/0006 | S1/S11; C1/C9 |
-| user/0007 | S4; C3 |
-| user/0008 | S6; C6 |
-| user/0009 | S8/S9; C5/C7 |
-| user/0010 | S1; C1 |
-| operator/0001-0003 | Owning maintain/deploy/acceptance contracts |
+| 0001 | S1-S3; C1-C2 |
+| 0002 | S5/S9/S12/S13; C4-C5/C7/C9/C10 |
+| 0003 | S7/S9/S13; C5-C7/C10 |
+| 0004 | S9/S12/S13; C7/C9/C10 |
+| 0005 | S10; C8 |
+| 0006 | S1/S11; C1/C9 |
+| 0007 | S4; C3 |
+| 0008 | S6; C6 |
+| 0009 | S8/S9/S13; C5/C7/C10 |
+| 0010 | S1; C1 |
+| 0011-0013 | Owning maintain/deploy/acceptance contracts |

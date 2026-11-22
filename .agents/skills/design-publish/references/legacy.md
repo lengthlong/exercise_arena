@@ -16,7 +16,7 @@ Use `git log --follow` and commit diffs to trace prior paths on both the hub and
 - Specifications moved into `design/spec/` before `design/` became `model/`.
 - Domain `OVERVIEW.md` and architecture `CONTAINERS.md` were briefly named `README.md` in their own directories before the current `GLOSSARY.md`, `DOMAIN.md`, `CONTAINER.md`, `SCENARIO.md`, journey index and `SPEC.md` layout.
 - Component files and their specifications later moved into owning container directories (`model/arch/<container>/`).
-- Journeys moved from `model/journey/` into `journey/user/` and `journey/operator/`; compare both new indexes with the old index, including plans and dependencies.
+- Journeys moved from `model/journey/` into `journey/user/` and `journey/operator/`, and later flattened into `journey/` with `USER.md` and `OPERATOR.md`; compare the current indexes with prior indexes, including plans, renumbered IDs and dependencies.
 - Operation contracts split from tooling READMEs into `model/operate/`; use historical content and diffs to reconstruct splits.
 
 Preserve recorded baselines and report any ambiguous or lossy reconstruction before syncing.
