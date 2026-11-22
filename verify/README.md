@@ -18,7 +18,7 @@ Tags: `Cost` = `automated` or `manual`; `Cadence` = `always` or `on-touch` (over
 
 ## Simulated runtime notes
 
-`verify/fake-platform-smoke.js` runs the unmodified `impl/arena.html` in headless Chromium against an in-memory `db`/`user` fake with fault injection (requires `playwright` and Chromium). Exit code 0 means every selected case passed. A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics. Run `node verify/fake-platform-smoke.js --list` to inspect the current case list.
+`verify/fake-platform-smoke.js` runs the unmodified `impl/arena.html` in headless Chromium against an in-memory `db`/`user` fake with fault injection (requires `playwright` and Chromium; set `CHROME_PATH` to use a local Chrome binary when Playwright's bundled Chromium is absent). Exit code 0 means every selected case passed. A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics. Run `node verify/fake-platform-smoke.js --list` to inspect the current case list.
 
 ## Authorized `OFFLINE` runtime prerequisites
 

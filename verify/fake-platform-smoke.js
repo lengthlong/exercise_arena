@@ -318,7 +318,7 @@ add('registration-failure', ['0010'], async c => {
   if (args.includes('--list')) { cases.forEach(k => console.log(k.journeys.join(',').padEnd(10), k.name)); return; }
   if (!sel.length) { console.error('no case matches --journeys ' + wanted); process.exit(2); }
   const { chromium } = require('playwright');
-  const b = await chromium.launch(); let failed = 0;
+  const b = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}); let failed = 0;
   for (const k of sel) {
     const seed = baseSeed(); if (k.opts.seed) k.opts.seed(seed);
     const pg = await b.newPage(); const errs = [];
