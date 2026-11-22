@@ -1,7 +1,7 @@
 # Shrink legacy oversized photos: tool and runbook
 
 > status: completed (2026-11-22)
-> location: branch `develop`, commits `66df996..1337315`
+> location: branch `develop`, commits `66df996..5be10f8`
 
 ## Upstream
 <!-- upstream -->
@@ -48,3 +48,18 @@
   - Real pinned writes and version conflicts.
   - Display in the live page.
   - Snapshot `20261122` itself no longer verifies: two unreferenced thumbnails were removed locally. The real run needs a fresh verified snapshot.
+
+## Round notes
+
+- **Production run (2026-11-22, each production stage separately confirmed by the user).**
+  - Stage 1: pre-repair snapshot `20261122-2` verified (1,479 docs, 346 assets, matches the platform listing); app access frozen by the users.
+  - Stage 2: canary on exercise `r2aae5lra6gpk2clojzv` (orientation-6 photo). The upload id had the `/_blob/<32 hex>` shape, the sha256 read back matched, the images-only update went from version 5 to 6, and the user confirmed it displayed correctly.
+  - Stage 3: 113 further uploads; every reported size matched its local file.
+  - Stage 4: 124 pinned images-only updates in 3 atomic batches, with no conflicts.
+  - Stage 5: `verify` passed on all 1,095 exercises and sets. Platform totals were exactly +114 files and +65,681,829 bytes, and 4 sampled sha256 values matched; the store was seeded from local shrunk copies, a choice now documented in the runbook.
+  - Stage 6: a fresh read (`20261122-4-predelete`) gave the same deletion set of 158; all 158 were confirmed present in the verified pre-repair backup, then deleted.
+  - Stage 7: post-repair snapshot `20261122-5-postrepair` verified with 302 assets and 197,493,834 bytes matching the listing, 0 unreferenced, and `verify` OK again.
+- **Defect found and fixed in the recover tool (`5be10f8`).** `backup.mjs finalize` compared the whole never-pruned store against the platform listing, which cannot match after platform deletions. Fixed with `--ids`.
+- **Observed during the access freeze.** One user's `settings.defaultOwner` changed (version 20→21) between the pre- and post-repair snapshots, a normal page write unrelated to photos. `papers`, `users` and `matches` were identical.
+- **Result.** Every referenced photo is now within 2400 px. Platform storage went from 412,096,799 to 197,493,834 bytes (346 to 302 files).
+
