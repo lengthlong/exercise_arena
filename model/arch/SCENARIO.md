@@ -220,7 +220,7 @@ sequenceDiagram
     P-->>U: Actor-specific projections and unavailable references
 ```
 
-Reads create no durable projection store. Forecasts are conditional; corrections can alter historical mastery/rewards and produce negative balance. Paper retention affects details but not Exercise attempts; scope selection does not impersonate owner progress (C7).
+Reads create no durable projection store. Forecasts are conditional; corrections can alter historical mastery/rewards and produce negative balance. Paper retention affects details but not Exercise attempts; scope selection does not impersonate owner progress. Coins and balance are derived in the selected library only; match spending of other libraries is excluded (C7).
 
 ## S10 Match start and result
 
@@ -240,7 +240,7 @@ sequenceDiagram
     P-->>U: Animate saved result or report spent-but-failed result
 ```
 
-Opponents may be offline. Missing supporting snapshots cannot prove eligibility. Result failure does not refund; simultaneous starts may overspend. Sprint/Climb rules remain deferred (C8).
+The committed start records the opener's Default owner as the match's library. Opponents may be offline. Missing supporting snapshots cannot prove eligibility. Result failure does not refund; simultaneous starts may overspend. Sprint/Climb rules remain deferred (C8).
 
 ## S11 Save own settings
 
@@ -258,7 +258,7 @@ sequenceDiagram
     P-->>U: Saved/unsaved outcome and owner reload when required
 ```
 
-Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks (C9).
+Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks. After an owner change, balance is recomputed in the new library and never charges another library's match stakes (C9, C7).
 
 ## S12 Page-triggered daily-paper retention
 

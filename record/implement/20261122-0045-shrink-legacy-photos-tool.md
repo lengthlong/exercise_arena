@@ -6,16 +6,16 @@
 ## Upstream
 <!-- upstream -->
 
-- 0044 #1 no-implementation Journey 0014 is served by the existing `backups/` tool; nothing else to build.
-- 0044 #2 implemented `backups/README.md` links the recover contract and states retention; the wording "content-addressed" is corrected; `operate/README.md` lists the recover tool.
-- 0044 #3 implemented `operate/capacity/shrink-legacy.mjs`, its tests and runbook; `CLAUDE.md` map row `operate/capacity/`; `.gitignore` ignores `backups/repairs/`.
-- 0044 #4 no-implementation Index text only.
-- 0044 #5 no-implementation The page already shrinks new photos and keeps the decode-failure fallback; no page change.
-- 0044 #6 no-implementation The page never deleted assets; wording only.
-- 0044 #7 no-implementation Map row already updated at write-off.
-- 0044 #8 no-implementation Journey wording only.
-- 0044 #9 no-implementation Acceptance policy wording only; the capacity and recover tools change no page behavior.
-- 0044 #10 no-implementation Deploy contract wording only.
+- 0045 #1 no-implementation Journey 0014 is served by the existing `backups/` tool; nothing else to build.
+- 0045 #2 implemented `backups/README.md` links the recover contract and states retention; the wording "content-addressed" is corrected; `operate/README.md` lists the recover tool.
+- 0045 #3 implemented `operate/capacity/shrink-legacy.mjs`, its tests and runbook; `CLAUDE.md` map row `operate/capacity/`; `.gitignore` ignores `backups/repairs/`.
+- 0045 #4 no-implementation Index text only.
+- 0045 #5 no-implementation The page already shrinks new photos and keeps the decode-failure fallback; no page change.
+- 0045 #6 no-implementation The page never deleted assets; wording only.
+- 0045 #7 no-implementation Map row already updated at write-off.
+- 0045 #8 no-implementation Journey wording only.
+- 0045 #9 no-implementation Acceptance policy wording only; the capacity and recover tools change no page behavior.
+- 0045 #10 no-implementation Deploy contract wording only.
 
 ## Paired acceptance entries and affected journey steps
 

@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,matchInScope,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -549,6 +549,20 @@ assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 1, stakes: { uS: 17, uA
 assert.strictEqual(bal([{ players: ['uA', 'uS'], rounds: 1, stakes: { uA: 20, uS: 10 }, at: '2026-10-15T20:00', points: [] }]), '14,10,4');   // 别人多投的不算我的
 assert.strictEqual(bal([{ players: ['uS', 'uA'], rounds: 5, at: '2026-10-11T23:55', points: [] }]), '14,0,14');   // 上周日开赛的不扣
 assert.strictEqual(bal([{ players: ['uA', 'uB'], rounds: 1, at: CD + 'T09:00', points: [] }]), '14,0,14');
+// 余额跟着所选内容库：开赛时存 owner（开赛人的默认归属人），换了默认归属人，别的内容库开的比赛不扣（换默认归属人后余额不因此变负）
+const balIn = (matches, scope, owners, uid) => { const c = L.coinsFor([{ id: 'c', createdAt: '2026-09-01', attempts: m4 }], matches, uid || 'uS', CD, scope, owners); return [c.coins, c.spent, c.balance].join(); };
+const mOwn = { players: ['uS', 'uA'], rounds: 1, owner: 'uS', stakes: { uS: 10, uA: 10 }, at: '2026-10-15T20:00', points: [] };
+assert.strictEqual(balIn([mOwn], 'uS', { uS: 'uS', uA: 'uS' }), '14,10,4');   // 在开赛的内容库里照扣
+assert.strictEqual(balIn([mOwn], 'uB', { uS: 'uB', uA: 'uS' }), '14,0,14');   // 换到 uB 的内容库：uS 内容库的比赛不扣
+assert.strictEqual(balIn([mOwn], undefined), '14,10,4');   // 不给 scope 时不分库
+// 旧比赛没有 owner：所有参赛者当前的默认归属人都是 scope 才算，否则不扣
+const mLegacy = { players: ['uS', 'uA'], rounds: 1, at: '2026-10-15T20:00', points: [] };
+assert.strictEqual(balIn([mLegacy], 'uS', { uS: 'uS', uA: 'uS' }), '14,10,4');
+assert.strictEqual(balIn([mLegacy], 'uB', { uS: 'uB', uA: 'uS' }), '14,0,14');   // 只有我换了：不扣
+assert.strictEqual(balIn([mLegacy], 'uB', { uS: 'uB', uA: 'uB' }), '14,10,4');   // 两人都换到 uB：照扣
+assert.strictEqual(balIn([mLegacy], 'uS', {}), '14,0,14');   // uA 没有设置时默认归属人是自己，不在 uS 的库里
+assert.strictEqual(balIn([Object.assign({}, mOwn, { owner: '' })], 'uS', { uS: 'uS', uA: 'uS' }), '14,10,4');   // 空 owner 按旧比赛推
+assert.strictEqual(L.matchInScope({ players: [] }, 'uS', {}), false);   // 没有参赛者可推时不属于任何库
 assert.strictEqual(L.stakeOf({ rounds: 1, stakes: { uS: 15 } }, 'uS'), 15);
 assert.strictEqual(L.stakeOf({ rounds: 1, stakes: { uS: 15 } }, 'uA'), 10);
 // 开赛人最多多投：0–10，且余额要够付 10 + 多投

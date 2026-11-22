@@ -1,4 +1,4 @@
-# 0044 Shrink legacy oversized photos
+# 0045 Shrink legacy oversized photos
 
 > status: completed (2026-11-22)
 > location: branch `develop`, baseline `6692327` (`develop`)

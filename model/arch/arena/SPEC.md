@@ -80,7 +80,7 @@ The source header records its platform runtime declaration; this review does not
 ## C7 Read progress and rewards
 
 - **Journeys / scenarios** 0004 1-5 and outcome reads in 0002, 0003, 0005, 0009; S9.
-- **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity.
+- **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity. Coins and Balance use one scope: coins from the selected library's attempts, spending only from matches belonging to that library (owner field, or legacy inference per DATA).
 - **Rules** GLOSSARY/DATA own meanings and derivation contracts; exact algorithms stay executable in mapped source/tests. Keep taxonomy IDs in TAX.
 - **Failure/limits** Empty activity differs from failed supporting reads. Forecasts are conditional; local dates/week boundaries are device-local. Corrections and concurrent match starts may cause negative balances; retained attempts may have unavailable paper details.
 - **Writes** None: no persisted ladder, score or coin side store.
@@ -89,14 +89,14 @@ The source header records its platform runtime declaration; this review does not
 
 - **Journeys / scenarios** 0005 1-6; S10.
 - **Prerequisites** At least two eligible entrants in opener's Default-owner group, including opener; each can afford standard stake, opener also optional extra stake. Required group/balance snapshots must be ready.
-- **Outcome** Save committed start/spending, compute one Lift round, save result before animation. Other entrants may be offline; extra stake is not guaranteed victory.
+- **Outcome** Save committed start/spending with the opener's Default owner as the match's library, compute one Lift round, save result before animation. Other entrants may be offline; extra stake is not guaranteed victory.
 - **Failure** Start failure differs from saved-start/failed-result; committed stake stays spent. No refund/automatic result recovery is promised.
 - **Limits** Derived balances cannot prevent simultaneous-device overspending. Sprint/Climb rules remain deferred.
 
 ## C9 Persist settings and retain papers
 
 - **Journeys / scenarios** 0006 1-5; 0002/0004 affected by S12; S11-S12.
-- **Settings** Write only actor settings with acknowledgment; DATA owns defaults/clamping. Reload owner scope through C1, including another-device changes. Nonempty ID is not automatic validation of a registered owner.
+- **Settings** Write only actor settings with acknowledgment; DATA owns defaults/clamping. Reload owner scope through C1, including another-device changes; coins, balance and match eligibility are recomputed in the new scope only, so the change itself cannot produce a negative balance. Nonempty ID is not automatic validation of a registered owner.
 - **Retention** After required current views are ready, delete only eligible submitted daily Paper documents for that actor/current owner scope using DATA's exact age boundary. Attempts survive.
 - **Failure** Settings failure is unsaved, not success. Retention deletes are best-effort; unavailable scope cannot authorize a global purge.
 - **Boundary** Runtime cleanup is not deployment, maintenance or ownership-migration authorization.

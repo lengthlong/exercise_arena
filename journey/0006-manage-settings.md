@@ -22,7 +22,7 @@ sequenceDiagram
 1. The user opens Settings and inspects their own effective values.
 2. The user changes Default owner or daily limit. The limit is 1-50 per subject batch, default 10; it is not a cap on the whole day.
 3. The page writes the setting change and reports acknowledgment.
-4. If owner changed, the page cancels old subscriptions, shows loading and obtains the new owner scope.
+4. If owner changed, the page cancels old subscriptions, shows loading and obtains the new owner scope; coins, balance and match eligibility are recomputed in that scope.
 5. The user confirms the effective settings and affected views, including recording and paper preparation.
 
 ## Extensions
@@ -34,6 +34,7 @@ sequenceDiagram
 - **4b. Another device changes the actor's settings.** Apply the same owner reload boundary.
 - **4c. Retained recording drafts or check previews refer to the previous owner.** New reference writes must validate current scope; a stale check preview requires re-preview.
 - **5a. Another owner's library is selected.** View/practice/edit access continues; identity, own judgments and content ownership do not transfer.
+- **5b. Coins or matches belong to the previous library.** They are neither counted nor deducted in the new library, so changing owner never produces a negative balance by itself; switching back restores the previous library's coins, spending and balance.
 
 ## Runtime trace
 
