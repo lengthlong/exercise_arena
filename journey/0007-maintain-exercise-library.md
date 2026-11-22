@@ -36,7 +36,7 @@ sequenceDiagram
 - **5a. The write fails.** Report failure and retryable session work; do not claim a saved edit.
 - **5b. An unrelated material/title edit is saved from a stale form.** It must not overwrite unchanged owner, subject or word-bank fields.
 - **6a. An Exercise is deleted.** Its embedded attempts for every actor disappear; papers show missing references rather than reconstructed history.
-- **6b. Cleanup reads are incomplete, ownership is invalid, or deletion fails.** Retain/defer set cleanup and report it separately even if the Exercise change succeeded. Do not purge other orphan sets or delete assets.
+- **6b. Cleanup reads are incomplete, ownership is invalid, or deletion fails.** Retain/defer set cleanup and report it separately even if the Exercise change succeeded. The page does not purge other orphan sets or delete assets; only an authorized [capacity operation](../model/operate/capacity/SPEC.md) deletes assets.
 - **6c. Another browser mutates membership/material concurrently.** Serial validation is not a transactional reference-integrity guarantee.
 
 ## Runtime trace

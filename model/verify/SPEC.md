@@ -5,7 +5,7 @@ Stable workspace acceptance policy only; concrete entries, commands and tags liv
 ## Journeys served
 
 - [User index](../../journey/USER.md): 0001–0010, including their success conditions and affected extensions.
-- [Operator index](../../journey/OPERATOR.md): 0011 aligned local evidence, 0013 acceptance, 0012 target release.
+- [Operator index](../../journey/OPERATOR.md): 0011 aligned local evidence, 0013 acceptance, 0012 target release. 0014 backups and capacity repairs are verified by their own contracts ([recover](../operate/recover/SPEC.md), [capacity](../operate/capacity/SPEC.md)), not by slice acceptance.
 - Scope slices are owned by the initiating journey index, not duplicated here.
 
 ## Environments and substitutes
@@ -52,4 +52,5 @@ Do not mark deferred concurrent integrity or unsaved written-answer recovery as 
 
 - `verify/`-only commits are logged in `record/verify/` and covered by `baseline` rather than listed as unrecorded product changes.
 - Mechanical toolkit upgrades and design-only write-offs touching no `impl/` or `operate/` runtime behavior carry no runtime acceptance scope.
+- Backup and capacity-repair tools change no page behavior; their runs are verified by the [recover](../operate/recover/SPEC.md) and [capacity](../operate/capacity/SPEC.md) contracts and carry no slice acceptance scope.
 - All other product commits outside `record/` and `verify/` require matching implementation records or explicit coverage in `record/verify/`.

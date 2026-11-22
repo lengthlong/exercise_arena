@@ -1,7 +1,8 @@
 # 0044 Shrink legacy oversized photos
 
-> status: in-progress (2026-11-22)
+> status: completed (2026-11-22)
 > location: branch `develop`, baseline `6692327` (`develop`)
+> confirmation: "Confirm write-off" (2026-11-22), write-off rows 1–10 and agent decisions A1–A3, plus same-session implementation handoff (operate READMEs, map rows, repair tool). Excluded and separately confirmed later: the production canary, the `images` rewrites and every asset deletion.
 
 ## Background and goal
 
@@ -145,20 +146,22 @@ Evidence: review F6. The page stores raw 32-hex ids from its own upload and show
 **Decision:** A, user (2026-11-22), adopting the recommendation, including the per-asset delete confirmations.
 
 ## Write-off plan
-<!-- write-off-plan -->
+<!-- write-off -->
 
 | # | Question | Target | Change | Verification | Actual result and verification |
 |---|---|---|---|---|---|
-| 1 | Q4 | `journey/0014-back-up-production-library.md` (new), `journey/OPERATOR.md` | Operator journey 0014: goal, trigger (user-scheduled or before any production repair), main steps (snapshot db and page, list assets, fetch only new assets, finalize, verify), extensions (listing/count mismatch, missing referenced asset, verify failure, removed local file), success = a verified snapshot that can restore every document and asset. Index row and diagram link 0014 → repair prerequisite | `./check.sh` | |
-| 2 | Q4, A3 | `model/operate/recover/SPEC.md` (new) | Recover contract: operator/authorization (read-only production access as owner), environment (local checkout, Node, Artifact tools), objects (db collections, assets, page), layout (full db snapshot, incremental asset store keyed by asset id and checked against sha256 hashes, manifest), success/failure/stop/verification boundaries, retention (local only, git-ignored, never in repo; never prune an asset a retained snapshot lists; keep the pre-repair snapshot indefinitely; off-machine copy recommended, not required, per Q6), restore = separately authorized, asset ids not reproducible on re-upload, `images`-only reverse rewrite instead of whole-document `set` | `./check.sh` | |
-| 3 | Q1–Q3, A1–A3 | `model/operate/capacity/SPEC.md` (new) | Capacity contract "Shrink legacy oversized photos" (one-off per Q7, access freeze per Q5, canary per Q8, single local backup accepted per Q6): prerequisite verified 0014 snapshot taken immediately before; inventory (referenced oversized, unreferenced); shrink rule parity (A1); stages and stop points (A2); `images`-only pinned updates preserving order/one-to-one mapping and `photoGroups`; legacy sets written only in `images`, never `owner`; verification (every reference resolves, ≤2400 px, orientation sample, groups equal, attempt counts unchanged); deletion of superseded and unreferenced assets as a separately confirmed step; recovery (old ids resolve until deletion; after deletion only local backup) | `./check.sh` | |
-| 4 | Q4, A3 | `model/operate/INDEX.md` | Add `recover` (0014) and `capacity` (trigger: one-off user-authorized repair of photos stored before the 2400 px limit took effect; no record citation, per rule 2) rows; replace "Only maintain/deploy groups are active" and qualify "not an operator purge service" (page runtime does not purge; an authorized capacity operation may) | `./check.sh` | |
-| 5 | Q1, Q2 | `DATA.md` `images` (exercises, sets), "写入规则", "旧题组归属" | `images`: replace "此前上传的可能是原图" with: photos stored before the limit were shrunk by a one-off operator repair; the page's decode-failure fallback may still store an original; an authorized operator repair may replace an id with a shrunk copy of the same photo, preserving order. 旧题组归属: allow that repair on unresolved legacy sets (only `images`, owner untouched); keep "no automatic photo deletion" for the page; revise its last paragraph ("本次不新增修复工具，也不授权生产读取或迁移") to point at the capacity contract | `./check.sh`; `node impl/logic.test.js impl/arena.html` | |
-| 6 | Q1, Q3 | `model/domain/DOMAIN.md` invariant 4, `model/arch/arena/SPEC.md` C3 Limits | Qualify "no orphan purge or asset deletion" as page runtime behavior; operator deletion is governed by the capacity contract | `./check.sh` | |
-| 7 | Q4 | `CLAUDE.md` map row `backups/` | Point the row to the recover contract instead of "no model/operate contract yet" (mechanical) | `./check.sh` | |
-| 8 | Q1, Q3 | `journey/0001-record-a-wrong-exercise.md` 6a, `journey/0007-maintain-exercise-library.md` 6b | Same page-only qualifier as row 6 for "not globally purged" / "do not … delete assets" | `./check.sh` | |
-| 9 | Q4 | `journey/OPERATOR.md` text, `model/verify/SPEC.md` operator list (line 8) and exemption (line 54) | "Three" → "Four distinct goals"; add 0014; state that recover and capacity operations are verified by their own contracts, not slice acceptance | `./check.sh` | |
-| 10 | Q1 | `model/operate/deploy/SPEC.md` artifact table, Photo assets row | Name the capacity operation as the only authorized migration of stored photos | `./check.sh` | |
+| 1 | Q4 | `journey/0014-back-up-production-library.md` (new), `journey/OPERATOR.md` | Operator journey 0014: goal, trigger (user-scheduled or before any production repair), main steps (snapshot db and page, list assets, fetch only new assets, finalize, verify), extensions (listing/count mismatch, missing referenced asset, verify failure, removed local file), success = a verified snapshot that can restore every document and asset. Index row and diagram link 0014 → repair prerequisite | `./check.sh` || Created `journey/0014-back-up-production-library.md`; `OPERATOR.md` says four goals, lists 0014 and links it to an authorized repair node. `./check.sh` exit 0 |
+| 2 | Q4, A3 | `model/operate/recover/SPEC.md` (new) | Recover contract: operator/authorization (read-only production access as owner), environment (local checkout, Node, Artifact tools), objects (db collections, assets, page), layout (full db snapshot, incremental asset store keyed by asset id and checked against sha256 hashes, manifest), success/failure/stop/verification boundaries, retention (local only, git-ignored, never in repo; never prune an asset a retained snapshot lists; keep the pre-repair snapshot indefinitely; off-machine copy recommended, not required, per Q6), restore = separately authorized, asset ids not reproducible on re-upload, `images`-only reverse rewrite instead of whole-document `set` | `./check.sh` || Created `model/operate/recover/SPEC.md` (backup entry, layout, retention incl. Q6 acceptance, restore limits). `./check.sh` exit 0 |
+| 3 | Q1–Q3, A1–A3 | `model/operate/capacity/SPEC.md` (new) | Capacity contract "Shrink legacy oversized photos" (one-off per Q7, access freeze per Q5, canary per Q8, single local backup accepted per Q6): prerequisite verified 0014 snapshot taken immediately before; inventory (referenced oversized, unreferenced); shrink rule parity (A1); stages and stop points (A2); `images`-only pinned updates preserving order/one-to-one mapping and `photoGroups`; legacy sets written only in `images`, never `owner`; verification (every reference resolves, ≤2400 px, orientation sample, groups equal, attempt counts unchanged); deletion of superseded and unreferenced assets as a separately confirmed step; recovery (old ids resolve until deletion; after deletion only local backup) | `./check.sh` || Created `model/operate/capacity/SPEC.md` (one-off scope, shrink rule checked on every output, stages 1–7, operation map, recovery). `./check.sh` exit 0 |
+| 4 | Q4, A3 | `model/operate/INDEX.md` | Add `recover` (0014) and `capacity` (trigger: one-off user-authorized repair of photos stored before the 2400 px limit took effect; no record citation, per rule 2) rows; replace "Only maintain/deploy groups are active" and qualify "not an operator purge service" (page runtime does not purge; an authorized capacity operation may) | `./check.sh` || `model/operate/INDEX.md`: four active groups, page-never-purges sentence, recover and capacity rows without record citations. `./check.sh` exit 0 |
+| 5 | Q1, Q2 | `DATA.md` `images` (exercises, sets), "写入规则", "旧题组归属" | `images`: replace "此前上传的可能是原图" with: photos stored before the limit were shrunk by a one-off operator repair; the page's decode-failure fallback may still store an original; an authorized operator repair may replace an id with a shrunk copy of the same photo, preserving order. 旧题组归属: allow that repair on unresolved legacy sets (only `images`, owner untouched); keep "no automatic photo deletion" for the page; revise its last paragraph ("本次不新增修复工具，也不授权生产读取或迁移") to point at the capacity contract | `./check.sh`; `node impl/logic.test.js impl/arena.html` || `DATA.md` `images` row, "照片先缩、再传、后写" rule and "旧题组归属" last paragraph plus legacy-set exception updated; decode-failure exception kept. `./check.sh` exit 0; `node impl/logic.test.js impl/arena.html` all passed |
+| 6 | Q1, Q3 | `model/domain/DOMAIN.md` invariant 4, `model/arch/arena/SPEC.md` C3 Limits | Qualify "no orphan purge or asset deletion" as page runtime behavior; operator deletion is governed by the capacity contract | `./check.sh` || `DOMAIN.md` invariant 4 and arena `SPEC.md` C3 Limits qualified as page behavior with a capacity link. `./check.sh` exit 0 |
+| 7 | Q4 | `CLAUDE.md` map row `backups/` | Point the row to the recover contract instead of "no model/operate contract yet" (mechanical) | `./check.sh` || `CLAUDE.md` `backups/` row now pairs with the recover contract and journey 0014. `./check.sh` exit 0 |
+| 8 | Q1, Q3 | `journey/0001-record-a-wrong-exercise.md` 6a, `journey/0007-maintain-exercise-library.md` 6b | Same page-only qualifier as row 6 for "not globally purged" / "do not … delete assets" | `./check.sh` || Journeys 0001 6a and 0007 6b qualified as page behavior with a capacity link. `./check.sh` exit 0 |
+| 9 | Q4 | `journey/OPERATOR.md` text, `model/verify/SPEC.md` operator list (line 8) and exemption (line 54) | "Three" → "Four distinct goals"; add 0014; state that recover and capacity operations are verified by their own contracts, not slice acceptance | `./check.sh` || `model/verify/SPEC.md` operator line and exemption list name recover/capacity as self-verified; `OPERATOR.md` text done in row 1. `./check.sh` exit 0 |
+| 10 | Q1 | `model/operate/deploy/SPEC.md` artifact table, Photo assets row | Name the capacity operation as the only authorized migration of stored photos | `./check.sh` || `model/operate/deploy/SPEC.md` Photo assets row names the capacity contract. `./check.sh` exit 0 |
+
+Diagram validation: no diagram integration is enabled in `.discuss_design/config.yaml`; the Mermaid diagrams in journey 0014, `OPERATOR.md` and this record were reviewed by hand only (gap).
 
 Follow-up outside this discussion: the page rejects an oversized photo instead of keeping the decode-failure original (user direction under Q7).
 
@@ -215,7 +218,7 @@ Commit `6692327` provides `backups/` (README, `backup.mjs`). Snapshot `20261122`
 
 ## Agent decisions
 
-**A1 Shrink rule parity** (effective upon confirmation; revised after review F4): the repair produces what the page's canvas produces, checked on **every** output, not a sample:
+**A1 Shrink rule parity** (confirmed 2026-11-22; revised after review F4): the repair produces what the page's canvas produces, checked on **every** output, not a sample:
 - Pixels upright; Orientation tag absent or 1. The originals mix Orientation 6 (70), 1 (50) and none (8).
 - Aspect equals the correctly oriented original; long edge = min(2400, oriented long edge).
 - No EXIF or GPS metadata (7 originals carry GPS location).
@@ -224,7 +227,7 @@ Commit `6692327` provides `backups/` (README, `backup.mjs`). Snapshot `20261122`
 
 The tool is delegated to implementation. Running the page's own `shrinkPhoto` in local Chromium is a good fit (`verify/` already supports `CHROME_PATH`). Declined: a different size or quality, which would create a second rule.
 
-**A2 Ordering, stop points and verification** (effective upon confirmation; revised after review F1, F2, F5, F12):
+**A2 Ordering, stop points and verification** (confirmed 2026-11-22; revised after review F1, F2, F5, F12):
 1. Take a fresh verified 0014 snapshot; it is the pre-repair snapshot and is kept indefinitely.
 2. Canary (Q8), then shrink and upload all new assets before any document write.
 3. Rewrite each document with a pinned `images`-only update, keeping order and a one-to-one old→new mapping. Keep a local operation map outside the repo: per document its id, old `images`, new `images` and the version written, plus old→new asset ids.
@@ -234,7 +237,7 @@ The tool is delegated to implementation. Running the page's own `shrinkPhoto` in
 
 Recovery: until step 5, old ids still resolve, and new uploads that end up unused are removed by the next run's step 5. After step 5, re-upload originals from the backup and reverse-rewrite only `images` from the operation map; never restore a whole document with `set`, which would drop later attempts.
 
-**A3 Contract group** (effective upon confirmation): the repair goes in `capacity` (storage efficiency) and backup in `recover`, following the design method's group list. Declined: extending `maintain`. Its contract forbids production writes.
+**A3 Contract group** (confirmed 2026-11-22): the repair goes in `capacity` (storage efficiency) and backup in `recover`, following the design method's group list. Declined: extending `maintain`. Its contract forbids production writes.
 
 ## Independent review (2026-11-22)
 

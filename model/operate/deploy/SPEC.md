@@ -29,7 +29,7 @@ Manual supply/publication, not an automated integration. Test targets/data isola
 |---|---|---|---|
 | Page HTML with embedded TAX and logic | Workspace maintainer; `impl/arena.html` | Authorized test and intended production Artifact | One browser page container; identify exact revision/hash |
 | db records | Page runtime or separately authorized data operation; DATA owns shapes | Platform db | Outlive page publication; not a bundled deploy/reset |
-| Photo assets | Page upload capability | Platform assets | Outlive sessions; publication does not delete/migrate them |
+| Photo assets | Page upload capability; authorized capacity repair | Platform assets | Outlive sessions; publication does not delete/migrate them; only the [capacity contract](../capacity/SPEC.md) shrinks, relinks or deletes them |
 | Platform user/db/assets/sample | External provider | Browser capabilities | Verify compatibility at target; no owned service deployment |
 | Knowledge maps/fonts | External reference/presentation providers | Runtime links/fetches | Optional reference or fallback-supported presentation, not packaged source |
 

@@ -38,7 +38,7 @@ sequenceDiagram
 - **3b. Referenced saved photos cannot all be read.** Report unavailable/skipped photos and use remaining photos or available set text; a photo-only group with no readable photos cannot proceed to AI drafting.
 - **4a. Content or a word-pick answer is invalid.** Identify the affected draft and require correction before saving.
 - **5a. A duplicate warning remains.** Save all skips warned drafts and reports them; an individual save is deliberate confirmation, not an automatic duplicate ban.
-- **6a. A write fails after assets or a set were saved.** Report only acknowledged exercise writes as successful. Retain remaining drafts for retry; orphan assets/sets are possible and are not globally purged.
+- **6a. A write fails after assets or a set were saved.** Report only acknowledged exercise writes as successful. Retain remaining drafts for retry; orphan assets/sets are possible and the page does not purge them globally (only an authorized [capacity operation](../model/operate/capacity/SPEC.md) deletes assets).
 - **6b. Owner scope changed while a draft retained a set reference.** Reject a conflicting new link rather than saving an exercise under another owner. Re-select compatible material or return to the intended scope.
 - **7a. The exercise was supplementary rather than previously wrong.** Preserve that distinction; do not invent an original wrong answer.
 

@@ -44,7 +44,7 @@ The source header records its platform runtime declaration; this review does not
 - **Stale forms** An unrelated title/material edit does not rewrite unchanged owner/subject/word-bank fields. Field-update mechanics are delegated within this boundary.
 - **Delete** Exercise deletion removes every actor's embedded attempts; missing Paper references stay visible. After deletion/removal of a member, cleanup deletes only a valid set document whose complete current membership is proven empty. Otherwise retain/defer, reporting content success separately.
 - **Legacy** Missing/conflicting set ownership blocks set mutation, new member links and automatic cleanup, not validated ordinary Exercise edits preserving compatible existing links or actor attempt writes.
-- **Limits** No global orphan purge or asset deletion. Concurrent member/word-bank edits may invalidate serial checks; the policy is not strong concurrent reference integrity.
+- **Limits** The page performs no global orphan purge or asset deletion; only an authorized operator action under the [capacity contract](../../operate/capacity/SPEC.md) deletes assets. Concurrent member/word-bank edits may invalidate serial checks; the policy is not strong concurrent reference integrity.
 
 ## C4 Start/recover daily batches
 
