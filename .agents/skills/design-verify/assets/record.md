@@ -1,6 +1,6 @@
 # Acceptance record template
 
-Copy this outline to `record/verify/YYYYMMDD-<topic>.md`. Set `> scope:` to `feature` (Feature Verify) or `integration` (Integration Verify)—required on all newly authored acceptance records. Use `in-progress`, `completed` or `aborted`: keep `in-progress` whenever any judgment is `fail`, and mark `completed` only with zero `fail`. Record the branch in `location` and the tested commit in `baseline`. Only `record/` may differ between the baseline and the record commit.
+Copy this outline to `record/verify/YYYYMMDD-<topic>.md`. Set `> scope:` to `feature` (Feature Verify) or `integration` (Integration Verify)—required on all newly authored acceptance records. Use `in-progress`, `completed` or `aborted`: keep `in-progress` **only** whenever any judgment is `fail`, and mark `completed` whenever zero `fail` (even when some rows are `unverified` or user-skipped). Record the branch in `location` and the tested commit in `baseline` (after committing any `verify/` edits made in this round). Only `record/` may differ between `baseline` and the record commit.
 
 Unreleased acceptance records stay updatable in place across defect-fix or drift re-runs: keep the existing `YYYYMMDD-<topic>.md` filename (updating the `> status:` date) and preserve existing judgment row numbers (append new judgments at the end). Once any completed release covers the record's work (or on `aborted`), the record freezes permanently globally.
 
@@ -23,7 +23,7 @@ List covered implementation records by filename without extension. Number every 
 ## Scope and size
 
 - Mode (`feature` or `integration`), slice or requested journey steps and scenarios. Identify scope that has yet to be decided.
-- Entries run and journey steps walked through (including unaffected-journey regression for `integration`), with the basis for that size.
+- Entries run and journey steps walked through (including catalog defaults, any `verify/`-only commits made in this round, and any user-directed widening, narrowing or skipping with reason).
 - History changes affecting ancestry of recorded implementation commits, if any.
 
 ## Changes without implementation records
@@ -31,18 +31,18 @@ List covered implementation records by filename without extension. Number every 
 | Commit | Acceptance scope derived from the contract | Treatment |
 |---|---|---|
 
-List any non-exempt changes (scoped to the feature for `feature`, or since the last release for `integration`), or write None.
+List any non-exempt product commits outside `record/` and `verify/` (scoped to the feature for `feature`, or since the last release for `integration`), or write None.
 
 ## Judgments
 <!-- acceptance-judgments -->
 
 | # | Journey step and success condition | Verdict | Evidence |
 |---|---|---|---|
-| 1 | <User-perspective condition> | <pass, fail or unverified> | <Evidence> |
+| 1 | <User-perspective condition> | <pass, fail or unverified> | <Evidence, or skip reason if unverified> |
 
 ## Substitutes and unverified boundaries
 
-- <List these (including prod-only boundaries when `model/verify/SPEC.md` declares no `OFFLINE` environment) or write None.>
+- <List substitutes, prod-only boundaries when `model/verify/SPEC.md` declares no `OFFLINE` environment, and user-skipped cases with reason, or write None.>
 
 ## Round notes
 

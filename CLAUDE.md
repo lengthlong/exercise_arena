@@ -11,7 +11,7 @@ This guide states the workflow, map, rules and terms. Skills in `.agents/skills/
 
 ### Journey-driven design
 
-Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and `verify/`, slice acceptance checks user-perspective behavior in Feature Verify (`scope: feature`) or Integration Verify (`scope: integration`, deploying to an `OFFLINE` environment when needed) against journey success conditions and `model/verify/SPEC.md`, and release deploys to an `ONLINE` environment when applicable and announces the verified version to users. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
+Start features and design changes from user and operator journeys in `journey/`, or from explicit external or scheduled triggers. Derive domain, architecture and specs from runtime steps, trace support steps to `model/operate/` contracts, and check dependencies from both sides. Research supplies evidence for discussion; the designer decides trade-offs, and freezing the discussion hands the design to implementation. Implementation updates `impl/`, `operate/` and, as needed, `verify/`. Slice acceptance checks user-perspective behavior in Feature Verify (`scope: feature`) or Integration Verify (`scope: integration`, deploying to an `OFFLINE` environment when needed) against journey success conditions and `model/verify/SPEC.md`, and may directly add or adjust `verify/` entries within the settled acceptance contract without looping back to implementation. Release deploys to an `ONLINE` environment when applicable and announces the verified version to users. Each stage writes a record in `record/` for the next stage, stocktaking assesses pending handoffs anytime, and `doc/` publishes to readers.
 
 ```mermaid
 flowchart LR
@@ -42,11 +42,11 @@ flowchart LR
 | model | `model/arch/<container>/SPEC.md` | Contracts, shapes, failure boundaries | One owner per contract; split under `spec/` as needed |
 | model | `model/operate/INDEX.md` | Active work groups and contract links | Add as needed |
 | model | `model/operate/<group>/SPEC.md` | Support contract and boundaries | Authoritative; split under `spec/`; `deploy` covers artifacts, `OFFLINE`/`ONLINE` environments and release announcements |
-| model | `model/verify/SPEC.md` | Acceptance environments, coverage, exemptions | Authoritative; cites journey success conditions |
+| model | `model/verify/SPEC.md` | Acceptance environments, policy, exemptions | Authoritative stable contract (no concrete case lists); cites journey success conditions |
 | model | `model/adr/NNNN-*.md` | Lasting trade-offs and rationale | Authoritative |
 | impl | `impl/` | Source, builds, contract tests | Implements paired model; map subpaths below |
 | operate | `operate/` (`operate/README.md`) | Tools, config, runbooks | Lists active groups; group READMEs link contracts; map below |
-| verify | `verify/` (`verify/README.md`) | Journey-based acceptance entries | Written by implementation, run by acceptance; map below |
+| verify | `verify/` (`verify/README.md`) | Journey-based acceptance entries and case catalog | Sole concrete case catalog (`verify/README.md`); writable by implementation and acceptance; map directory pointer below |
 | record | `record/research/NNNN-*.md` | Point-in-time external research | Freezes with consuming discussion |
 | record | `record/discuss/NNNN-*.md` | Decisions and write-off | Freezes on completion or abort |
 | record | `record/implement/YYYYMMDD-*.md` | Upstream rows, paired entries, tests | Updatable in place across unreleased loops; freezes globally on a covering completed release (or abort) |
@@ -55,7 +55,7 @@ flowchart LR
 | doc | `doc/NNNN-<topic>.*` | Reader hubs with two sync baselines | Sync both ways; design edits go through discussion |
 
 - Read `model/domain/GLOSSARY.md`, relevant ADRs, and both sides of a mapped pair before changing either. Journeys and `model/` files are authoritative design; create directories as needed and name model files by responsibility. A root `README.md` belongs to the workspace.
-- Extend this map below the managed block with one row per relevant `impl/`, `operate/` or `verify/` subpath, retained existing source directory, workspace skill or other workspace-owned path—naming its paired design, test/acceptance/deploy commands, authority in a conflict and plain category (`impl`, `operate`, `verify`, `guide`). `./check.sh` checks top-level coverage.
+- Extend this map below the managed block with one row per relevant `impl/` or `operate/` subpath, a `verify/` directory pointer (`verify/README.md` owns concrete acceptance entries, commands and tags), retained existing source directory, workspace skill or other workspace-owned path—naming its paired design, test/deploy commands, authority in a conflict and plain category (`impl`, `operate`, `verify`, `guide`). `./check.sh` checks top-level coverage.
 - Records carry status, location and upstream references, drive pending handoffs from the baseline tree, and freeze per the map above; skills define formats and `./check.sh` validates them.
 
 ### Rules
@@ -67,7 +67,7 @@ flowchart LR
    - Four kinds of work may proceed within existing authorization:
      - Mechanical edits (renames, link repairs, formatting, `doc/` edits/syncs, `design-init` upgrades/recovery).
      - Direct user instructions to change this guide, `check.sh`, `check.local.sh` or `.discuss_design/config.yaml` (check for conflicts first).
-     - Authorized implementation maintenance (apply frozen rows or settled contracts, restore established behavior, or refactor preserving contracts; send contract/boundary changes to discussion and report internal choices individually).
+     - Authorized maintenance (apply frozen rows or settled contracts, adjust `verify/` entries within settled `model/verify/SPEC.md` and `journey/` during acceptance, restore established behavior, or refactor preserving contracts; send contract/boundary changes to discussion and report internal choices individually).
      - Authorized routine operations (write only outputs and state covered by an agreed operation).
 2. **Frozen records stay as written.** Only downstream and peer records may reference individual records; journeys, models and skills may refer only to `record/` or `doc/` directories and must state needed facts themselves. The sole freeze exception is renumbering an incoming discussion on merge collision.
 3. **Keep this guide to workflow, map, rules and terms.** Put procedures in skills and design facts in authoritative files.

@@ -186,7 +186,7 @@ For one context, omit the context map, subdomain table and context heading.
 ```markdown
 # <Workspace> acceptance contract
 
-<Workspace-specific rules. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration, including unaffected-journey regression) and journeys for success conditions.>
+<Stable workspace acceptance policy only—do not list concrete case names, commands or flags here; maintain those solely in verify/README.md. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration) and journeys for success conditions.>
 
 ## Journeys served
 
@@ -197,16 +197,16 @@ For one context, omit the context map, subdomain table and context heading.
 | Environment or dependency | How provided | Real or substitute |
 |---|---|---|
 
-<If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated entries and prod-only unverified boundaries.>
+<If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated boundary and prod-only unverified boundaries.>
 
-## Entries and modes
+## Phase and cadence policy
 
-| Acceptance entry | Steps or scenarios | Mode split (`feature` vs. `integration`) and criterion |
-|---|---|---|
+- **Catalog:** Concrete entries, commands and tags (`journey/area`, `cost: automated | manual`, `cadence: always | on-touch`, `default phase: feature | integration | both`) live solely in `verify/README.md`.
+- **Defaults and user direction:** `cost: automated` defaults to `always` on `integration` (affected subset on `feature`); `cost: manual` defaults to `on-touch`; explicit per-entry `cadence` overrides the default. Users may widen, narrow or skip cases on any run (skipped cases are marked `unverified` with reason); only `fail` keeps `record/verify/` `in-progress`.
 
 ## Sizing by change
 
-<Affected components or containers and their journey steps.>
+<Affected components or containers and their stable journey boundaries.>
 
 ## External writes and confirmation
 
@@ -214,19 +214,20 @@ For one context, omit the context map, subdomain table and context heading.
 
 ## Changes without implementation records
 
-- <Exempt categories or None.>
+- <Exempt categories (in addition to `verify/`-only commits, which are logged in `record/verify/`), or None.>
 ```
 
-## Acceptance entry index (`verify/README.md`)
+## Acceptance entry catalog (`verify/README.md`)
 
 ```markdown
 # Acceptance entries
 
-<Link to model/verify/SPEC.md and name actual entries.>
+<Link to model/verify/SPEC.md. Sole catalog of concrete entries, commands and tags. Editable by both design-implement and design-verify within the settled acceptance contract.>
 
-| Entry | Instructions | Coverage |
-|---|---|---|
+| Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
+|---|---|---|---|---|---|
 ```
+Tags: `Cost` = `automated` or `manual`; `Cadence` = `always` or `on-touch` (overrides `Cost` default); `Default phase` = `feature`, `integration` or `both`.
 
 ## Operation tool index (`operate/README.md`)
 
