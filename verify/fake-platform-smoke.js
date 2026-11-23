@@ -152,9 +152,10 @@ add('library-and-owner-scope', ['0001', '0005', '0006', '0007'], async c => {
 } });
 
 add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
-  // 0001 step 1: this week's coins on Record = own recordings this week (2 each); legacy (no recordedBy) and others' recordings earn nothing.
+  // 0001 step 1: the Record pill shows only coins from own recordings this week (2 each); daily-redo coins, legacy (no recordedBy) and others' recordings are excluded.
   await c.clickAct('tab', { v: 'record' });
-  c.assertOk('Record header shows 2 coins this week (one own recording)', /\b2 coins this week/.test(await c.txt()));
+  const pill = () => c.eval(`(() => { const p = document.querySelector('#rec-coins'); return p ? p.innerText.replace(/\\s+/g, ' ').trim() : ''; })()`);
+  c.assertOk('Record pill shows "2 from recording" (own recording only, not the redo coin)', /^\S*\s*2 from recording$/.test(await pill()));
   // 0001 steps 3, 6: read with AI, short ok line without timing diagnostics.
   await c.eval(`window.__sampleOut.drafts.forEach(d => { if (d.topic === '__TOPIC__') d.topic = TAX.english.topics[0][0]; })`);   // a valid topic id from the page's own taxonomy (input data, not an oracle)
   await c.fill('#rec-text', 'She go to school yesterday.');
@@ -167,13 +168,15 @@ add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
   await c.clickAct('save-all'); await new Promise(r => setTimeout(r, 300));
   const notes = await c.eval(`[...document.querySelectorAll('#rec-drafts > .note')].map(n => n.className + '|' + n.textContent)`);
   c.assertOk('partial save shows green "Saved 2 · +4 coins" and amber "1 incomplete"', notes.some(t => /\bok\|Saved 2 · \+4 coins/.test(t)) && notes.some(t => /\bwarn\|.*1 incomplete/.test(t)) && !notes.some(t => /\berr\|/.test(t)));
-  c.assertOk('save that earns coins shows a "+4 coins" celebration', await c.eval(`[...document.querySelectorAll('.coin-pop')].some(e => e.textContent.includes('+4 coins'))`));
+  c.assertOk('saving shows the treasure bowl (or its "+4 coins" badge) while coins are earned', await c.eval(`!!document.querySelector('.bowl-wrap') || [...document.querySelectorAll('.coin-badge')].some(e => e.textContent.includes('+4 coins'))`));
+  for (let i = 0; i < 60 && await c.eval(`!!S.recAnim`); i++) await new Promise(r => setTimeout(r, 100));
+  c.assertOk('the save animation finishes and cleans up', await c.eval(`!S.recAnim && !document.querySelector('.bowl-wrap, .coin-badge')`));
   c.assertOk('new exercises record the saver as recordedBy and the owner as owner', await c.eval(`Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).length === 2 && Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).every(e => e.recordedBy === 'uS' && e.owner === 'uS')`));
-  c.assertOk('Record header now shows 6 coins this week', /\b6 coins this week/.test(await c.txt()));
+  c.assertOk('Record pill now shows "6 from recording"', /^\S*\s*6 from recording$/.test(await pill()));
   // 0004 step 3 / 0005 step 1: Games shows the recording part and the same earned total.
   await c.clickAct('tab', { v: 'games' });
   const g = await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`);
-  c.assertOk('Games earned 6 with "3 recorded × 2"', /3 recorded × 2/.test(g) && /6 earned/.test(g));
+  c.assertOk('Games earned 8 (redo 2 + recording 6) with "3 recorded × 2"', /3 recorded × 2/.test(g) && /8 earned/.test(g));
   // 0007 success: editing someone else's recorded exercise keeps its Recorder; editing a legacy one never adds the editor.
   for (const id of ['r3', 'r2']) {
     await c.clickAct('edit', { id });
@@ -184,10 +187,10 @@ add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
   // 0007 6a: deleting an exercise recorded this week removes its 2 coins.
   await c.clickAct('delete-ex', { id: 'r1' });
   await c.clickAct('tab', { v: 'games' });
-  c.assertOk('deleting an own recording drops earned to 4', /4 earned/.test(await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`)));
+  c.assertOk('deleting an own recording (and its redo attempt) drops earned to 4', /4 earned/.test(await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`)));
 }, { seed: s => {
   for (const e of Object.values(s.exercises)) e.attempts = [];
-  s.exercises.r1 = ex('r1', { createdAt: T, recordedBy: 'uS' });
+  s.exercises.r1 = ex('r1', { createdAt: T, recordedBy: 'uS', attempts: [{ by: 'uS', date: T, mode: 'daily', paperId: null, response: 'a', result: 'right', judgedBy: 'auto', at: T + 'T08:00' }] });
   s.exercises.r2 = ex('r2', { createdAt: T });
   s.exercises.r3 = ex('r3', { createdAt: T, recordedBy: 'uB' });
 }, flags: { __sampleOut: { sets: [], drafts: [1, 2, 3].map(i => ({ subject: 'english', topic: i < 3 ? '__TOPIC__' : 'no-such-topic', format: 'short', stem: 'She ___ to school yesterday. (' + i + ')', answer: 'went', accepted: ['went'], options: [], solution: 'Key idea: past tense', wrongAnswer: 'go', cause: 'careless', source: 'P5' })) } } });
