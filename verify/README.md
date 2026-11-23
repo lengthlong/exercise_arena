@@ -8,7 +8,7 @@ Implementation-stage precondition (not acceptance evidence): `./check.sh` and `n
 
 | Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
 |---|---|---|---|---|---|
-| `simulated-smoke` | 0001–0010 core flows (boot/read fault, daily paper recovery/hand-in/self-judge, check paper preview/review/override, set cleanup & owner-scoped Games balance) | `automated` | `on-touch` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints cases; zero npm deps, uses local Chrome via CDP; set `CHROME_PATH` if needed; skippable with `unverified` reason) |
+| `simulated-smoke` | 0001–0010 core flows (boot/read fault, daily paper recovery/hand-in/self-judge, check paper preview/review/override, set cleanup & owner-scoped Games balance, recording coins & Record status messages via a stubbed AI `sample`) | `automated` | `on-touch` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints cases; zero npm deps, uses local Chrome via CDP; set `CHROME_PATH` if needed; skippable with `unverified` reason) |
 | `live-spot-check` | Real platform boundaries (identity, real `db` queries/writes/deletes, photo uploads, AI recognition, runtime capabilities) | `manual` | `on-touch` | `integration` | Prod-only default: spot-check affected live flows after separately authorized `ONLINE` publication (or on an explicitly authorized ad-hoc test Artifact). Unrun boundaries stay `unverified` and are disclosed before release |
 
 Tags: `Cost` = `automated | agent | manual`; `Cadence` = `always | on-touch`; `Default phase` = `feature | integration | both`. Users may widen, narrow or skip any entry on any run; only `fail` keeps `record/verify/` `in-progress`.
@@ -24,4 +24,4 @@ node verify/fake-platform-smoke.js --list
 
 ## Notes
 
-`verify/fake-platform-smoke.js` serves the unmodified `impl/arena.html` over local HTTP and drives headless Google Chrome via raw DevTools Protocol (`http` + `WebSocket`, Node built-ins only) against a minimal in-memory `db`/`user` fake with fault injection. A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics.
+`verify/fake-platform-smoke.js` serves the unmodified `impl/arena.html` over local HTTP and drives headless Google Chrome via raw DevTools Protocol (`http` + `WebSocket`, Node built-ins only) against a minimal in-memory `db`/`user` fake with fault injection, plus an opt-in AI `sample` stub returning fixed drafts (`window.__sampleOut`). A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics.

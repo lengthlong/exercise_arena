@@ -62,7 +62,9 @@ const fakeInitScript = (seed, flags) => `(() => {
   });
   const db = { collection: c => Object.assign(q(c), { doc: id => doc(c, id || 'auto' + (++n)) }), doc: p => { const [c, id] = p.split('/'); return doc(c, id); } };
   window.__data = data; window.__db = db;
-  window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => ({ id: 'uS' }), profiles: async () => ({}) } : null };
+  // AI stub (opt-in): returns window.__sampleOut after streaming a little text; absent unless a case sets __sampleOut.
+  const sample = { json: async (p, o) => { await new Promise(r => setTimeout(r, 50)); o && o.onText && o.onText({ text: '"stem"' }); return clone(window.__sampleOut); } };
+  window.claude = { use: async name => name === 'db' ? db : name === 'user' ? { me: async () => ({ id: 'uS' }), profiles: async () => ({}) } : name === 'sample' && window.__sampleOut ? sample : null };
 })();`;
 
 const cases = [];
@@ -148,6 +150,47 @@ add('library-and-owner-scope', ['0001', '0005', '0006', '0007'], async c => {
   s.matches.M1 = { game: 'lift', by: 'uS', owner: 'uS', players: ['uS', 'uB'], rounds: 1, stakes: { uS: 1, uB: 1 }, at: T + 'T07:00', points: [{ uS: 1, uB: 0 }] };
   s.matches.M2 = { game: 'lift', by: 'uS', players: ['uS', 'uB'], rounds: 1, stakes: { uS: 1, uB: 1 }, at: T + 'T07:30', points: [{ uS: 0, uB: 1 }] };
 } });
+
+add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
+  // 0001 step 1: this week's coins on Record = own recordings this week (2 each); legacy (no recordedBy) and others' recordings earn nothing.
+  await c.clickAct('tab', { v: 'record' });
+  c.assertOk('Record header shows 2 coins this week (one own recording)', /\b2 coins this week/.test(await c.txt()));
+  // 0001 steps 3, 6: read with AI, short ok line without timing diagnostics.
+  await c.eval(`window.__sampleOut.drafts.forEach(d => { if (d.topic === '__TOPIC__') d.topic = TAX.english.topics[0][0]; })`);   // a valid topic id from the page's own taxonomy (input data, not an oracle)
+  await c.fill('#rec-text', 'She go to school yesterday.');
+  await c.clickAct('recognise'); await new Promise(r => setTimeout(r, 400));
+  const found = await c.eval(`(() => { const n = document.querySelector('#rec-note'); return n ? [n.className, n.textContent] : null; })()`);
+  c.assertOk('reading reports "Found 3 drafts" on one green line, no timing', !!found && /\bok\b/.test(found[0]) && /^Found 3 drafts · /.test(found[1]) && !/\d+ s\b|total/.test(found[1]));
+  await c.fill('#rec-text', 'x');
+  c.assertOk('changing the input clears the stale reading line', await c.eval(`!document.querySelector('#rec-note')`));
+  // 0001 step 6 / 6c: two complete drafts save, one incomplete stays; green saved line with coins, amber remainder; celebration shown.
+  await c.clickAct('save-all'); await new Promise(r => setTimeout(r, 300));
+  const notes = await c.eval(`[...document.querySelectorAll('#rec-drafts > .note')].map(n => n.className + '|' + n.textContent)`);
+  c.assertOk('partial save shows green "Saved 2 · +4 coins" and amber "1 incomplete"', notes.some(t => /\bok\|Saved 2 · \+4 coins/.test(t)) && notes.some(t => /\bwarn\|.*1 incomplete/.test(t)) && !notes.some(t => /\berr\|/.test(t)));
+  c.assertOk('save that earns coins shows a "+4 coins" celebration', await c.eval(`[...document.querySelectorAll('.coin-pop')].some(e => e.textContent.includes('+4 coins'))`));
+  c.assertOk('new exercises record the saver as recordedBy and the owner as owner', await c.eval(`Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).length === 2 && Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).every(e => e.recordedBy === 'uS' && e.owner === 'uS')`));
+  c.assertOk('Record header now shows 6 coins this week', /\b6 coins this week/.test(await c.txt()));
+  // 0004 step 3 / 0005 step 1: Games shows the recording part and the same earned total.
+  await c.clickAct('tab', { v: 'games' });
+  const g = await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`);
+  c.assertOk('Games earned 6 with "3 recorded × 2"', /3 recorded × 2/.test(g) && /6 earned/.test(g));
+  // 0007 success: editing someone else's recorded exercise keeps its Recorder; editing a legacy one never adds the editor.
+  for (const id of ['r3', 'r2']) {
+    await c.clickAct('edit', { id });
+    const k = await c.eval(`(() => { const d = S.drafts.find(d => d.editId === ${JSON.stringify(id)}); d.topic = TAX.english.topics[0][0]; d.stem = 'edited ' + d.editId; return d.key; })()`);
+    await c.clickAct('save-draft', { k: String(k) });
+  }
+  c.assertOk('edit keeps recordedBy (uB) and leaves a legacy exercise without one', await c.eval(`window.__data.exercises.r3.stem === 'edited r3' && window.__data.exercises.r2.stem === 'edited r2' && window.__data.exercises.r3.recordedBy === 'uB' && !('recordedBy' in window.__data.exercises.r2)`));
+  // 0007 6a: deleting an exercise recorded this week removes its 2 coins.
+  await c.clickAct('delete-ex', { id: 'r1' });
+  await c.clickAct('tab', { v: 'games' });
+  c.assertOk('deleting an own recording drops earned to 4', /4 earned/.test(await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`)));
+}, { seed: s => {
+  for (const e of Object.values(s.exercises)) e.attempts = [];
+  s.exercises.r1 = ex('r1', { createdAt: T, recordedBy: 'uS' });
+  s.exercises.r2 = ex('r2', { createdAt: T });
+  s.exercises.r3 = ex('r3', { createdAt: T, recordedBy: 'uB' });
+}, flags: { __sampleOut: { sets: [], drafts: [1, 2, 3].map(i => ({ subject: 'english', topic: i < 3 ? '__TOPIC__' : 'no-such-topic', format: 'short', stem: 'She ___ to school yesterday. (' + i + ')', answer: 'went', accepted: ['went'], options: [], solution: 'Key idea: past tense', wrongAnswer: 'go', cause: 'careless', source: 'P5' })) } } });
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 async function runWithChrome(sel) {
