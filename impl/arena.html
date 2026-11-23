@@ -228,15 +228,15 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .bank { display: flex; flex-wrap: wrap; gap: 6px; }
 details.plog { font-size: 13px; }
 /* Record 页顶的录入金币小牌与保存动画：聚宝盆、跳出的金币、飞回小牌的「+N coins」（0048） */
-.rec-coins { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 3px 12px 3px 6px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 13.5px; }
-.rec-coins .ico { font-size: 18px; line-height: 1; display: inline-block; }
-.rec-coins b { font: 700 18px/1 var(--font-body); font-variant-numeric: tabular-nums; display: inline-block; min-width: 1ch; }
+.rec-coins { margin: 2px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font: 400 17px/1.3 var(--font-hand); color: var(--amber); }
+.rec-coins .ico { font-size: 18px; line-height: 1; display: inline-block; animation: rc-bob 2.4s ease-in-out infinite; }
+.rec-coins b { font: 400 24px/1 var(--font-hand); font-variant-numeric: tabular-nums; display: inline-block; min-width: 1ch; }
+.rec-coins .hint { color: var(--muted); font-size: 15px; }
 .rec-coins.tick b { animation: rc-tick .35s ease-out; }
-.rec-coins.tick .ico { animation: rc-spin .35s ease-out; }
-.rec-coins.glow { animation: rc-glow 1.4s ease-out; }
+.rec-coins.glow b { animation: rc-glow 1.4s ease-out; }
+@keyframes rc-bob { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-3px) rotate(8deg); } }
 @keyframes rc-tick { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
-@keyframes rc-spin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
-@keyframes rc-glow { 0% { box-shadow: 0 0 0 0 rgba(240,184,98,.9); } 60% { box-shadow: 0 0 0 14px rgba(240,184,98,0); } 100% { box-shadow: 0 0 0 0 rgba(240,184,98,0); } }
+@keyframes rc-glow { 0% { transform: scale(1); text-shadow: 0 0 0 rgba(240,184,98,0); } 30% { transform: scale(1.5); text-shadow: 0 0 14px rgba(255,200,80,.95); } 100% { transform: scale(1); text-shadow: 0 0 0 rgba(240,184,98,0); } }
 .bowl-wrap { position: fixed; left: 50%; top: 42%; z-index: 58; width: 240px; height: 230px; margin: -115px 0 0 -120px; pointer-events: none; display: grid; justify-items: center; align-content: end; }
 .bowl-wrap .rays { position: absolute; left: 50%; top: 46%; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%; background: repeating-conic-gradient(rgba(255,214,102,.35) 0 10deg, transparent 10deg 24deg); -webkit-mask: radial-gradient(circle, #000 25%, transparent 68%); mask: radial-gradient(circle, #000 25%, transparent 68%); animation: bw-rays 6s linear infinite; }
 .bowl-wrap svg { position: relative; width: 200px; height: auto; overflow: visible; }
@@ -2316,9 +2316,9 @@ function renderRecord() {
   let rs = recSource();
   if (rs && rs.kind === 'set' && supplementBlock(rs, S.sets, S.exercises, recOwner())) { S.recSet = ''; rs = null; }   // 换了内容归属人等：保留的选择不再可补录，清掉
   if (S.recSet && !rs) S.recSet = '';
-  // 页顶小牌：本周在所选内容库录入挣的金币（录入道数 × 2，不含每日卷）；保存动画进行中显示动画里的数（S.recAnim.shown），结束后回到现算的数（0048）
+  // 页顶的手写金字一行（0049）：本周在所选内容库录入挣的金币（录入道数 × 2，不含每日卷）；保存动画进行中显示动画里的数（S.recAnim.shown），结束后回到现算的数（0048）
   const wk = S.recAnim ? S.recAnim.shown : coinInfo(S.me).recorded * RECORD_COINS;
-  let h = `<div class="rec-coins" id="rec-coins" title="Coins from recording this week · +${RECORD_COINS} for each question you record"><span class="ico" aria-hidden="true">🪙</span><b id="rec-coin-n">${wk}</b><span>from recording</span></div>`;
+  let h = `<p class="rec-coins" id="rec-coins"><span class="ico" aria-hidden="true">🪙</span><b id="rec-coin-n">${wk}</b><span>coin${wk === 1 ? '' : 's'} from recording this week</span><span class="hint">· +${RECORD_COINS} for each question</span></p>`;
   // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
   h += `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
   <section class="panel">`;
@@ -2411,7 +2411,7 @@ function coinShowCoin() {
   // 一次确认写入：一枚金币从盆里飞到页顶小牌，落下时小牌加 2
   const A = S.recAnim; if (!A) return;
   const land = () => { A.shown += RECORD_COINS; const n = $('#rec-coin-n'); if (n) n.textContent = A.shown; pillBump('tick'); };
-  const pill = $('#rec-coins .ico');
+  const pill = $('#rec-coin-n');
   if (calm() || !pill) { land(); return; }
   A.w.classList.remove('pop'); void A.w.offsetWidth; A.w.classList.add('pop');
   const a = bowlMouth(A.w), b = docPos(pill);
@@ -2447,7 +2447,7 @@ async function coinShowEnd(earned, saved) {
   const b = document.createElement('div'); b.className = 'coin-badge'; b.setAttribute('aria-hidden', 'true');
   b.innerHTML = `🪙 +${earned} coin${earned === 1 ? '' : 's'}<span class="sub">${saved} question${saved === 1 ? '' : 's'} recorded</span>`;
   document.body.appendChild(b);
-  const top = o.y - 30, left = window.scrollX + window.innerWidth / 2, pillEl = $('#rec-coins');
+  const top = o.y - 30, left = window.scrollX + window.innerWidth / 2, pillEl = $('#rec-coin-n');
   const pill = pillEl ? docPos(pillEl) : { x: left, y: top - 200 };
   const place = (dy, sc) => `translate(calc(${left}px - 50%), ${top + dy}px) scale(${sc})`;
   await (moving
