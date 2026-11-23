@@ -1,6 +1,6 @@
-# Acceptance entries
+# Acceptance catalog
 
-Contract: [verify/SPEC.md](./SPEC.md) (policy, substitutes, `on-touch` component sizing, external-write confirmations) and [ADR 0005](../model/adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md). This file is the sole catalog of concrete acceptance entries, commands and tags; both `design-implement` and `design-verify` may maintain `verify/` within the settled contract. Acceptance is recorded under `record/verify/`; running an entry while debugging is not a verdict.
+Policy: [verify/SPEC.md](./SPEC.md) (prod-only default, tiered graders, oracle-integrity guard, external-write confirmations) and [ADR 0005](../model/adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md). Exclusively owned by `design-verify`. Acceptance verdicts are recorded under `record/verify/`; running an entry while debugging is not a verdict.
 
 Implementation-stage precondition (not acceptance evidence): `./check.sh` and `node impl/logic.test.js impl/arena.html` (see [maintain tools](../operate/maintain/README.md)) must pass on the matched implementation record's product tree.
 
@@ -8,26 +8,20 @@ Implementation-stage precondition (not acceptance evidence): `./check.sh` and `n
 
 | Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
 |---|---|---|---|---|---|
-| `simulated-runtime` | 0001–0010 (0005/0006 only for owner-scoped balance and match-start `owner`; page DOM, write sequences & injected faults) | `automated` | `always` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints live cases and journeys; `feature` runs affected journeys, `integration` runs all; mandatory `pass` before `ONLINE` release) |
-| `offline-identity-owner` | 0006, 0010 (identity, first registration & owner-scoped subscriptions) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: (1) open candidate, verify Today loads and `users/<id>` exists; (2) switch default owner to a second seeded owner and back, verify lists follow the owner; (3) with seeded coins and one seeded match under the first owner, verify Games balance in the second owner excludes them (never negative from the switch) and returns on switching back |
-| `offline-db-writes-cleanup-retention` | 0002–0004, 0007, 0009 (real db writes, membership cleanup & retention delete) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: (1) delete last member of an owned set and a legacy set (owned removed, legacy kept); (2) hand in a protected daily paper (attempts and marker written); (3) open with a seeded daily paper handed in >30 days ago (paper deleted, attempts remain) |
-| `offline-photo-ai` | 0001 (photo upload & AI recognition) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact walkthrough: record one synthetic worksheet photo (never a child's), confirm and save; verify asset and saved exercises exist |
-| `offline-runtime-contract` | 0010, 0012 (declared runtime contract & capabilities) | `manual` | `on-touch` | `integration` | Authorized `OFFLINE` test Artifact / target read-only check: compare declared runtime contract and capabilities (`db`, `assets`, `sample` with images, `user` with profile) against the page header |
+| `simulated-smoke` | 0001–0010 core flows (boot/read fault, daily paper recovery/hand-in/self-judge, check paper preview/review/override, set cleanup & owner-scoped Games balance) | `automated` | `on-touch` | `both` | `node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008]` (`--list` prints cases; zero npm deps, uses local Chrome via CDP; set `CHROME_PATH` if needed; skippable with `unverified` reason) |
+| `live-spot-check` | Real platform boundaries (identity, real `db` queries/writes/deletes, photo uploads, AI recognition, runtime capabilities) | `manual` | `on-touch` | `integration` | Prod-only default: spot-check affected live flows after separately authorized `ONLINE` publication (or on an explicitly authorized ad-hoc test Artifact). Unrun boundaries stay `unverified` and are disclosed before release |
 
-Tags: `Cost` = `automated` or `manual`; `Cadence` = `always` or `on-touch` (overrides `Cost` default); `Default phase` = `feature`, `integration` or `both`. Users may widen, narrow or skip any entry on any run; unrun or skipped entries are recorded `unverified` with the reason, and only `fail` keeps `record/verify/` `in-progress`.
+Tags: `Cost` = `automated | agent | manual`; `Cadence` = `always | on-touch`; `Default phase` = `feature | integration | both`. Users may widen, narrow or skip any entry on any run; only `fail` keeps `record/verify/` `in-progress`.
 
-## Simulated runtime notes
+## `verify/` self-checks
 
-`verify/fake-platform-smoke.js` runs the unmodified `impl/arena.html` in headless Chromium against an in-memory `db`/`user` fake with fault injection (requires `playwright` and Chromium; set `CHROME_PATH` to use a local Chrome binary when Playwright's bundled Chromium is absent). Exit code 0 means every selected case passed. A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics. Run `node verify/fake-platform-smoke.js --list` to inspect the current case list.
+Run after editing `verify/` (alongside `./check.sh`; never rerun `impl/` tests and never count self-checks as acceptance verdicts):
 
-## Authorized `OFFLINE` runtime prerequisites
+```sh
+node --check verify/fake-platform-smoke.js
+node verify/fake-platform-smoke.js --list
+```
 
-Before running any `manual` `on-touch` entry above, confirm through [deploy tools](../operate/deploy/README.md): an authorized `OFFLINE` test Artifact loaded with the exact candidate (verify sha256 against the published body), declared capabilities (`db`, `assets`, `sample` with images, `user` with profile), synthetic test data flagged `test: true` written with named authorization, and permission to read the test database afterwards. Without these, mark the affected manual entries `unverified`; never use production as an acceptance sandbox. Cleanup needs separate authorization and is never a global purge.
+## Notes
 
-## Known gaps (no automated case yet)
-
-- Journeys `0005` (match) and `0006` (settings) beyond the owner-scoped balance case, and the progress projections of `0004`.
-- Multiple protected unfinished daily papers and owner switch before saving drafts.
-- 375px narrow layout of the Paper page outcome block, photo/material toggles on the Paper page, mastery recalculation after an override, and partial-write failures during check-paper hand-in.
-
-When a slice touches these areas without adding an automated case, record them `unverified` in `record/verify/`.
+`verify/fake-platform-smoke.js` serves the unmodified `impl/arena.html` over local HTTP and drives headless Google Chrome via raw DevTools Protocol (`http` + `WebSocket`, Node built-ins only) against a minimal in-memory `db`/`user` fake with fault injection. A pass proves page behavior only against the fake's `DATA.md` assumptions, never real platform semantics.
