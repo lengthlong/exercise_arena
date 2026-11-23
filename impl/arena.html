@@ -227,14 +227,33 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .draft { border-left: 3px solid var(--pen); }
 .bank { display: flex; flex-wrap: wrap; gap: 6px; }
 details.plog { font-size: 13px; }
-/* Record 页顶的本周金币与保存挣到金币时的庆祝（0047） */
-.rec-coins { font-size: 14px; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
-.rec-coins b { font: 700 18px/1 var(--font-body); color: var(--amber); display: inline-block; }
-.rec-coins.bump b { animation: coin-bump .6s ease-out 2; }
-.coin-pop { position: fixed; left: 50%; top: 38%; z-index: 50; pointer-events: none; font: 700 22px/1 var(--font-body); white-space: nowrap; color: var(--amber); background: var(--amber-soft); padding: 10px 18px; border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,.2); transform: translate(-50%, 0); animation: coin-fly 1.8s ease-out forwards; }
-@keyframes coin-bump { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.35); } }
-@keyframes coin-fly { 0% { opacity: 0; transform: translate(-50%, 16px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); } 30% { transform: translate(-50%, -8px) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60px); } }
-@media (prefers-reduced-motion: reduce) { .coin-pop { animation: none; } .rec-coins.bump b { animation: none; } }
+/* Record 页顶的录入金币小牌与保存动画：聚宝盆、跳出的金币、飞回小牌的「+N coins」（0048） */
+.rec-coins { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 3px 12px 3px 6px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 13.5px; }
+.rec-coins .ico { font-size: 18px; line-height: 1; display: inline-block; }
+.rec-coins b { font: 700 18px/1 var(--font-body); font-variant-numeric: tabular-nums; display: inline-block; min-width: 1ch; }
+.rec-coins.tick b { animation: rc-tick .35s ease-out; }
+.rec-coins.tick .ico { animation: rc-spin .35s ease-out; }
+.rec-coins.glow { animation: rc-glow 1.4s ease-out; }
+@keyframes rc-tick { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes rc-spin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+@keyframes rc-glow { 0% { box-shadow: 0 0 0 0 rgba(240,184,98,.9); } 60% { box-shadow: 0 0 0 14px rgba(240,184,98,0); } 100% { box-shadow: 0 0 0 0 rgba(240,184,98,0); } }
+.bowl-wrap { position: fixed; left: 50%; top: 42%; z-index: 58; width: 240px; height: 230px; margin: -115px 0 0 -120px; pointer-events: none; display: grid; justify-items: center; align-content: end; }
+.bowl-wrap .rays { position: absolute; left: 50%; top: 46%; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%; background: repeating-conic-gradient(rgba(255,214,102,.35) 0 10deg, transparent 10deg 24deg); -webkit-mask: radial-gradient(circle, #000 25%, transparent 68%); mask: radial-gradient(circle, #000 25%, transparent 68%); animation: bw-rays 6s linear infinite; }
+.bowl-wrap svg { position: relative; width: 200px; height: auto; overflow: visible; }
+.bowl-wrap.wobble svg { animation: bw-wobble .5s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+.bowl-wrap.pop svg { animation: bw-pop .45s ease-out; }
+.bowl-wrap .cap { position: relative; margin-top: 6px; font: 600 15px/1.2 var(--font-body); color: var(--amber); background: var(--surface); border: 1px solid var(--line); padding: 4px 12px; border-radius: 999px; }
+@keyframes bw-rays { to { transform: rotate(360deg); } }
+@keyframes bw-wobble { from { transform: rotate(-3deg) translateY(0); } to { transform: rotate(3deg) translateY(-3px); } }
+@keyframes bw-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.cc { position: absolute; left: 0; top: 0; z-index: 62; pointer-events: none; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f5c542 45%, #d18b12); border: 2px solid #a8690f; box-shadow: inset 0 0 0 3px rgba(255,255,255,.25); }
+.cc::after { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: #8a4b05; border-radius: 1px; }
+.confetti { position: absolute; left: 0; top: 0; z-index: 59; pointer-events: none; line-height: 1; }
+.coin-badge { position: absolute; left: 0; top: 0; z-index: 64; pointer-events: none; overflow: hidden; font: 700 26px/1 var(--font-body); color: #6b3f00; background: linear-gradient(180deg, #ffe58a, #f5b83d); border: 2px solid #d18b12; padding: 12px 22px; border-radius: 999px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.coin-badge::after { content: ""; position: absolute; top: -20%; bottom: -20%; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.85), transparent); transform: skewX(-20deg); animation: cb-shine .9s .35s ease-in-out; }
+.coin-badge .sub { display: block; font: 500 12px/1.2 var(--font-body); margin-top: 4px; text-align: center; color: #8a5a0c; }
+@keyframes cb-shine { to { left: 130%; } }
+@media (prefers-reduced-motion: reduce) { .bowl-wrap .rays, .bowl-wrap svg, .coin-badge::after, .rec-coins b, .rec-coins .ico { animation: none !important; } }
 details.plog > summary { cursor: pointer; color: var(--muted); width: fit-content; }
 details.plog > textarea { width: 100%; margin: 6px 0; font: 12px/1.4 ui-monospace, monospace; white-space: pre; overflow: auto; }
 details.photos > summary { cursor: pointer; font-size: 13px; color: var(--pen); width: fit-content; }
@@ -1589,7 +1608,7 @@ const S = {
   exercises: [], papers: [], settings: readSettings(null),
   run: null,                    // 练习侧正在做的每日重做或检验卷
   sets: [], setDrafts: [], setEdit: null,
-  drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
+  drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null, recAnim: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
   paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, detailFrom: null, backScroll: 0, pageBack: null, nmSubj: {}, nmOpen: {}, confirmDel: null,
@@ -2297,9 +2316,9 @@ function renderRecord() {
   let rs = recSource();
   if (rs && rs.kind === 'set' && supplementBlock(rs, S.sets, S.exercises, recOwner())) { S.recSet = ''; rs = null; }   // 换了内容归属人等：保留的选择不再可补录，清掉
   if (S.recSet && !rs) S.recSet = '';
-  // 页顶：本周在所选内容库挣的金币（与 Games 的 earned 同一个数）；保存挣到金币时从这里飘出「+N」
-  const wk = coinInfo(S.me).coins;
-  let h = `<div class="rec-coins" id="rec-coins" aria-live="polite"><span aria-hidden="true">🪙</span> <b id="rec-coin-n">${wk}</b> coin${wk === 1 ? '' : 's'} this week <span class="small muted">· +${RECORD_COINS} for each question you record</span></div>`;
+  // 页顶小牌：本周在所选内容库录入挣的金币（录入道数 × 2，不含每日卷）；保存动画进行中显示动画里的数（S.recAnim.shown），结束后回到现算的数（0048）
+  const wk = S.recAnim ? S.recAnim.shown : coinInfo(S.me).recorded * RECORD_COINS;
+  let h = `<div class="rec-coins" id="rec-coins" title="Coins from recording this week · +${RECORD_COINS} for each question you record"><span class="ico" aria-hidden="true">🪙</span><b id="rec-coin-n">${wk}</b><span>from recording</span></div>`;
   // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
   h += `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
   <section class="panel">`;
@@ -2354,15 +2373,96 @@ function diagBlock() {
   if (!pl.length) return '';
   return `<details class="plog" ${S.plogOpen ? 'open' : ''}><summary>Diagnostics</summary><textarea readonly rows="8" aria-label="Diagnostics log">${esc(pl.join('\n'))}</textarea><button type="button" class="btn ghost small" data-act="plog-clear">Clear log</button></details>`;
 }
-function celebrateCoins(n) {
-  // 保存挣到金币：视口中间飘出「+N coins」（点保存时页顶的总数常在视口外），并让页顶的总数跳一下；挂在 body 上，不随整页重画重放；减少动态效果时只静静显示一会儿（CSS）
-  const at = $('#rec-coins');
-  if (!at || !n) return;
-  const el = document.createElement('div');
-  el.className = 'coin-pop'; el.setAttribute('aria-hidden', 'true'); el.textContent = `🪙 +${n} coin${n === 1 ? '' : 's'}`;
-  document.body.appendChild(el);
-  at.classList.remove('bump'); void at.offsetWidth; at.classList.add('bump');
-  setTimeout(() => { el.remove(); const a = $('#rec-coins'); if (a) a.classList.remove('bump'); }, 1800);
+/* ---------- 保存动画（0048）：聚宝盆、金币、飞回小牌的「+N coins」；只是表现，不等它、不挡写入 ---------- */
+const BOWL_SVG = `<svg viewBox="0 0 200 150" aria-hidden="true"><defs><linearGradient id="bw-gold" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset=".55" stop-color="#f2b233"/><stop offset="1" stop-color="#b8740c"/></linearGradient><linearGradient id="bw-ingot" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff2b3"/><stop offset="1" stop-color="#e0a21f"/></linearGradient></defs>
+<ellipse cx="100" cy="143" rx="44" ry="6" fill="#000" opacity=".18"/><path d="M70 128 h60 l-6 12 h-48 z" fill="#b8740c" stroke="#7a4706" stroke-width="2"/>
+<g stroke="#a8690f" stroke-width="1.6"><circle cx="64" cy="58" r="13" fill="url(#bw-ingot)"/><rect x="60" y="54" width="8" height="8" fill="#8a4b05" stroke="none"/><circle cx="138" cy="56" r="13" fill="url(#bw-ingot)"/><rect x="134" y="52" width="8" height="8" fill="#8a4b05" stroke="none"/><path d="M78 62 q4 -22 22 -14 q18 -8 22 14 q-22 8 -44 0z" fill="url(#bw-ingot)"/><ellipse cx="100" cy="47" rx="9" ry="6" fill="url(#bw-ingot)"/><circle cx="116" cy="40" r="10" fill="url(#bw-ingot)"/><rect x="113" y="37" width="6" height="6" fill="#8a4b05" stroke="none"/><circle cx="84" cy="42" r="9" fill="url(#bw-ingot)"/><rect x="81" y="39" width="6" height="6" fill="#8a4b05" stroke="none"/></g>
+<path d="M16 70 Q20 132 100 134 Q180 132 184 70 Z" fill="url(#bw-gold)" stroke="#8a5207" stroke-width="2.5"/><path d="M26 94 Q100 112 174 94" fill="none" stroke="#c42f27" stroke-width="9" stroke-linecap="round"/><path d="M26 94 Q100 112 174 94" fill="none" stroke="#f5c542" stroke-width="1.5" stroke-dasharray="3 6"/>
+<circle cx="100" cy="106" r="17" fill="#c42f27" stroke="#f5c542" stroke-width="2.5"/><text x="100" y="113" text-anchor="middle" font-size="20" font-weight="700" fill="#ffe08a" font-family="serif">福</text>
+<ellipse cx="100" cy="70" rx="85" ry="14" fill="#f5c542" stroke="#8a5207" stroke-width="2.5"/><ellipse cx="100" cy="70" rx="72" ry="9" fill="#7a3e05"/><path d="M40 70 q30 -14 60 -12 q34 -2 60 12 q-60 10 -120 0z" fill="url(#bw-ingot)" stroke="#a8690f" stroke-width="1.5"/>
+<path d="M150 34 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#fff6c8"/><path d="M44 30 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#fff6c8"/></svg>`;
+const calm = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const animate = (el, frames, opts) => el.animate ? el.animate(frames, opts).finished.catch(() => {}) : Promise.resolve();
+function docPos(el) { const r = el.getBoundingClientRect(); return { x: r.left + window.scrollX + r.width / 2, y: r.top + window.scrollY + r.height / 2 }; }
+function pillBump(cls) { const c = $('#rec-coins'); if (!c) return; c.classList.remove(cls); void c.offsetWidth; c.classList.add(cls); }
+function bowlMouth(w) { const r = w.querySelector('svg').getBoundingClientRect(); return { x: r.left + window.scrollX + r.width / 2, y: r.top + window.scrollY + r.height * .42 }; }
+function coinArc(from, to, mid, ms, spin) {
+  const c = document.createElement('span'); c.className = 'cc'; document.body.appendChild(c);
+  const frames = [];
+  for (let k = 0; k <= 20; k++) { const t = k / 20, x = (1 - t) ** 2 * from.x + 2 * (1 - t) * t * mid.x + t * t * to.x, y = (1 - t) ** 2 * from.y + 2 * (1 - t) * t * mid.y + t * t * to.y;
+    frames.push({ transform: `translate(${x - 12}px, ${y - 12}px) rotateY(${t * spin}deg)` }); }
+  return animate(c, frames, { duration: ms, easing: 'linear' }).then(() => c.remove());
+}
+function coinShowStart(total) {
+  // 开始一次可能挣金币的保存：显示聚宝盆，金币不停地跳出又落回；小牌的数从现算值起由动画接管
+  coinShowStop(true);
+  const w = document.createElement('div'); w.className = 'bowl-wrap' + (calm() ? '' : ' wobble'); w.setAttribute('role', 'status');
+  w.innerHTML = `<div class="rays"></div>${BOWL_SVG}<div class="cap">Saving 1 of ${total}…</div>`;
+  document.body.appendChild(w);
+  const A = { w, total, shown: coinInfo(S.me).recorded * RECORD_COINS, flights: [], timer: null };
+  if (!calm()) A.timer = setInterval(() => {
+    const m = bowlMouth(w), dx = (Math.random() - .5) * 150, h = 70 + Math.random() * 70;
+    coinArc({ x: m.x + (Math.random() - .5) * 40, y: m.y }, { x: m.x + dx * .35, y: m.y + 4 }, { x: m.x + dx, y: m.y - h }, 700 + Math.random() * 300, 720);
+  }, 140);
+  S.recAnim = A;
+}
+function coinShowStep(i) { const A = S.recAnim; if (A) A.w.querySelector('.cap').textContent = `Saving ${Math.min(i, A.total)} of ${A.total}…`; }
+function coinShowCoin() {
+  // 一次确认写入：一枚金币从盆里飞到页顶小牌，落下时小牌加 2
+  const A = S.recAnim; if (!A) return;
+  const land = () => { A.shown += RECORD_COINS; const n = $('#rec-coin-n'); if (n) n.textContent = A.shown; pillBump('tick'); };
+  const pill = $('#rec-coins .ico');
+  if (calm() || !pill) { land(); return; }
+  A.w.classList.remove('pop'); void A.w.offsetWidth; A.w.classList.add('pop');
+  const a = bowlMouth(A.w), b = docPos(pill);
+  A.flights.push(coinArc(a, b, { x: (a.x + b.x) / 2 - 40, y: Math.min(a.y, b.y) - 120 }, 700, 1080).then(land));
+}
+function coinShowStop(quiet) {
+  const A = S.recAnim; if (!A) return;
+  clearInterval(A.timer); A.w.remove(); S.recAnim = null;
+  if (!quiet) render();
+}
+async function coinShowEnd(earned, saved) {
+  // 保存结束：挣到了就让盆炸开金币与彩纸，「+N coins」在盆的位置出现，再飞进页顶小牌；没挣到就收起
+  const A = S.recAnim; if (!A) return;
+  clearInterval(A.timer); A.w.classList.remove('wobble');
+  await Promise.all(A.flights);
+  if (!earned) { coinShowStop(); return; }
+  const o = bowlMouth(A.w), moving = !calm();
+  if (moving) {
+    const colors = ['#f5b83d', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+    for (let i = 0; i < 48; i++) {
+      const p = document.createElement('span'); p.className = i % 3 === 0 ? 'cc' : 'confetti';
+      if (i % 3) Object.assign(p.style, { width: '7px', height: '12px', background: colors[i % colors.length], borderRadius: '2px' });
+      document.body.appendChild(p);
+      const ang = Math.random() * Math.PI * 2, dist = 90 + Math.random() * 170, dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist - 60;
+      animate(p, [
+        { transform: `translate(${o.x}px, ${o.y}px) rotate(0) scale(.4)`, opacity: 1 },
+        { transform: `translate(${o.x + dx}px, ${o.y + dy}px) rotate(${360 * Math.random()}deg) scale(1)`, opacity: 1, offset: .45 },
+        { transform: `translate(${o.x + dx * 1.15}px, ${o.y + dy + 140}px) rotate(${720 * Math.random()}deg) scale(.9)`, opacity: 0 }
+      ], { duration: 1500 + Math.random() * 500, easing: 'cubic-bezier(.2,.7,.4,1)' }).then(() => p.remove());
+    }
+    animate(A.w, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.6)' }], { duration: 350, fill: 'forwards' });
+  } else A.w.style.visibility = 'hidden';
+  const b = document.createElement('div'); b.className = 'coin-badge'; b.setAttribute('aria-hidden', 'true');
+  b.innerHTML = `🪙 +${earned} coin${earned === 1 ? '' : 's'}<span class="sub">${saved} question${saved === 1 ? '' : 's'} recorded</span>`;
+  document.body.appendChild(b);
+  const top = o.y - 30, left = window.scrollX + window.innerWidth / 2, pillEl = $('#rec-coins');
+  const pill = pillEl ? docPos(pillEl) : { x: left, y: top - 200 };
+  const place = (dy, sc) => `translate(calc(${left}px - 50%), ${top + dy}px) scale(${sc})`;
+  await (moving
+    ? animate(b, [
+        { transform: place(30, .3), opacity: 0 },
+        { transform: place(-6, 1.15), opacity: 1, offset: .18 },
+        { transform: place(0, 1), opacity: 1, offset: .3 },
+        { transform: place(0, 1), opacity: 1, offset: .55 },
+        { transform: place(-14, 1.05), opacity: 1, offset: .62 },
+        { transform: `translate(calc(${pill.x}px - 50%), calc(${pill.y}px - 50%)) scale(.22)`, opacity: .85, easing: 'ease-in' }
+      ], { duration: 2600, easing: 'ease-out' })
+    : animate(b, [{ transform: place(0, 1), opacity: 1 }, { transform: place(0, 1), opacity: 1, offset: .85 }, { transform: place(0, 1), opacity: 0 }], { duration: 1800 }));
+  b.remove();
+  coinShowStop();
+  pillBump('glow'); pillBump('tick');
 }
 function clearPhotos() {
   for (const p of S.recPhotos) URL.revokeObjectURL(p.url);
@@ -3139,22 +3239,27 @@ document.addEventListener('click', async ev => {
       case 'save-draft': {
         // 单张保存：新草稿与「保存全部」一样报存了几道、挣了几枚并庆祝；编辑已录错题不给金币，也不报
         const d = draftByKey(b.dataset.k), isNew = d && !d.editId;
+        if (isNew) coinShowStart(1);
         const ok = await saveDraft(d);
+        if (ok && isNew) coinShowCoin();
         if (ok) { S.recMsg = null; S.saveMsg = isNew ? saveSummary(1, 0, 0) : null; }
         render();
-        if (ok && isNew) celebrateCoins(RECORD_COINS);
+        if (isNew) coinShowEnd(ok ? RECORD_COINS : 0, ok ? 1 : 0);
         break;
       }
       case 'save-all': {
         // 带「可能重复」提示的草稿不存，留在页面上；提示在点击时一次算好
-        let n = 0, dups = 0;
-        const flags = dupFlags();
-        for (const d of draftsInOrder()) { if (flags.has(d)) { dups++; continue; } if (await saveDraft(d)) n++; }
+        // 保存期间显示聚宝盆（只在有可存的新草稿时）；每道确认写入飞一枚金币；写完先出结果行，再放结尾动画（0048）
+        let n = 0, dups = 0, k = 0;
+        const flags = dupFlags(), todo = draftsInOrder().filter(d => !flags.has(d));
+        dups = draftsInOrder().length - todo.length;
+        if (todo.length) coinShowStart(todo.length);
+        for (const d of todo) { coinShowStep(++k); if (await saveDraft(d)) { n++; coinShowCoin(); } }
         const left = S.drafts.filter(x => !x.editId).length - dups;
         S.recMsg = null;
         S.saveMsg = saveSummary(n, dups, left);
         render();
-        if (n) celebrateCoins(n * RECORD_COINS);
+        if (todo.length) coinShowEnd(n * RECORD_COINS, n);
         break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
