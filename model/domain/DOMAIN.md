@@ -125,4 +125,4 @@ These are computed models, not independently persisted aggregates.
 
 ## Implementation boundary
 
-Ownership/legacy restrictions, protected-paper recovery and stale-preview validation are not yet implemented or accepted by the current page. [Runtime contracts](../arch/arena/SPEC.md) and [acceptance contract](../verify/SPEC.md) define the downstream handoff. Local logic tests do not prove these future command boundaries.
+Ownership/legacy restrictions, protected-paper recovery and stale-preview validation are not yet implemented or accepted by the current page. [Runtime contracts](../arch/arena/SPEC.md) and [acceptance contract](../../verify/SPEC.md) define the downstream handoff. Local logic tests do not prove these future command boundaries.

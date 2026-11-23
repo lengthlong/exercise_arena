@@ -311,7 +311,7 @@ The same page serves the first review right after hand-in and every later one; r
 
 ## Support scenarios
 
-0011 maps to [maintain SPEC](../operate/maintain/SPEC.md). 0013 uses [acceptance SPEC](../verify/SPEC.md) and deploy-provided test candidates. 0012 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
+0011 maps to [maintain SPEC](../operate/maintain/SPEC.md). 0013 uses [acceptance SPEC](../../verify/SPEC.md) and deploy-provided test candidates. 0012 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
 
 ## Journey coverage
 

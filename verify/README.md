@@ -1,6 +1,6 @@
 # Acceptance entries
 
-Contract: [model/verify/SPEC.md](../model/verify/SPEC.md) (policy, substitutes, `on-touch` component sizing, external-write confirmations) and [ADR 0005](../model/adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md). This file is the sole catalog of concrete acceptance entries, commands and tags; both `design-implement` and `design-verify` may maintain `verify/` within the settled contract. Acceptance is recorded under `record/verify/`; running an entry while debugging is not a verdict.
+Contract: [verify/SPEC.md](./SPEC.md) (policy, substitutes, `on-touch` component sizing, external-write confirmations) and [ADR 0005](../model/adr/0005-acceptance-runs-the-real-page-on-a-simulated-platform.md). This file is the sole catalog of concrete acceptance entries, commands and tags; both `design-implement` and `design-verify` may maintain `verify/` within the settled contract. Acceptance is recorded under `record/verify/`; running an entry while debugging is not a verdict.
 
 Implementation-stage precondition (not acceptance evidence): `./check.sh` and `node impl/logic.test.js impl/arena.html` (see [maintain tools](../operate/maintain/README.md)) must pass on the matched implementation record's product tree.
 

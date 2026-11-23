@@ -1,5 +1,5 @@
 # 工作区配置：内核检查与 agent 都读它。列表只用「键:」之下一行一个「  - 项」的写法；integrations 是「  集成名:」之下缩进的配置。
-toolkit: v0.46.0
+toolkit: v0.48.0
 scan:
   - CLAUDE.md
   - journey/*.md
@@ -10,41 +10,41 @@ scan:
   - model/arch/*/*.md
   - model/operate/*.md
   - model/operate/*/*.md
-  - model/verify/*.md
   - DATA.md
   - operate/*.md
   - operate/*/*.md
   - verify/*.md
 integrations:
 managed:
-  # toolkit: v0.46.0
-  - file 1f628f3d96d02eaf072ba979f4c31933ccdeafcf2153177918992181545aa91a .agents/skills/design-discuss/SKILL.md
-  - file ce1040dbc7e3e188c53a9017bf651e08337f1c50d6efff2a566082868e34b431 .agents/skills/design-discuss/assets/discussion.md
+  # toolkit: v0.48.0
+  - file 32089f877f889340f968a41360b2360c06a9775ad3fdd413597ad8efe7aeea31 .agents/skills/design-discuss/SKILL.md
+  - file 5e1d312cf1bfb216b1df35dafb064c3cd0181694d95460e58741e5c6faef5b69 .agents/skills/design-discuss/assets/discussion.md
   - file 29b9c5dea54fa10fc38bcc23ecca3aea1d5a5cf5f0ba3ed0324f44481d5c2f31 .agents/skills/design-discuss/assets/review-brief.md
   - file d2c10e446e9330a3b384321db2c463ac3c3ca115190eac7a6db44980076b2b64 .agents/skills/design-discuss/references/design-method.md
   - file 7c233e90d3b7b992addfd4912ef11271e52a4c3cd7f99416e7b8a0146517ef6f .agents/skills/design-discuss/references/rare-cases.md
-  - file e1cc4ad97537b153ac44a7c05d0d97de8848314f1dd05af778c8fe2f51e514dd .agents/skills/design-implement/SKILL.md
-  - file 9d2c5fdb031d0ddfc45da5cee8d0aa125e1838bd2cdd55fefe4325ee4f28f4da .agents/skills/design-implement/assets/record.md
+  - file e3af98e9ed871bf3b6d5cbe0b03f4f28c78b92a7fd47ef16b3fa3d9b9ac06d13 .agents/skills/design-implement/SKILL.md
+  - file af63494a6f9e1dc2948eb4cb70cf2a8d1dd6d4177350e7d631cec69cf4d39fe0 .agents/skills/design-implement/assets/record.md
   - file c800d1bdcdcd84bf4a05b0a98bfcdc3d9f3989cb06bae9125b57be2b699b6ba6 .agents/skills/design-implement/references/legacy.md
-  - file 19037ce386fab8a5605805532e9ef0a4ef3b3f271b43d99d42497349697015a0 .agents/skills/design-next/SKILL.md
+  - file 68265a4fd792c319de2b130135826d2cd8a0f8b5bfb8a5e09feb8eafad211491 .agents/skills/design-next/SKILL.md
   - file b0efac044386f42fa300e01722ae15a2f91a64af9ab41df92b47b144b194fe20 .agents/skills/design-next/references/legacy.md
   - file d39f4868fd3cf40153295054a52726ba49b08dc48db700a064f2eb730f1ec163 .agents/skills/design-publish/SKILL.md
   - file b7d5cde09b08832aeee8b479b96810a1c7aecb0ab79ab570a95065795151c3e9 .agents/skills/design-publish/references/legacy.md
-  - file 1497d50090ce548ecda86e35e9d5835e5217bea693a4ec1d3bdfcacaa3adc1f7 .agents/skills/design-release/SKILL.md
-  - file 95f51137196022227da03cf4fd67963101045637737e00c367781b20af29e006 .agents/skills/design-release/assets/record.md
+  - file 531e80e586d250a0871e0e3c95b14f1c67bbfd88bc26925613ce4f085a51fc0c .agents/skills/design-release/SKILL.md
+  - file 199df988d5a6b713aab0d055927b68822573ce5ba2c0b87038c529a5677e73f6 .agents/skills/design-release/assets/record.md
   - file 78d2605398f2e3ce6bbb44a66da3f9b34f91252df606aac4cd43bee49d28ed6d .agents/skills/design-research/SKILL.md
   - file e339010b3b53e9662adf56478ae4bd70583adabe89b25334b17811deb85487d1 .agents/skills/design-research/assets/briefs.md
   - file e013328495292be8fdbd8d913c19041a02100d6c16db3cd211c41b861ddf4be4 .agents/skills/design-research/assets/note.md
-  - file a987dbf6cc001a15a44e42ed4e6095f40882f214a7a8b21fb459da49ad50b0e2 .agents/skills/design-verify/SKILL.md
-  - file b613cbe725696e19202eb9a583f7ad9cbb44bbe04a977faa7131c8c28a6245c0 .agents/skills/design-verify/assets/record.md
+  - file 9e6fd8fd83c9a98a85bd52731a188f0e0369f1ed1fd0b597c285fa44f69dcb97 .agents/skills/design-verify/SKILL.md
+  - file 2275694b12c17f4bdf2226d785cd03f1b396042ea686ccdd968df4d6dc606c4a .agents/skills/design-verify/assets/evaluator-brief.md
+  - file 79a7045a8ce61e50557c8555049052678d5d6940b032d1c25149a6e7f2488ba3 .agents/skills/design-verify/assets/record.md
   - file 3bd47b218bc3b9cebade26e43660e8fca85573da8fd1f998837abbc3d9e09417 .agents/skills/design-writing/SKILL.md
-  - file 402ea3cf8b94f7d60235dadf07304a20b23abba087ae85c8999083dc20939cbc .agents/skills/design-writing/assets/skeletons.md
+  - file ca43cde0042898a43c7e90e10a5e64438dda89ccc406beaa996c30c144bd037c .agents/skills/design-writing/assets/skeletons.md
   - file 81d92c723678ba5caa5142fc28185c44bd1db7cad78ed04f3f15899153950f53 .agents/skills/design-writing/references/human-docs.md
-  - file 750fc1bffdd22f2b8c759f0ce6f718ec9622bde01082e6ffe1a273043dd9833a .agents/skills/design-writing/references/model-files.md
-  - file 83d49cb25508a020689764dcf30f891f537fb012520ea441a19971566e0e0972 .discuss_design/checker.sh
-  - file 73a4d86b68a9b1d67882f626b019a521f9b08255e3d6315047fd890a22ee2eba .discuss_design/visible-text.awk
-  - file 33f4b97f949ef85366f32bdd42bcf699f2dce662e2dd2190f3b0fde0b54c5db5 check.sh
-  - block b5d8e5542c4d403dee9caa70a2302899d74ee5195f46cd875d319326614d4f0d CLAUDE.md
+  - file 9e66ebe175e3d4cea9eba0001cf05f0d27853824416bcb8e292163c7f31e4306 .agents/skills/design-writing/references/model-files.md
+  - file 304a19bf4447531c39caaf62db4f0dccd2e5884e07aa2bfd24e417018b92ae32 .discuss_design/checker.sh
+  - file dc6f78b93f440be290d430928f8dddec8e8fc09a626c0b2730a7c6955e4f0e30 .discuss_design/visible-text.awk
+  - file bc637e16d6dca2ded5cf4edb5604d750896b1abae5f2d296eaabe4eb824ba789 check.sh
+  - block 177cbfd20d1561dc5c1c0f45894ff834203c361a4a147988391d30a521695ce4 CLAUDE.md
   - link 9b4e02f409ec5eded3b31b2e34d4c54c70dbb038819eb962584bcdd9097db400 .claude/skills/design-discuss
   - link bbd5d6b7f96878afcd3ae013a44f1c41a211d8ddae4e53652b95e041771055b2 .claude/skills/design-implement
   - link 4e0fce2032c3220b77c5ebbb6aba4db8f540ec9d5d9b0ea157229da606c2e8c3 .claude/skills/design-next

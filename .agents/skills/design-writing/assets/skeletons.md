@@ -181,12 +181,12 @@ For one context, omit the context map, subdomain table and context heading.
 |---|---|---|---|---|---|
 ```
 
-## Acceptance contract (`model/verify/SPEC.md`)
+## Acceptance contract (`verify/SPEC.md`)
 
 ```markdown
 # <Workspace> acceptance contract
 
-<Stable workspace acceptance policy only—do not list concrete case names, commands or flags here; maintain those solely in verify/README.md. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration) and journeys for success conditions.>
+<Stable workspace acceptance policy only—exclusively owned by design-verify. Do not list concrete case names, commands or flags here; maintain those solely in verify/README.md. See design-verify for Feature Verify (scope: feature) vs. Integration Verify (scope: integration), three-tier grading and journeys for success conditions.>
 
 ## Journeys served
 
@@ -199,10 +199,11 @@ For one context, omit the context map, subdomain table and context heading.
 
 <If prod-only with no OFFLINE environment, state that explicitly and define the local/simulated boundary and prod-only unverified boundaries.>
 
-## Phase and cadence policy
+## Tiered grader and cadence policy
 
-- **Catalog:** Concrete entries, commands and tags (`journey/area`, `cost: automated | manual`, `cadence: always | on-touch`, `default phase: feature | integration | both`) live solely in `verify/README.md`.
-- **Defaults and user direction:** `cost: automated` defaults to `always` on `integration` (affected subset on `feature`); `cost: manual` defaults to `on-touch`; explicit per-entry `cadence` overrides the default. Users may widen, narrow or skip cases on any run (skipped cases are marked `unverified` with reason); only `fail` keeps `record/verify/` `in-progress`.
+- **Catalog:** Concrete entries, commands, `verify/` self-checks and tags (`journey/area`, `cost: automated | agent | manual`, `cadence: always | on-touch`, `default phase: feature | integration | both`) live solely in `verify/README.md`.
+- **Execution order and defaults:** `automated` runs first and fails fast (`always` on `integration`, affected subset on `feature`); `agent` dispatches a fresh-context evaluator sub-agent in an isolated `OFFLINE` environment (`on-touch`, with host-capability fallback to `manual` or `unverified`); `manual` handles human calibration and confirmation flows (`on-touch`). Explicit per-entry `cadence` overrides defaults. Users may widen, narrow or skip cases on any run (`unverified` with reason); only `fail` keeps `record/verify/` `in-progress`.
+- **Oracle-integrity guard:** Adding cases from confirmed `journey/` success conditions, automating manual checks, or fixing `verify/` tool bugs proceeds directly in `design-verify`; substantive policy edits to `verify/SPEC.md` or weakening/deleting existing cases, assertions or catalog tags require explicit user confirmation in `design-verify` Step 1.
 
 ## Sizing by change
 
@@ -222,12 +223,16 @@ For one context, omit the context map, subdomain table and context heading.
 ```markdown
 # Acceptance entries
 
-<Link to model/verify/SPEC.md. Sole catalog of concrete entries, commands and tags. Editable by both design-implement and design-verify within the settled acceptance contract.>
+<Link to verify/SPEC.md. Sole catalog of concrete entries, commands, tags and verify/ self-checks. Exclusively owned by design-verify.>
 
 | Entry | Journey / area | Cost | Cadence | Default phase | Command / instructions |
 |---|---|---|---|---|---|
+
+## Self-checks (run with `./check.sh` after editing `verify/`)
+
+- <Command(s) checking `verify/` script/rubric integrity, or None.>
 ```
-Tags: `Cost` = `automated` or `manual`; `Cadence` = `always` or `on-touch` (overrides `Cost` default); `Default phase` = `feature`, `integration` or `both`.
+Tags: `Cost` = `automated`, `agent` or `manual`; `Cadence` = `always` or `on-touch` (overrides `Cost` default); `Default phase` = `feature`, `integration` or `both`.
 
 ## Operation tool index (`operate/README.md`)
 

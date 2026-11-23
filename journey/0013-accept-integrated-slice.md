@@ -35,4 +35,4 @@ sequenceDiagram
 
 ## Support trace
 
-[Acceptance contract](../model/verify/SPEC.md) owns policy, substitutes and `on-touch` sizing; [verify/README.md](../verify/README.md) owns the concrete entry catalog. [Deploy contract](../model/operate/deploy/SPEC.md) supplies the test candidate/environment and release prerequisites; no new operational work group is added.
+[Acceptance contract](../verify/SPEC.md) owns policy, substitutes and `on-touch` sizing; [verify/README.md](../verify/README.md) owns the concrete entry catalog. [Deploy contract](../model/operate/deploy/SPEC.md) supplies the test candidate/environment and release prerequisites; no new operational work group is added.

@@ -37,4 +37,4 @@
 
 ## Implementation
 
-The `backups/` tool and procedure; see the workspace map in `CLAUDE.md`.
+The `operate/recover/` tool and procedure (with local git-ignored backup data under `backups/`); see the workspace map in `CLAUDE.md`.

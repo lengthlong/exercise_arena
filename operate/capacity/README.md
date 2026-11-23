@@ -15,7 +15,7 @@ Tool for the one-off repair in [model/operate/capacity/SPEC.md](../../model/oper
 Each command below is run from the repository root, with `W=backups/repairs/<name>`.
 
 1. **Pre-repair snapshot.**
-   - Take a backup with [backups/README.md](../../backups/README.md) and make sure `verify` passes.
+   - Take a backup with [operate/recover/README.md](../recover/README.md) and make sure `verify` passes.
    - When listing `exercises` and `sets`, save each list result's id/version text to `$W/versions/exercises.txt` and `$W/versions/sets.txt`.
    - Then run `node operate/capacity/shrink-legacy.mjs inventory <snapshot> $W`.
 2. **Canary** (needs separate confirmation).

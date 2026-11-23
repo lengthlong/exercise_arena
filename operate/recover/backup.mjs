@@ -2,16 +2,16 @@
 // Exercise Arena backup helper. Works only on local files; downloading is done by an agent
 // with the ArtifactData / Artifact tools (see README.md). Node built-ins only.
 //
-//   node backups/backup.mjs need <snapshot> [listed-ids.txt]
+//   node operate/recover/backup.mjs need <snapshot> [listed-ids.txt]
 //       Asset ids referenced by the snapshot's db (plus ids in the optional listing file,
 //       one per line) that are not yet in backups/assets/ — i.e. what still has to be downloaded.
-//   node backups/backup.mjs finalize <snapshot> --artifact <url> --listed-count N --listed-bytes N [--ids ids.txt]
+//   node operate/recover/backup.mjs finalize <snapshot> --artifact <url> --listed-count N --listed-bytes N [--ids ids.txt]
 //       --ids: the asset ids on the platform at snapshot time (one per line). The store is never pruned,
 //       so after assets are deleted on the platform the whole store no longer equals the listing;
 //       with --ids the manifest covers exactly those ids (all must be stored).
 //       Write <snapshot>/manifest.json: doc counts and hashes, asset references, asset store
 //       hashes, and the server's asset-listing totals for comparison.
-//   node backups/backup.mjs verify <snapshot>
+//   node operate/recover/backup.mjs verify <snapshot>
 //       Re-hash everything against the manifest and check every referenced asset is present.
 //
 // <snapshot> is a directory name under backups/snapshots/ (e.g. 20261122) or a path.
@@ -21,7 +21,8 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = join(REPO, 'backups');
 const ASSETS = join(ROOT, 'assets');
 const COLLECTIONS = ['exercises', 'sets', 'papers', 'users', 'settings', 'matches'];
 // Collections whose documents carry `images` (asset ids), per DATA.md.
@@ -119,7 +120,7 @@ function cmdFinalize(snapArg, o) {
   const unreferenced = [...store.keys()].filter((id) => !refs.has(id)).sort();
 
   const page = join(snap, 'page', 'index.html');
-  const repoPage = join(ROOT, '..', 'impl', 'arena.html');
+  const repoPage = join(REPO, 'impl', 'arena.html');
   let pageInfo = null;
   if (existsSync(page)) {
     const buf = readFileSync(page);
@@ -188,4 +189,4 @@ const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'need') cmdNeed(rest[0], rest[1]);
 else if (cmd === 'finalize') cmdFinalize(rest[0], opts(rest.slice(1)));
 else if (cmd === 'verify') cmdVerify(rest[0]);
-else die('usage: node backups/backup.mjs need|finalize|verify <snapshot> [...]');
+else die('usage: node operate/recover/backup.mjs need|finalize|verify <snapshot> [...]');

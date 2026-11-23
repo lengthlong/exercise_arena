@@ -1,5 +1,7 @@
-# Markdown 行内链接扫描器：屏蔽代码块与行内代码。
+# Markdown 行内链接扫描器与记录解析器：屏蔽代码块与行内代码。
 # 支持单文件参数或 -v files_list=<文件列表> 的单进程批处理。
+# mode=""（默认）: 扫描行内链接；mode="records": 校验记录生命周期与上游引用；
+# mode="release": 读取合资格集成验收记录基线；mode="status": 输出流水线状态视图所需元数据。
 BEGIN {
     if (files_list != "") {
         while ((status = getline f < files_list) > 0)
@@ -271,17 +273,27 @@ END {
         exit record_errors != 0
     }
     if (mode == "release" && !broken && !empty_run) exit record_errors != 0
+    if (mode == "status" && !broken && !empty_run) {
+        if (record_errors != 0) exit 2
+        exit 0
+    }
 }
 
 function record_error(file, message) {
     record_errors++
     if (mode == "records") print file ": " message
+    else if (mode == "status") print file ": " message > "/dev/stderr"
 }
 
 function trim(s) {
     sub(/^[ \t]+/, "", s)
     sub(/[ \t]+$/, "", s)
     return s
+}
+
+function clean_tsv(s) {
+    gsub(/[\t\r\n]/, " ", s)
+    return trim(s)
 }
 
 # GFM tables may escape a pipe within a cell.
@@ -304,7 +316,15 @@ function table_separator(fields, count,    i) {
     return 1
 }
 
-function scan_record(    file, kind, name, state, location, scope, baseline, candidate, confirmations, modern, legacy, header, i, line, heading, pending, section, marker, seen, row, question, fields, count, verdict, table, table_columns, judgments, failed, before, upstream, html_comment, shape_error, legacy_state, legacy_location, legacy_final, legacy_upstream, legacy_refs) {
+function emit_status_record(kind, file, name, norm_state, scope_out, baseline_out, fail_cnt, unverified_cnt, loc_out) {
+    if (scope_out == "") scope_out = "-"
+    if (baseline_out == "") baseline_out = "-"
+    loc_out = clean_tsv(loc_out)
+    if (loc_out == "") loc_out = "-"
+    print "REC\t" kind "\t" file "\t" name "\t" norm_state "\t" scope_out "\t" baseline_out "\t" (fail_cnt + 0) "\t" (unverified_cnt + 0) "\t" loc_out
+}
+
+function scan_record(    file, kind, name, state, location, scope, baseline, candidate, confirmations, modern, legacy, header, i, line, heading, pending, section, marker, seen, row, question, fields, count, verdict, table, table_columns, judgments, failed, fail_cnt, unverified_cnt, before, upstream, html_comment, shape_error, legacy_state, legacy_location, legacy_final, legacy_upstream, legacy_refs, norm_state, loc_val, wo_rows, wo_n, q_list, q_n, q_seen, dnum, in_leg_wo, unv_rows) {
     file = cur_file; sub(/^\.\//, "", file)
     if (mode == "release") file = "record/verify/input.md"
     name = file; sub(/^.*\//, "", name); sub(/\.md$/, "", name)
@@ -314,6 +334,7 @@ function scan_record(    file, kind, name, state, location, scope, baseline, can
         discussions[substr(name, 1, 4)] = file
 
     header = 1; before = record_errors
+    fail_cnt = 0; unverified_cnt = 0; wo_n = 0; q_n = 0
     for (i = 1; i <= file_lines; i++) {
         line = original[i]; sub(/\r$/, "", line)
         # Keep the legacy matching boundaries used by historical records.
@@ -383,6 +404,7 @@ function scan_record(    file, kind, name, state, location, scope, baseline, can
                 question = substr(question, 1, RLENGTH)
                 sub(/[^0-9]$/, "", question)
                 record_question[file, question] = 1
+                if (!q_seen[question]++) q_list[++q_n] = question
             }
         }
         if (section == "upstream" && line ~ /^- [^ \t]/) upstream[++upstream[0]] = substr(line, 3)
@@ -394,12 +416,19 @@ function scan_record(    file, kind, name, state, location, scope, baseline, can
             } else if (table == 1 && count == table_columns && table_separator(fields, count)) {
                 table = 2
             } else if (table == 2 && count == table_columns && row ~ /^[0-9]+$/ && fields[2] != "") {
-                if (section != "acceptance-judgments") record_row[file, row] = 1
-                else if (count < 3 || verdict !~ /^(pass|fail|unverified)$/ || record_row[file, row]++)
+                if (section != "acceptance-judgments") {
+                    record_row[file, row] = 1
+                    if (section == "write-off") wo_rows[++wo_n] = row
+                } else if (count < 3 || verdict !~ /^(pass|fail|unverified)$/ || record_row[file, row]++)
                     shape_error = "Malformed acceptance judgment row"
                 else {
                     judgments++
-                    if (verdict == "fail") failed = 1
+                    if (verdict == "fail") { failed = 1; fail_cnt++ }
+                    else if (verdict == "unverified") {
+                        unverified_cnt++
+                        unv_rows[++unv_rows[0]] = row "\t" fields[2]
+                        gsub(/\t/, " ", unv_rows[unv_rows[0]]); sub(/ /, "\t", unv_rows[unv_rows[0]])
+                    }
                 }
             } else if (section == "acceptance-judgments") shape_error = "Malformed acceptance judgment table"
         } else if (table > 0) table = 3
@@ -417,6 +446,53 @@ function scan_record(    file, kind, name, state, location, scope, baseline, can
                 }
             }
             if (baseline != "") print baseline
+            return
+        }
+        if (mode == "status") {
+            norm_state = "invalid"
+            if (legacy_state ~ /^> 状态：\*\*✅ 已完成/) norm_state = "completed"
+            else if (legacy_state ~ /^> 状态：\*\*⛔ 已中止/) norm_state = "aborted"
+            else if (legacy_state ~ /^> 状态：\*\*待落盘/) norm_state = "pending-write-off"
+            else if (legacy_state ~ /^> 状态：\*\*(进行中|讨论中)/) norm_state = "in-progress"
+            if (norm_state == "invalid") {
+                record_error(file, "Invalid legacy record status")
+                return
+            }
+            if (kind == "verify") {
+                for (i = 1; i <= file_lines; i++) {
+                    if (original[i] ~ /^\|[^|]*\|[^|]*\| *未通过 *\|/) fail_cnt++
+                    if (original[i] ~ /^\|[^|]*\|[^|]*\| *未验证 *\|/) unverified_cnt++
+                    if (baseline == "" && match(original[i], /^> 位置：.*基线 `[0-9a-f]+`/)) {
+                        candidate = substr(original[i], 1, RLENGTH-1)
+                        sub(/^.*`/, "", candidate)
+                        if (length(candidate) >= 7 && length(candidate) <= 40) baseline = candidate
+                    }
+                }
+            }
+            loc_val = legacy_location; sub(/^> 位置：/, "", loc_val)
+            emit_status_record(kind, file, name, norm_state, (kind == "verify" ? "legacy" : "-"), (kind == "verify" ? baseline : "-"), fail_cnt, unverified_cnt, loc_val)
+            if (kind == "discuss" && norm_state == "completed" && name ~ /^[0-9][0-9][0-9][0-9]-/) {
+                dnum = substr(name, 1, 4)
+                in_leg_wo = 0
+                for (i = 1; i <= file_lines; i++) {
+                    line = original[i]; sub(/\r$/, "", line)
+                    if (line ~ /^## /) {
+                        in_leg_wo = (line ~ /^## ((一|二|三|四|五|六|七|八|九|十)+、)?核销/ && line !~ /^## ((一|二|三|四|五|六|七|八|九|十)+、)?核销表/)
+                        continue
+                    }
+                    if (in_leg_wo && line ~ /^\| *[0-9]+ *\|/) {
+                        row = line; sub(/^\| */, "", row); sub(/ *\|.*$/, "", row)
+                        wo_rows[++wo_n] = row
+                    }
+                }
+                if (wo_n > 0) {
+                    for (i = 1; i <= wo_n; i++) print "DROW\t" dnum "\t#" wo_rows[i]
+                } else if (q_n > 0) {
+                    for (i = 1; i <= q_n; i++) print "DROW\t" dnum "\t" q_list[i]
+                }
+            } else {
+                for (i = 1; i <= legacy_refs[0]; i++) print "UP\t" kind "\t" name "\t" clean_tsv(legacy_refs[i])
+            }
             return
         }
         legacy = (kind == "discuss" ? "讨论中|待落盘" : "进行中")
@@ -461,6 +537,21 @@ function scan_record(    file, kind, name, state, location, scope, baseline, can
     }
     if (mode == "release") {
         if (before == record_errors && state ~ /^completed / && !failed && scope != "feature") print baseline
+    } else if (mode == "status") {
+        if (before != record_errors) return
+        norm_state = state; sub(/[ \t].*$/, "", norm_state)
+        emit_status_record(kind, file, name, norm_state, (kind == "verify" ? (scope != "" ? scope : "legacy") : "-"), (kind == "verify" ? baseline : "-"), fail_cnt, unverified_cnt, location)
+        if (kind == "verify") for (i = 1; i <= unv_rows[0]; i++) print "UNV\t" name "\t" unv_rows[i]
+        if (kind == "discuss" && norm_state == "completed" && name ~ /^[0-9][0-9][0-9][0-9]-/) {
+            dnum = substr(name, 1, 4)
+            if (wo_n > 0) {
+                for (i = 1; i <= wo_n; i++) print "DROW\t" dnum "\t#" wo_rows[i]
+            } else if (q_n > 0) {
+                for (i = 1; i <= q_n; i++) print "DROW\t" dnum "\t" q_list[i]
+            }
+        } else {
+            for (i = 1; i <= upstream[0]; i++) print "UP\t" kind "\t" name "\t" clean_tsv(upstream[i])
+        }
     } else {
         for (i = 1; i <= upstream[0]; i++) {
             ref_file[++ref_count] = file; ref_item[ref_count] = upstream[i]
@@ -490,6 +581,10 @@ function check_record_ref(file, item,    kind, words, name, id, target, outcome)
     if (kind == "implement" && (item ~ /^cutover: [0-9][0-9][0-9][0-9]$/ || item ~ /^切换点：[0-9][0-9][0-9][0-9]$/)) {
         name = substr(item, length(item) - 3)
         if (!(name in discussions)) record_error(file, "Cutover discussion does not exist: " name)
+        return
+    }
+    if (kind == "implement" && item ~ /^maintenance:/) {
+        if (item !~ /^maintenance:[ \t]*[^ \t]/) record_error(file, "Maintenance upstream entry needs a basis: " item)
         return
     }
     if (kind == "implement" && name ~ /^[0-9][0-9][0-9][0-9]$/) {

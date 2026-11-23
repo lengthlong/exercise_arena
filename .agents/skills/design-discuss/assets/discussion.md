@@ -50,6 +50,10 @@ Keep the active decisions on their questions. Mark recommendations as pending, u
 
 <Source, facts, inference and basis, unknowns and impact. Identify any consumed research by path. It freezes with this discussion.>
 
+## Carry-forward
+
+- CF-1 open — <Optional: observation a later stage must make, such as measuring a disproved-if assumption. The first implementation record copies open items. Delete the section if none.>
+
 ## Agent decisions
 
 **Q2 <Question>** (effective upon confirmation) <Decision, rationale and alternatives declined.>

@@ -37,9 +37,9 @@ The intended production URL recorded by the source header is [Exercise Arena Art
 
 ## Supply an acceptance candidate
 
-- **Prerequisites and scope** Needed when integration acceptance exercises touched `on-touch` manual platform boundaries (or when widened by the user) under [acceptance SPEC](../../verify/SPEC.md); slices whose manual boundaries are untouched need no test target. Identify source content/revision, authorized test target, actors/capabilities, named synthetic `test: true` data/asset scope and allowed writes. Do not upload an unaccepted candidate to production merely to obtain acceptance evidence.
+- **Prerequisites and scope** Needed when integration acceptance exercises touched `on-touch` manual platform boundaries (or when widened by the user) under [acceptance SPEC](../../../verify/SPEC.md); slices whose manual boundaries are untouched need no test target. Identify source content/revision, authorized test target, actors/capabilities, named synthetic `test: true` data/asset scope and allowed writes. Do not upload an unaccepted candidate to production merely to obtain acceptance evidence.
 - **Success / failure** The test target loads the identified candidate with declared dependencies; inability to supply it leaves those platform boundaries `unverified`.
-- **Verification / recovery** Verify candidate identity and test scope through [acceptance SPEC](../../verify/SPEC.md). Do not invent a sandbox or safe rollback. Test cleanup must be explicitly authorized, not a global data purge.
+- **Verification / recovery** Verify candidate identity and test scope through [acceptance SPEC](../../../verify/SPEC.md). Do not invent a sandbox or safe rollback. Test cleanup must be explicitly authorized, not a global data purge.
 - **Implementation** Manual platform entry; see [deploy tools](../../../operate/deploy/README.md).
 
 ## Publish an accepted page

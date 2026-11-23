@@ -4,7 +4,9 @@ Copy this outline to `record/verify/YYYYMMDD-<topic>.md`. Set `> scope:` to `fea
 
 Unreleased acceptance records stay updatable in place across defect-fix or drift re-runs: keep the existing `YYYYMMDD-<topic>.md` filename (updating the `> status:` date) and preserve existing judgment row numbers (append new judgments at the end). Once any completed release covers the record's work (or on `aborted`), the record freezes permanently globally.
 
-List covered implementation records by filename without extension. Number every user-perspective journey judgment; never list `./check.sh` or registered implementation tests as judgment rows. Implementation cites `<record-name> #k` in `## Upstream` only for separate, frozen or aborted acceptance records; for an `in-progress` acceptance record that will update in place, implementation logs the fixed `#k` in its round notes to keep upstream links acyclic.
+Optionally add `## Carry-forward` for items this stage deliberately leaves to a later stage, one per line as `- <id> <status> — <description>` with an id unique in the record (such as `CF-1`) and status `open`, `fixed` or `dropped by maintainer`. Omit the section when there are none. Before marking `completed`, give every non-blocking advisory from evaluators or walkthroughs a status there, and report the result of each observation that upstream implementation records carry forward.
+
+List covered implementation records by filename without extension. Number every user-perspective journey judgment; never list `./check.sh`, `verify/` self-checks or registered implementation tests as judgment rows. Implementation cites `<record-name> #k` in `## Upstream` only for separate, frozen or aborted acceptance records; for an `in-progress` acceptance record that will update in place, implementation logs the fixed `#k` in its round notes to keep upstream links acyclic.
 
 ```markdown
 # <Topic>
@@ -31,7 +33,7 @@ List covered implementation records by filename without extension. Number every 
 | Commit | Acceptance scope derived from the contract | Treatment |
 |---|---|---|
 
-List any non-exempt product commits outside `record/` and `verify/` (scoped to the feature for `feature`, or since the last release for `integration`), or write None.
+List the non-exempt commits in `UNRECORDED_PRODUCT_COMMITS` from `./check.sh --status` (scoped to the feature for `feature`, or since the last release for `integration`), or write None. Discussion write-off commits taken over by an implementation record are already covered there.
 
 ## Judgments
 <!-- acceptance-judgments -->
@@ -42,7 +44,11 @@ List any non-exempt product commits outside `record/` and `verify/` (scoped to t
 
 ## Substitutes and unverified boundaries
 
-- <List substitutes, prod-only boundaries when `model/verify/SPEC.md` declares no `OFFLINE` environment, and user-skipped cases with reason, or write None.>
+- <List substitutes, prod-only boundaries when `verify/SPEC.md` declares no `OFFLINE` environment, host-capability fallbacks, and user-skipped cases with reason, or write None.>
+
+## Carry-forward
+
+- CF-1 <open, fixed or dropped by maintainer> — <Optional: non-blocking advisory or observation result.>
 
 ## Round notes
 

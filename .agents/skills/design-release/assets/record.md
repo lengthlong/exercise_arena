@@ -4,6 +4,8 @@ Copy this outline to `record/release/<version>[-<environment>][-<sequence>].md`.
 
 Record the target release branch (such as mainline or `release/*`) and candidate commit. Follow the deploy contract for when to commit the record on that branch—after verifying contracted pre-push results and before pushing or externally announcing. List one covered Integration Verify record name per line without its extension (`> scope: integration`, or legacy omitted `scope`; never `scope: feature` and no `waived:` syntax). Report post-commit push and external announcement verification separately in conversation.
 
+In `## Verification`, name the preflight or rehearsal path the deploy contract ran and copy every `[unverified]` line from `./check.sh --status` for the covered acceptance records with the disposition `disclosed at release confirmation` (or state none). Add `## Known issues` when any exist: the previous completed release's still-open known issues plus still-`open` carry-forward items of covered records, minus items those records close. Number each `<version> KI-<n>`, keeping existing ids; later records cite them as plain text.
+
 ```markdown
 # <Version>
 
@@ -28,7 +30,13 @@ Record the target release branch (such as mainline or `release/*`) and candidate
 
 ## Verification
 
+- Preflight: <preflight or rehearsal path the deploy contract ran>
 - <Evidence required by the deploy contract (e.g. ONLINE deploy, post-deploy live check, or dark-launch live-identity verification).>
+- Unverified judgments in covered acceptance records: <none, or one line each: `<record> #k <condition> — disclosed at release confirmation`>
+
+## Known issues
+
+- <version> KI-1 — <Optional: open issue carried into this version.>
 
 ## Steps omitted
 

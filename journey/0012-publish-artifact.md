@@ -35,4 +35,4 @@ sequenceDiagram
 
 ## Support trace
 
-All steps use [deploy contract](../model/operate/deploy/SPEC.md); evidence policy uses [acceptance contract](../model/verify/SPEC.md). Publication enables [0010](./0010-open-shared-arena.md), not cross-owner content sharing.
+All steps use [deploy contract](../model/operate/deploy/SPEC.md); evidence policy uses [acceptance contract](../verify/SPEC.md). Publication enables [0010](./0010-open-shared-arena.md), not cross-owner content sharing.

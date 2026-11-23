@@ -34,4 +34,4 @@ sequenceDiagram
 
 ## Support trace
 
-Steps 1-5 use [maintain contract](../model/operate/maintain/SPEC.md). Integrated acceptance is owned by [acceptance contract](../model/verify/SPEC.md); delivery is a separate goal.
+Steps 1-5 use [maintain contract](../model/operate/maintain/SPEC.md). Integrated acceptance is owned by [acceptance contract](../verify/SPEC.md); delivery is a separate goal.

@@ -5,7 +5,7 @@ description: Examine and decide design trade-offs. Use for new designs, changes,
 
 # design-discuss
 
-The agent gathers evidence and proposes a target model. The user decides genuine trade-offs and confirms the write-off plan. Apply confirmed changes to journeys and models (including operation contracts) and record the write-off. Freezing hands the design rows and current model to `design-implement`, which identifies affected implementation paths and tests. Read implementation for evidence only.
+The agent gathers evidence and proposes a target model. The user decides genuine trade-offs and confirms the write-off plan. Apply confirmed changes to journeys and models (including operation contracts; never `verify/`, which belongs exclusively to `design-verify`) and record the write-off. Freezing hands the design rows and current model to `design-implement`, which identifies affected implementation paths and tests. Read implementation for evidence only.
 
 ## Rules
 
@@ -19,7 +19,7 @@ The agent gathers evidence and proposes a target model. The user decides genuine
 For a new checkout or handover, use `design-next` first. Resume a brief interruption from the current record.
 
 1. **Open the discussion:** Create `record/discuss/NNNN-<topic>.md` from `assets/discussion.md` stating background, goal, exclusions, constraints and affected journeys or system scenarios. Ask only for material context only the user knows.
-2. **Verify evidence:** Check current behavior and assumptions against journeys, models, ADRs, implementation and primary sources (put external research in `record/research/`). Separate facts, inferences and unknowns; for measurable assumptions, state when to verify and how to recover if disproved.
+2. **Verify evidence:** Check current behavior and assumptions against journeys, models, ADRs, implementation and primary sources (put external research in `record/research/`). Separate facts, inferences and unknowns; for measurable assumptions, state when to verify and how to recover if disproved, and list each observation a later stage must make under `## Carry-forward` (`- <id> open — <observation>`) so implementation carries it to acceptance.
 3. **Derive the target model** with `references/design-method.md`:
    - Pick a clear best option yourself and show its rationale and declined alternatives; tell the user promptly about choices that shape later decisions or externally visible behavior.
    - Ask independent questions together and base questions before dependent ones.

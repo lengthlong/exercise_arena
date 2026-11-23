@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# 内核检查：在工作区根目录运行（工作区的 ./check.sh 转调本工作区所用版本的这份受管副本 .discuss_design/checker.sh）。
-# 读 .discuss_design/config.yaml；退出码 0 表示通过。最后若有 ./check.local.sh，接着跑它并合并退出码。
+# 内核检查与只读流水线状态：在工作区根目录运行（工作区的 ./check.sh 透传参数给受管副本 .discuss_design/checker.sh）。
+# 无参：校验模式（最后若有 ./check.local.sh，接着跑它并合并退出码）；
+# --status：只读流水线状态模式（不运行 check.local.sh，不执行 git fetch，退出码 0 成功 / 2 异常）。
 # 只依赖 bash 3.2、git、find、grep、awk、shasum —— macOS 自带的版本即可。
 
 set -euo pipefail
@@ -19,20 +20,436 @@ grep_match() {
 }
 grep_maybe() { grep_match "$@" || [ "$?" -eq 1 ]; }
 
+MODE=check
+if [ "$#" -eq 1 ] && [ "$1" = "--status" ]; then
+  MODE=status
+elif [ "$#" -gt 0 ]; then
+  echo "Usage: ./check.sh [--status]" >&2
+  exit 2
+fi
+
 CONFIG=.discuss_design/config.yaml
 OLD_CONFIG=.discuss_design.yaml
 LEGACY_CONFIG=.design/workspace.yaml
 if [ -e "$LEGACY_CONFIG" ] || [ -L "$LEGACY_CONFIG" ]; then
-  echo "Legacy config ${LEGACY_CONFIG} found. Use design-init upgrade directly with the old and new workspace maps. Resolve duplicate configs first."
-  exit 1
+  echo "Legacy config ${LEGACY_CONFIG} found. Use design-init upgrade directly with the old and new workspace maps. Resolve duplicate configs first." >&2
+  [ "$MODE" = status ] && exit 2 || exit 1
 fi
 if [ -e "$OLD_CONFIG" ] || [ -L "$OLD_CONFIG" ]; then
-  echo "Root config ${OLD_CONFIG} found. Run upgrade to move it to ${CONFIG}."
-  exit 1
+  echo "Root config ${OLD_CONFIG} found. Run upgrade to move it to ${CONFIG}." >&2
+  [ "$MODE" = status ] && exit 2 || exit 1
 fi
 if [ -L "$CONFIG" ] || [ ! -f "$CONFIG" ] || [ ! -r "$CONFIG" ]; then
-  echo "Config missing, unreadable or not a regular file: ${CONFIG}"
-  exit 1
+  echo "Config missing, unreadable or not a regular file: ${CONFIG}" >&2
+  [ "$MODE" = status ] && exit 2 || exit 1
+fi
+
+# ── 只读流水线状态模式（--status）────────────────────────────────
+run_status_mode() {
+  [ -e .git ] || die "Not a Git repository"
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not inside a Git work tree"
+  local head branch dirty toolkit_ver
+  head=$(git rev-parse --verify HEAD 2>/dev/null) || die "Cannot resolve HEAD commit"
+  branch=$(git symbolic-ref --short -q HEAD 2>/dev/null || echo "detached")
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then dirty=1; else dirty=0; fi
+  toolkit_ver=$(awk '/^toolkit:/ { sub(/^toolkit:[ ]*/, ""); print; exit }' "$CONFIG" 2>/dev/null || true)
+  [ -n "$toolkit_ver" ] || die "Missing toolkit version in $CONFIG"
+  [ -r "$CHECKER_DIR/visible-text.awk" ] || die "Record reader missing or unreadable: $CHECKER_DIR/visible-text.awk"
+
+  # 产品路径（checker/SPEC.md 推导规则 0，ADR 0040）：排除 guide 类位置、设计与记录目录、旧记录目录与 managed 清单路径
+  local -a product_spec=(. ':(exclude)record' ':(exclude)verify' ':(exclude)journey' ':(exclude)model' ':(exclude)doc'
+    ':(exclude)discuss' ':(exclude)research' ':(exclude)CLAUDE.md' ':(exclude)AGENTS.md' ':(exclude).discuss_design'
+    ':(exclude).agents/skills' ':(exclude).claude/skills' ':(exclude)check.sh' ':(exclude)check.local.sh')
+  local managed_path
+  while IFS= read -r managed_path; do
+    [ -n "$managed_path" ] && product_spec+=(":(exclude,literal)$managed_path")
+  done < <(awk '/^managed:/ { on = 1; next } /^[^ #]/ { on = 0 } on && /^  - / { print $NF }' "$CONFIG" 2>/dev/null || true)
+
+  : > "$tmp.st-records"
+  local dir f
+  for dir in record/discuss discuss record/implement record/verify record/release record/deliver; do
+    for f in "$dir"/*.md; do
+      [ -f "$f" ] || continue
+      [ -s "$f" ] || die "Empty record: $f"
+      printf './%s\n' "$f" >> "$tmp.st-records"
+    done
+  done
+  : > "$tmp.st-meta"
+  if [ -s "$tmp.st-records" ]; then
+    LC_ALL=C awk -v files_list="$tmp.st-records" -v mode=status -f "$CHECKER_DIR/visible-text.awk" > "$tmp.st-meta" ||
+      die "Failed to parse records for --status"
+  fi
+
+  # 1. 最近已完成发版与 RELEASE_BASE（单次 git log 逆序扫描，合并读取 record/release/ 与 record/deliver/，排除 aborted / in-progress）
+  : > "$tmp.st-rel-log"
+  git log --format='COMMIT	%H' --name-only -- record/release record/deliver > "$tmp.st-rel-log" 2>/dev/null || true
+  LC_ALL=C awk -F '\t' -v meta="$tmp.st-meta" '
+    BEGIN {
+      while ((getline line < meta) > 0) {
+        split(line, a, "\t")
+        if (a[1] == "REC" && (a[2] == "release" || a[2] == "deliver") && a[5] == "completed") {
+          rel_name[a[3]] = a[4]
+          rel_loc[a[3]] = a[10]
+        }
+      }
+      close(meta)
+    }
+    $1 == "COMMIT" {
+      if (best_intro != "") exit
+      cur_sha = $2; next
+    }
+    NF == 1 && ($1 in rel_name) {
+      if (best_intro == "" || $1 > best_file) {
+        best_intro = cur_sha
+        best_file = $1
+      }
+    }
+    END {
+      if (best_intro != "") print best_intro "\t" rel_name[best_file] "\t" rel_loc[best_file]
+    }
+  ' "$tmp.st-rel-log" > "$tmp.st-rel-best"
+
+  local last_rel="none" last_rel_cand="none" release_base="none"
+  local best_intro="" best_loc=""
+  local kind file name state scope base_val fail_cnt unv_cnt loc
+  if [ -s "$tmp.st-rel-best" ]; then
+    IFS=$'\t' read -r best_intro last_rel best_loc < "$tmp.st-rel-best"
+  fi
+
+  if [ -n "$best_intro" ]; then
+    local cand_raw cand_sha=""
+    cand_raw=$(printf '%s\n' "$best_loc" | awk '
+      {
+        s = $0; gsub(/`/, "", s)
+        if (match(s, /(candidate|候选)[ :：]+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+/)) {
+          m = substr(s, RSTART, RLENGTH)
+          sub(/^.*[ :：]+/, "", m)
+          print m; exit
+        }
+        best = ""
+        while (match(s, /[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+/)) {
+          tok = substr(s, RSTART, RLENGTH)
+          if (length(tok) <= 40) best = tok
+          s = substr(s, RSTART + RLENGTH)
+        }
+        if (best != "") print best
+      }')
+    if [ -n "$cand_raw" ]; then
+      cand_sha=$(git rev-parse --verify "${cand_raw}^{commit}" 2>/dev/null || true)
+    fi
+    last_rel_cand=${cand_sha:-none}
+    release_base=$best_intro
+    if [ "$last_rel_cand" != "none" ] &&
+       git merge-base --is-ancestor "$best_intro" "$last_rel_cand" 2>/dev/null &&
+       git merge-base --is-ancestor "$last_rel_cand" "$head" 2>/dev/null; then
+      release_base=$last_rel_cand
+    fi
+  fi
+
+  # 批量判定哪些 record/implement 与 record/verify 在 RELEASE_BASE 时已存在且之后未变动（单次 ls-tree + diff）
+  : > "$tmp.st-in-base"
+  : > "$tmp.st-changed-since-base"
+  if [ "$release_base" != "none" ]; then
+    git ls-tree -r --name-only "$release_base" -- record/implement record/verify > "$tmp.st-in-base" 2>/dev/null || true
+    git diff --name-only "$release_base" "$head" -- record/implement record/verify > "$tmp.st-changed-since-base" 2>/dev/null || true
+  fi
+
+  # 2. 按类型分组的未关闭 in-progress 记录（含讨论 pending-write-off）
+  local open_discuss="" open_impl="" open_verify="" open_release=""
+  local open_iv_count=0 has_open_defect=0
+  while IFS=$'\t' read -r tag kind file name state scope base_val fail_cnt unv_cnt loc; do
+    [ "$tag" = "REC" ] || continue
+    case "$kind" in
+      discuss)
+        if [ "$state" = "in-progress" ] || [ "$state" = "pending-write-off" ]; then
+          open_discuss="${open_discuss:+$open_discuss }$name"
+        fi ;;
+      implement)
+        if [ "$state" = "in-progress" ]; then
+          open_impl="${open_impl:+$open_impl }$name"
+          open_iv_count=$((open_iv_count + 1))
+        fi ;;
+      verify)
+        if [ "$state" = "in-progress" ]; then
+          open_verify="${open_verify:+$open_verify }$name"
+          open_iv_count=$((open_iv_count + 1))
+          [ "$fail_cnt" -gt 0 ] && has_open_defect=1
+        fi ;;
+      release|deliver)
+        if [ "$state" = "in-progress" ]; then
+          open_release="${open_release:+$open_release }$name"
+        fi ;;
+    esac
+  done < "$tmp.st-meta"
+
+  # 3. 待接手已冻结讨论设计行（跳 <= cutover，仅计 completed 讨论）
+  local pending_rows
+  pending_rows=$(LC_ALL=C awk -F '\t' '
+    BEGIN { cutover = -1 }
+    $1 == "UP" && $2 == "implement" {
+      item = $4; gsub(/`/, "", item)
+      sub(/^[ \t]+/, "", item); sub(/[ \t]+$/, "", item)
+      if (item ~ /^cutover: [0-9][0-9][0-9][0-9]$/ || item ~ /^切换点：[0-9][0-9][0-9][0-9]$/) {
+        c = substr(item, length(item) - 3) + 0
+        if (c > cutover) cutover = c
+        next
+      }
+      split(item, w, /[ \t]+/)
+      if (w[1] ~ /^[0-9][0-9][0-9][0-9]$/ && (w[2] ~ /^#[0-9]+$/ || w[2] ~ /^Q[0-9]+$/)) {
+        done_ref[w[1] w[2]] = 1
+      }
+      next
+    }
+    $1 == "DROW" {
+      dnum = $2 + 0; key = $2 $3
+      rows[++n] = dnum SUBSEP key
+    }
+    END {
+      out = ""
+      for (i = 1; i <= n; i++) {
+        split(rows[i], p, SUBSEP)
+        if (p[1] <= cutover) continue
+        if (done_ref[p[2]]) continue
+        if (seen[p[2]]++) continue
+        out = (out == "" ? p[2] : out " " p[2])
+      }
+      print (out == "" ? "none" : out)
+    }
+  ' "$tmp.st-meta")
+
+  # 4. 未发版实现记录、产品 tree 匹配与原始未记录产品提交
+  : > "$tmp.st-unrel-impls"
+  : > "$tmp.st-impl-details"
+  : > "$tmp.st-covered-commits"
+  local unrel_impls="" prod_matched="none"
+  while IFS=$'\t' read -r tag kind file name state scope base_val fail_cnt unv_cnt loc; do
+    [ "$tag" = "REC" ] && [ "$kind" = "implement" ] || continue
+    [ "$state" != "aborted" ] || continue
+    local is_unrel=0
+    if [ "$release_base" = "none" ]; then
+      is_unrel=1
+    elif ! grep_match -qxF "$file" "$tmp.st-in-base"; then
+      is_unrel=1
+    elif grep_match -qxF "$file" "$tmp.st-changed-since-base"; then
+      is_unrel=1
+    fi
+    [ "$is_unrel" -eq 1 ] || continue
+
+    printf '%s\n' "$name" >> "$tmp.st-unrel-impls"
+    unrel_impls="${unrel_impls:+$unrel_impls }$name"
+
+    local range_raw start_ref="" end_ref="" start_sha="" end_sha="" hist_rewritten=0 pmatch="mismatch"
+    range_raw=$(printf '%s\n' "$loc" | awk '
+      {
+        s = $0; gsub(/`/, "", s)
+        if (match(s, /[A-Za-z0-9._\/-]+\.\.[A-Za-z0-9._\/-]+/)) {
+          print substr(s, RSTART, RLENGTH); exit
+        }
+      }')
+    if [ -n "$range_raw" ]; then
+      start_ref=${range_raw%%..*}
+      end_ref=${range_raw#*..}
+      start_sha=$(git rev-parse --verify "${start_ref}^{commit}" 2>/dev/null || true)
+      end_sha=$(git rev-parse --verify "${end_ref}^{commit}" 2>/dev/null || true)
+      if [ -z "$start_sha" ] || [ -z "$end_sha" ] ||
+         ! git merge-base --is-ancestor "$start_sha" "$head" 2>/dev/null ||
+         ! git merge-base --is-ancestor "$end_sha" "$head" 2>/dev/null; then
+        hist_rewritten=1
+      else
+        git rev-list "${start_sha}..${end_sha}" >> "$tmp.st-covered-commits" 2>/dev/null || true
+      fi
+      if [ -n "$end_sha" ] && git diff --quiet "$end_sha" "$head" -- "${product_spec[@]}" 2>/dev/null; then
+        pmatch="match"
+        [ "$state" = "completed" ] && prod_matched=$name
+      fi
+    fi
+    printf '%s status=%s range=%s product-tree=%s%s\n' \
+      "$name" "$state" "${range_raw:-unknown}" "$pmatch" \
+      "$([ "$hist_rewritten" -eq 1 ] && printf ' history-rewritten' || true)" >> "$tmp.st-impl-details"
+  done < "$tmp.st-meta"
+
+  : > "$tmp.st-prod-commits"
+  local scan_range=""
+  if [ "$release_base" = "none" ]; then
+    local init_base=""
+    init_base=$(git log --diff-filter=A -n 1 --format=%H "$head" -- .discuss_design/config.yaml 2>/dev/null || true)
+    [ -z "$init_base" ] || scan_range="${init_base}..${head}"
+  else
+    scan_range="${release_base}..${head}"
+  fi
+  if [ -n "$scan_range" ]; then
+    git rev-list --reverse "$scan_range" -- "${product_spec[@]}" > "$tmp.st-prod-commits" 2>/dev/null || true
+    # 被覆盖的讨论写盘提交：改过被未发版实现记录引用的讨论记录的提交（ADR 0040）
+    local cited_disc
+    for cited_disc in $(LC_ALL=C awk -F '\t' -v unrel="$tmp.st-unrel-impls" '
+        BEGIN { while ((getline n < unrel) > 0) if (n != "") want[n] = 1; close(unrel) }
+        $1 == "UP" && $2 == "implement" && ($3 in want) {
+          item = $4; gsub(/`/, "", item); sub(/^[ \t]+/, "", item)
+          split(item, w, /[ \t]+/)
+          if (w[1] ~ /^[0-9][0-9][0-9][0-9]$/ && (w[2] ~ /^#[0-9]+$/ || w[2] ~ /^Q[0-9]+$/) && !seen[w[1]]++) print w[1]
+        }' "$tmp.st-meta"); do
+      git rev-list "$scan_range" -- ":(glob)record/discuss/${cited_disc}-*.md" >> "$tmp.st-covered-commits" 2>/dev/null || true
+    done
+  fi
+  local unrec_commits
+  unrec_commits=$(LC_ALL=C awk -v cov_file="$tmp.st-covered-commits" '
+    BEGIN {
+      while ((getline c < cov_file) > 0) if (c != "") cov[c] = 1
+      close(cov_file)
+    }
+    $0 != "" && !cov[$0] {
+      s = substr($0, 1, 7)
+      out = (out == "" ? s : out " " s)
+    }
+    END { print (out == "" ? "none" : out) }
+  ' "$tmp.st-prod-commits")
+
+  # 5. 未发版验收记录、MATCHING_INTEGRATION_VERIFY 与 UNCOVERED_IMPLEMENT_RECORDS
+  : > "$tmp.st-verify-details"
+  : > "$tmp.st-unverified"
+  : > "$tmp.st-int-covered-impls"
+  local matching_int="" has_any_matching_completed_verify=0
+  while IFS=$'\t' read -r tag kind file name state scope base_val fail_cnt unv_cnt loc; do
+    [ "$tag" = "REC" ] && [ "$kind" = "verify" ] || continue
+    [ "$state" != "aborted" ] || continue
+    local is_unrel=0
+    if [ "$release_base" = "none" ]; then
+      is_unrel=1
+    elif ! grep_match -qxF "$file" "$tmp.st-in-base"; then
+      is_unrel=1
+    elif grep_match -qxF "$file" "$tmp.st-changed-since-base"; then
+      is_unrel=1
+    fi
+    # 提取该验收记录的上游实现记录列表
+    local v_ups
+    v_ups=$(LC_ALL=C awk -F '\t' -v vn="$name" '
+      $1 == "UP" && $2 == "verify" && $3 == vn {
+        item = $4; gsub(/`/, "", item)
+        sub(/^[ \t]+/, "", item); sub(/[ \t]+$/, "", item)
+        split(item, w, /[ \t]+/)
+        if (w[1] != "") print w[1]
+      }' "$tmp.st-meta")
+    if [ "$is_unrel" -eq 0 ] && [ -s "$tmp.st-unrel-impls" ] && [ -n "$v_ups" ]; then
+      local u
+      for u in $v_ups; do
+        if grep_match -qxF "$u" "$tmp.st-unrel-impls"; then is_unrel=1; break; fi
+      done
+    fi
+    [ "$is_unrel" -eq 1 ] || continue
+
+    local bsha="" tmatch="mismatch"
+    if [ "$base_val" != "-" ] && [ -n "$base_val" ]; then
+      bsha=$(git rev-parse --verify "${base_val}^{commit}" 2>/dev/null || true)
+      if [ -n "$bsha" ] && git diff --quiet "$bsha" "$head" -- . ':!record' 2>/dev/null; then
+        tmatch="match"
+      fi
+    fi
+    if [ "$state" = "completed" ] && [ "$fail_cnt" -eq 0 ] && [ "$tmatch" = "match" ]; then
+      has_any_matching_completed_verify=1
+      if [ "$scope" = "integration" ] || [ "$scope" = "legacy" ]; then
+        matching_int="${matching_int:+$matching_int }$name"
+        [ -z "$v_ups" ] || printf '%s\n' "$v_ups" >> "$tmp.st-int-covered-impls"
+      fi
+    fi
+    LC_ALL=C awk -F '\t' -v vn="$name" '$1 == "UNV" && $2 == vn { print $2 " #" $3 " " $4 }' "$tmp.st-meta" >> "$tmp.st-unverified"
+    local ups_inline
+    ups_inline=$(printf '%s\n' "$v_ups" | awk 'NF { out = (out == "" ? $0 : out "," $0) } END { print (out == "" ? "none" : out) }')
+    printf '%s scope=%s status=%s baseline=%s fail=%s unverified=%s tree-match=%s upstream=%s\n' \
+      "$name" "$scope" "$state" "${base_val:--}" "$fail_cnt" "$unv_cnt" "$tmatch" "$ups_inline" >> "$tmp.st-verify-details"
+  done < "$tmp.st-meta"
+
+  local uncovered_impls
+  uncovered_impls=$(LC_ALL=C awk -v cov_file="$tmp.st-int-covered-impls" '
+    BEGIN {
+      while ((getline c < cov_file) > 0) if (c != "") cov[c] = 1
+      close(cov_file)
+    }
+    $0 != "" && !cov[$0] {
+      out = (out == "" ? $0 : out " " $0)
+    }
+    END { print (out == "" ? "none" : out) }
+  ' "$tmp.st-unrel-impls")
+
+  # 6. STAGE_HINT 派生（按 checker/SPEC.md 优先级）
+  local has_unrel_work=0
+  if [ -n "$unrel_impls" ] || [ "$unrec_commits" != "none" ]; then
+    has_unrel_work=1
+  fi
+  local stage_hint="clean"
+  if [ "$has_open_defect" -eq 1 ]; then
+    stage_hint="in-progress-defect"
+  elif [ -n "$open_impl" ] || [ "$pending_rows" != "none" ]; then
+    stage_hint="pending-implement"
+  elif [ "$has_unrel_work" -eq 1 ] && [ "$has_any_matching_completed_verify" -eq 0 ]; then
+    stage_hint="pending-verify"
+  elif [ "$has_unrel_work" -eq 1 ] && { [ -z "$matching_int" ] || [ "$uncovered_impls" != "none" ]; }; then
+    stage_hint="pending-integration-verify"
+  elif [ "$has_unrel_work" -eq 1 ] && [ -n "$matching_int" ] && [ "$uncovered_impls" = "none" ] && [ "$open_iv_count" -eq 0 ]; then
+    stage_hint="ready-for-release"
+  elif [ "$open_iv_count" -gt 0 ]; then
+    stage_hint="pending-verify"
+  fi
+
+  # 7. 跨分支 record/ 差异（仅本地分支与已有远端跟踪 ref，不 fetch）
+  : > "$tmp.st-branches"
+  local other_branches="" full_ref ref
+  while IFS=$'\t' read -r full_ref ref; do
+    [ -n "$ref" ] || continue
+    case "$full_ref" in */HEAD) continue ;; esac
+    [ "$ref" != "$branch" ] || continue
+    if ! git diff --quiet "$head" "$ref" -- record discuss research 2>/dev/null; then
+      local diff_cnt merged_flag=""
+      diff_cnt=$(git diff --name-only "$head" "$ref" -- record discuss research 2>/dev/null | wc -l | awk '{ print $1 }')
+      if git merge-base --is-ancestor "$ref" "$head" 2>/dev/null; then
+        merged_flag=" merged"
+      else
+        other_branches="${other_branches:+$other_branches }$ref"
+      fi
+      printf '%s record-diff-files=%s%s\n' "$ref" "$diff_cnt" "$merged_flag" >> "$tmp.st-branches"
+    fi
+  done < <(git for-each-ref --format='%(refname)	%(refname:short)' refs/heads refs/remotes 2>/dev/null)
+
+  printf 'BRANCH=%s\n' "$branch"
+  printf 'HEAD=%s\n' "$head"
+  printf 'DIRTY=%s\n' "$dirty"
+  printf 'TOOLKIT_VERSION=%s\n' "$toolkit_ver"
+  printf 'LAST_RELEASE=%s\n' "$last_rel"
+  printf 'LAST_RELEASE_CANDIDATE=%s\n' "$last_rel_cand"
+  printf 'RELEASE_BASE=%s\n' "$release_base"
+  printf 'OPEN_DISCUSS=%s\n' "${open_discuss:-none}"
+  printf 'OPEN_IMPLEMENT=%s\n' "${open_impl:-none}"
+  printf 'OPEN_VERIFY=%s\n' "${open_verify:-none}"
+  printf 'OPEN_RELEASE=%s\n' "${open_release:-none}"
+  printf 'OPEN_IMPLEMENT_OR_VERIFY_COUNT=%s\n' "$open_iv_count"
+  printf 'PENDING_DISCUSS_ROWS=%s\n' "$pending_rows"
+  printf 'UNRELEASED_IMPLEMENTS=%s\n' "${unrel_impls:-none}"
+  printf 'PRODUCT_TREE_MATCHED_IMPLEMENT=%s\n' "$prod_matched"
+  printf 'UNRECORDED_PRODUCT_COMMITS=%s\n' "$unrec_commits"
+  printf 'MATCHING_INTEGRATION_VERIFY=%s\n' "${matching_int:-none}"
+  printf 'UNCOVERED_IMPLEMENT_RECORDS=%s\n' "$uncovered_impls"
+  printf 'OTHER_BRANCHES_WITH_RECORD_DIFF=%s\n' "${other_branches:-none}"
+  printf 'STAGE_HINT=%s\n' "$stage_hint"
+  if [ -s "$tmp.st-impl-details" ]; then
+    printf '\n[implements]\n'
+    cat "$tmp.st-impl-details"
+  fi
+  if [ -s "$tmp.st-verify-details" ]; then
+    printf '\n[verifies]\n'
+    cat "$tmp.st-verify-details"
+  fi
+  if [ -s "$tmp.st-unverified" ]; then
+    printf '\n[unverified]\n'
+    cat "$tmp.st-unverified"
+  fi
+  if [ -s "$tmp.st-branches" ]; then
+    printf '\n[branches]\n'
+    cat "$tmp.st-branches"
+  fi
+  exit 0
+}
+
+if [ "$MODE" = status ]; then
+  run_status_mode
 fi
 
 # 本次配置一次解析；不缓存上次检查的结果。
@@ -520,7 +937,7 @@ elif [ "$markers_ok" -eq 1 ]; then
   done < "$tmp.tops-sorted"
 fi
 
-# ── 8b. 旧布局只提示（ADR 0024、0025、0035、0036；upgrade 不搬，由 agent 按 design-init 迁） ─
+# ── 8b. 旧布局只提示（ADR 0024、0025、0035、0036、0039；upgrade 不搬，由 agent 按 design-init 迁） ─
 if [ -d model/journey ] || [ -d model/cuj ]; then
   echo "Legacy journey layout. Use design-init to plan the move to flat journey/ with USER.md and OPERATOR.md."
 fi
@@ -529,6 +946,9 @@ if [ -d journey/user ] || [ -d journey/operator ]; then
 fi
 if [ -d record/deliver ]; then
   echo "Legacy record/deliver/ directory. Use design-init to move it intact to record/release/."
+fi
+if [ -d model/verify ]; then
+  echo "Legacy verify contract directory at model/verify/. Use design-init upgrade to move verify/SPEC.md to verify/."
 fi
 if [ -d model/arch/component ]; then
   echo "Legacy component layout at model/arch/component/. Use design-init to move components to model/arch/<container>/COMPONENT.md."

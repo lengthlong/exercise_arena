@@ -13,7 +13,7 @@ sha256sum impl/arena.html
 
 ## Supply an acceptance candidate (0013 step 3)
 
-Needed only when touched `on-touch` manual platform boundaries are in scope (or widened by the user) under [model/verify/SPEC.md](../../model/verify/SPEC.md). Upload the identified `impl/arena.html` only to an authorized **test** Artifact with named synthetic `test: true` data, never to the production Artifact to obtain acceptance evidence. If no test Artifact or test data scope is authorized, those manual platform boundaries remain `unverified`. Cleanup of test data needs its own explicit authorization.
+Needed only when touched `on-touch` manual platform boundaries are in scope (or widened by the user) under [verify/SPEC.md](../../verify/SPEC.md). Upload the identified `impl/arena.html` only to an authorized **test** Artifact with named synthetic `test: true` data, never to the production Artifact to obtain acceptance evidence. If no test Artifact or test data scope is authorized, those manual platform boundaries remain `unverified`. Cleanup of test data needs its own explicit authorization.
 
 ## Publish an accepted page (0012)
 

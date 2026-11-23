@@ -1,6 +1,6 @@
 # Operational support contracts
 
-The maintain, deploy, recover and capacity groups are active. Integrated acceptance belongs to [model/verify/SPEC.md](../verify/SPEC.md), not a new operations group. Runtime retention and member cleanup belong to the page; the page never purges assets. Only an authorized capacity operation deletes assets.
+The maintain, deploy, recover and capacity groups are active. Integrated acceptance belongs to [verify/SPEC.md](../../verify/SPEC.md), not a new operations group. Runtime retention and member cleanup belong to the page; the page never purges assets. Only an authorized capacity operation deletes assets.
 
 | Work group | Responsibility | Journey or trigger | Contract |
 |---|---|---|---|

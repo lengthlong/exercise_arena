@@ -1,4 +1,4 @@
-// 模拟平台验收入口（声明的替代品，策略见 model/verify/SPEC.md，目录见 verify/README.md）：
+// 模拟平台验收入口（声明的替代品，策略见 verify/SPEC.md，目录见 verify/README.md）：
 // 用内存里的假 db/user 在无头 Chromium 里打开 impl/arena.html，每个用例从同一份种子重新开一页，带旅程编号，可按旅程挑着跑。
 // 它只证明页面代码在假平台约定下的行为；真实平台边界按 on-touch 走授权 OFFLINE 测试 Artifact（见 verify/README.md）。
 // 用法：node verify/fake-platform-smoke.js impl/arena.html [--journeys 0002,0008] [--list]
