@@ -227,6 +227,14 @@ textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
 .draft { border-left: 3px solid var(--pen); }
 .bank { display: flex; flex-wrap: wrap; gap: 6px; }
 details.plog { font-size: 13px; }
+/* Record 页顶的本周金币与保存挣到金币时的庆祝（0047） */
+.rec-coins { font-size: 14px; display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.rec-coins b { font: 700 18px/1 var(--font-body); color: var(--amber); display: inline-block; }
+.rec-coins.bump b { animation: coin-bump .6s ease-out 2; }
+.coin-pop { position: fixed; left: 50%; top: 38%; z-index: 50; pointer-events: none; font: 700 22px/1 var(--font-body); white-space: nowrap; color: var(--amber); background: var(--amber-soft); padding: 10px 18px; border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,.2); transform: translate(-50%, 0); animation: coin-fly 1.8s ease-out forwards; }
+@keyframes coin-bump { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.35); } }
+@keyframes coin-fly { 0% { opacity: 0; transform: translate(-50%, 16px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); } 30% { transform: translate(-50%, -8px) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60px); } }
+@media (prefers-reduced-motion: reduce) { .coin-pop { animation: none; } .rec-coins.bump b { animation: none; } }
 details.plog > summary { cursor: pointer; color: var(--muted); width: fit-content; }
 details.plog > textarea { width: 100%; margin: 6px 0; font: 12px/1.4 ui-monospace, monospace; white-space: pre; overflow: auto; }
 details.photos > summary { cursor: pointer; font-size: 13px; color: var(--pen); width: fit-content; }
@@ -1294,7 +1302,7 @@ function attemptCoins(attempts, from, to) {
   }
   return out;
 }
-const ENTRY = 10, EXTRA_MAX = 10;
+const ENTRY = 10, EXTRA_MAX = 10, RECORD_COINS = 2;
 function stakeOf(mt, uid) {
   // 一位参赛者在一场里的投入：有 stakes 时取它，旧比赛按 rounds × 10
   const v = mt.stakes ? Number(mt.stakes[uid]) : NaN;
@@ -1313,13 +1321,30 @@ function coinsFor(exs, matches, uid, today, scope, owners) {
   const from = weekStart(today), inWin = d => d >= from && d <= today;
   const up = { 2: 0, 3: 0, 4: 0 };
   let mastered = 0, tried = 0, coins = 0;
-  for (const e of exs) for (const x of attemptCoins((e.attempts || []).filter(a => a.by === uid), from, today)) {
-    coins += x.n;
-    if (x.kind === 'up') up[x.n]++; else if (x.kind === 'mastered') mastered++; else tried++;
+  let recorded = 0;
+  for (const e of exs) {
+    for (const x of attemptCoins((e.attempts || []).filter(a => a.by === uid), from, today)) {
+      coins += x.n;
+      if (x.kind === 'up') up[x.n]++; else if (x.kind === 'mastered') mastered++; else tried++;
+    }
+    // 录入金币：本人是录入人（recordedBy）、本周录入的错题各 2 枚；没有 recordedBy 的旧错题不给
+    if (e.recordedBy && e.recordedBy === uid && inWin(String(e.createdAt || '').slice(0, 10))) recorded++;
   }
+  coins += recorded * RECORD_COINS;
   let spent = 0;
   for (const mt of matches || []) if ((mt.players || []).includes(uid) && inWin(String(mt.at || '').slice(0, 10)) && matchInScope(mt, scope, owners)) spent += stakeOf(mt, uid);
-  return { up, mastered, tried, coins, spent, balance: coins - spent };
+  return { up, mastered, tried, recorded, coins, spent, balance: coins - spent };
+}
+function saveSummary(saved, dups, left) {
+  // Record 页保存结果：最多两行。存了的说存了几道、挣了几枚（绿）；剩下的（可能重复、没填完）另起一行（黄）；一道也没存、又不是全因重复时才红
+  const out = [];
+  if (saved) out.push({ kind: 'ok', text: `Saved ${saved} · +${saved * RECORD_COINS} coins` });
+  const rest = [];
+  if (dups) rest.push(`${dups} possible duplicate${dups === 1 ? '' : 's'} to check`);
+  if (left) rest.push(`${left} incomplete`);
+  if (rest.length) out.push({ kind: saved || !left ? 'warn' : 'err', text: (saved ? '' : 'Nothing saved · ') + rest.join(', ') + ' below' });
+  if (!out.length) out.push({ kind: '', text: 'Nothing to save' });
+  return out;
 }
 function paperCoins(exs, uid, paperId) {
   // 一张卷上本人的作答挣的金币：每道题按本人的全部作答重放（时段取这张卷的作答所在的那一周），只加带本卷 paperId 的
@@ -2272,8 +2297,11 @@ function renderRecord() {
   let rs = recSource();
   if (rs && rs.kind === 'set' && supplementBlock(rs, S.sets, S.exercises, recOwner())) { S.recSet = ''; rs = null; }   // 换了内容归属人等：保留的选择不再可补录，清掉
   if (S.recSet && !rs) S.recSet = '';
+  // 页顶：本周在所选内容库挣的金币（与 Games 的 earned 同一个数）；保存挣到金币时从这里飘出「+N」
+  const wk = coinInfo(S.me).coins;
+  let h = `<div class="rec-coins" id="rec-coins" aria-live="polite"><span aria-hidden="true">🪙</span> <b id="rec-coin-n">${wk}</b> coin${wk === 1 ? '' : 's'} this week <span class="small muted">· +${RECORD_COINS} for each question you record</span></div>`;
   // 子标签与 Exercises、Papers 同款；New photos or text 排第一并是默认
-  let h = `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
+  h += `<nav class="gtabs subtabs" role="tablist" aria-label="Where the questions come from">${[['new', 'New photos or text'], ['saved', 'From saved material']].map(([k, t]) => `<button type="button" role="tab" data-act="rec-mode" data-v="${k}" aria-selected="${S.recMode === k}" ${busy ? 'disabled' : ''}>${t}</button>`).join('')}</nav>
   <section class="panel">`;
   // 动作区：左边是状态文字，右边 Stop 在左、Read with AI 在右；提示条在下面
   const act = (left, can) => `<div class="rec-act"><span class="small muted mat-sel">${left}</span><span class="rec-btns">${S.recBusy && S.recCtl ? '<button type="button" class="btn ghost" data-act="stop-read">Stop</button>' : ''}<button type="button" class="btn primary" data-act="recognise" ${(!canSample || busy || !can) ? 'disabled' : ''}>${S.recBusy ? 'Reading…' : 'Read with AI'}</button></span></div>
@@ -2291,7 +2319,7 @@ function renderRecord() {
     h += `<div class="grp"><input type="search" id="mat-q" data-matsearch="1" placeholder="Search title, source, text or questions" value="${esc(S.matQuery)}" aria-label="Search saved material" autocomplete="off">${nav.top}`;
     h += !all.length ? `<p class="small muted">Nothing saved yet.</p>` : !shown.length ? `<p class="small muted">No match.</p>`
       : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy, supplementBlock(m, S.sets, S.exercises, recOwner()))).join('')}</div>`;
-    h += nav.bottom + `</div></section>`;
+    h += nav.bottom + `</div>${diagBlock()}</section>`;
   } else {
     h += `<div class="grp">`;
     if (canPhoto) {
@@ -2303,13 +2331,11 @@ function renderRecord() {
       </div><p class="pick-sub">${full ? `Limit of ${max} photos reached` : `Add them one by one, up to ${max}`}</p>`;
       if (n) h += `<div class="tray">${S.recPhotos.map((p, i) => `<span class="tray-item"><img src="${p.url}" alt="Photo ${i + 1}"><button type="button" class="tray-x" data-act="drop-photo" data-i="${i}" aria-label="Remove photo ${i + 1}" ${busy ? 'disabled' : ''}>×</button></span>`).join('')}<span class="small muted">${n} / ${max} chosen</span></div>`;
     } else if (canSample) h += `<p class="small muted">This page can't send photos to AI right now; paste the question text instead.</p>`;
-    const pl = plogRead();
-    if (pl.length) h += `<details class="plog" ${S.plogOpen ? 'open' : ''}><summary>Photo log (${pl.length})</summary><textarea readonly rows="8" aria-label="Photo log">${esc(pl.join('\n'))}</textarea><button type="button" class="btn ghost small" data-act="plog-clear">Clear log</button></details>`;
     h += `</div><div class="grp"><label class="f"><span>Or paste the question text</span><textarea id="rec-text" data-bind="recText" rows="3" placeholder="e.g. Which of the following is a non-flowering plant? (1) hibiscus (2) fern (3) rice (4) mango — Sophia chose (1)">${esc(S.recText)}</textarea></label></div>`;
-    h += `<div class="grp">${act('', true)}</div></section>`;
+    h += `<div class="grp">${act('', true)}</div>${diagBlock()}</section>`;
   }
   const newDrafts = S.drafts.filter(d => !d.editId);
-  const saveNote = S.saveMsg ? `<p class="note ${S.saveMsg.kind}">${esc(S.saveMsg.text)}</p>` : '';
+  const saveNote = (S.saveMsg || []).map(m => `<p class="note ${m.kind}" role="status">${esc(m.text)}</p>`).join('');
   if (newDrafts.length || S.setDrafts.length) {
     h += `<div id="rec-drafts" style="display:grid;gap:8px"><p class="h2">To check: ${plural(newDrafts.length, 'exercise')}${S.setDrafts.length ? `, ${plural(S.setDrafts.length, 'question set')}` : ''}</p><div class="lr"><button type="button" class="btn ghost" data-act="discard-all">Discard all</button><button type="button" class="btn primary" data-act="save-all">Save all</button></div>${saveNote}</div>`;
     for (const sd of S.setDrafts) {
@@ -2322,6 +2348,22 @@ function renderRecord() {
   return h;
 }
 
+function diagBlock() {
+  // 诊断：照片处理与识别用时的记录，默认收起，不进用户提示（0047）
+  const pl = plogRead();
+  if (!pl.length) return '';
+  return `<details class="plog" ${S.plogOpen ? 'open' : ''}><summary>Diagnostics</summary><textarea readonly rows="8" aria-label="Diagnostics log">${esc(pl.join('\n'))}</textarea><button type="button" class="btn ghost small" data-act="plog-clear">Clear log</button></details>`;
+}
+function celebrateCoins(n) {
+  // 保存挣到金币：视口中间飘出「+N coins」（点保存时页顶的总数常在视口外），并让页顶的总数跳一下；挂在 body 上，不随整页重画重放；减少动态效果时只静静显示一会儿（CSS）
+  const at = $('#rec-coins');
+  if (!at || !n) return;
+  const el = document.createElement('div');
+  el.className = 'coin-pop'; el.setAttribute('aria-hidden', 'true'); el.textContent = `🪙 +${n} coin${n === 1 ? '' : 's'}`;
+  document.body.appendChild(el);
+  at.classList.remove('bump'); void at.offsetWidth; at.classList.add('bump');
+  setTimeout(() => { el.remove(); const a = $('#rec-coins'); if (a) a.classList.remove('bump'); }, 1800);
+}
 function clearPhotos() {
   for (const p of S.recPhotos) URL.revokeObjectURL(p.url);
   S.recPhotos = [];
@@ -2371,7 +2413,7 @@ async function addPhotos(files) {
     }
   } catch (e) { plog(`addPhotos: threw ${e && e.name}: ${e && e.message}`); throw e; }
   finally { S.recPrep = false; plog(`addPhotos: done; ${S.recPhotos.length} in S.recPhotos; skipped=${skipped.length}`); }
-  S.recMsg = skipped.length ? { kind: 'err', text: 'Not added: ' + skipped.join('; ') + '.' } : before;
+  S.recMsg = skipped.length ? { kind: 'warn', text: 'Not added: ' + skipped.join('; ') } : before;
 }
 
 function setForm(sd, nMembers) {
@@ -2730,7 +2772,7 @@ function weekStars(id, today) { const r = scoreboard(shownMatches(), myGroup(), 
 function weekCoins(group, today) { return Object.fromEntries(group.map(id => [id, coinInfo(id, today).coins])); }
 function renderGames() {
   const today = localToday(), c = coinInfo(S.me, today), from = weekStart(today), group = myGroup();
-  const parts = [[c.up[2], 2, 'up to level 2'], [c.up[3], 3, 'up to level 3'], [c.up[4], 4, 'up to level 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried']].filter(x => x[0]);
+  const parts = [[c.up[2], 2, 'up to level 2'], [c.up[3], 3, 'up to level 3'], [c.up[4], 4, 'up to level 4'], [c.mastered, 5, 'mastered'], [c.tried, 1, 'tried'], [c.recorded, RECORD_COINS, 'recorded']].filter(x => x[0]);
   const coinsBlock = `<section class="panel coins"><div class="coin-top"><p class="h2">My coins this week</p><span class="small muted">${fmtDate(from)} – ${fmtDate(today)}</span></div>
     <div class="coin-nums"><div><span class="big">${c.balance}</span><span class="small muted">balance</span></div><div><span class="mid">${c.coins}</span><span class="small muted">earned</span></div><div><span class="mid">${c.spent}</span><span class="small muted">used in games</span></div></div>
     <p class="small muted">${parts.length ? `Earned: ${parts.map(x => `${x[0]} ${x[2]} × ${x[1]}`).join(' + ')}.` : 'No coins yet this week.'}</p></section>`;
@@ -3056,12 +3098,12 @@ document.addEventListener('click', async ev => {
       }
 
       case 'recognise': await recognise(); break;
-      case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } render(); } break;
+      case 'rec-mode': if (!(S.recBusy || S.recPrep)) { S.recMode = b.dataset.v === 'saved' ? 'saved' : 'new'; if (S.recMode === 'new') { S.recSet = ''; S.recHint = ''; } S.recMsg = null; render(); } break;
       case 'mat-page': S.matPage = Number(b.dataset.v) || 1; render(); break;
-      case 'mat-pick': { const m = savedMaterials(S.sets, S.exercises).find(x => x.id === b.dataset.id); if (!(S.recBusy || S.recPrep) && m && !supplementBlock(m, S.sets, S.exercises, recOwner())) { S.recSet = b.dataset.id; render(); } break; }
+      case 'mat-pick': { const m = savedMaterials(S.sets, S.exercises).find(x => x.id === b.dataset.id); if (!(S.recBusy || S.recPrep) && m && !supplementBlock(m, S.sets, S.exercises, recOwner())) { S.recSet = b.dataset.id; S.recMsg = null; render(); } break; }
       case 'stop-read': if (S.recCtl) S.recCtl.abort(); break;
       case 'plog-clear': store.set(PLOG_KEY, '[]'); render(); break;
-      case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); break; }
+      case 'drop-photo': { const p = S.recPhotos.splice(Number(b.dataset.i), 1)[0]; if (p) URL.revokeObjectURL(p.url); if (!S.recBusy) S.recMsg = null; render(); break; }
       case 'drop-draft': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
       case 'discard-all': S.drafts = S.drafts.filter(d => d.editId); S.setDrafts = []; S.recMsg = null; S.saveMsg = null; render(); break;
       case 'drop-set': { const k = b.dataset.s; for (const d of S.drafts) if (d.setRef === 'new:' + k) d.setRef = ''; S.setDrafts = S.setDrafts.filter(x => x.key !== Number(k)); render(); break; }
@@ -3094,7 +3136,15 @@ document.addEventListener('click', async ev => {
       case 'drop-img': { const d = draftByKey(b.dataset.k); d.images.splice(Number(b.dataset.i), 1); render(); break; }
       case 'add-opt': { const d = draftByKey(b.dataset.k); if (d.options.length < 6) d.options.push(''); render(); break; }
       case 'del-opt': { const d = draftByKey(b.dataset.k); if (d.options.length > 2) d.options.pop(); render(); break; }
-      case 'save-draft': if (await saveDraft(draftByKey(b.dataset.k))) { S.recMsg = null; S.saveMsg = null; } render(); break;
+      case 'save-draft': {
+        // 单张保存：新草稿与「保存全部」一样报存了几道、挣了几枚并庆祝；编辑已录错题不给金币，也不报
+        const d = draftByKey(b.dataset.k), isNew = d && !d.editId;
+        const ok = await saveDraft(d);
+        if (ok) { S.recMsg = null; S.saveMsg = isNew ? saveSummary(1, 0, 0) : null; }
+        render();
+        if (ok && isNew) celebrateCoins(RECORD_COINS);
+        break;
+      }
       case 'save-all': {
         // 带「可能重复」提示的草稿不存，留在页面上；提示在点击时一次算好
         let n = 0, dups = 0;
@@ -3102,8 +3152,10 @@ document.addEventListener('click', async ev => {
         for (const d of draftsInOrder()) { if (flags.has(d)) { dups++; continue; } if (await saveDraft(d)) n++; }
         const left = S.drafts.filter(x => !x.editId).length - dups;
         S.recMsg = null;
-        S.saveMsg = { kind: left ? 'err' : 'ok', text: `Saved ${plural(n, 'exercise')}.` + (dups ? ` ${plural(dups, 'possible duplicate')} left for you to check.` : '') + (left ? ` ${left} still incomplete; see the notes below.` : '') };
-        render(); break;
+        S.saveMsg = saveSummary(n, dups, left);
+        render();
+        if (n) celebrateCoins(n * RECORD_COINS);
+        break;
       }
       case 'cancel-edit': S.drafts = S.drafts.filter(d => d.key !== Number(b.dataset.k)); render(); break;
 
@@ -3165,6 +3217,8 @@ document.addEventListener('input', ev => {
     const sd = setDraftByKey(t.dataset.s); if (sd && !t.dataset.rerender) sd[t.dataset.f] = t.value;
   } else if (t.dataset.bind) {
     S[t.dataset.bind] = t.value;
+    // 改了输入，上一次识别的提示就过时了：清掉这一行（只删元素，不重画，免得打断输入）
+    if ((t.dataset.bind === 'recText' || t.dataset.bind === 'recHint') && S.recMsg && !S.recBusy && !S.recPrep) { S.recMsg = null; const n = $('#rec-note'); if (n) n.remove(); }
   } else if (t.dataset.matsearch) {
     // 材料搜索：整页重画（列表与页码随之更新），再把焦点与光标放回搜索框
     const pos = t.selectionStart;
@@ -3192,6 +3246,7 @@ document.addEventListener('change', async ev => {
   if (t.dataset.photos) {
     const fl = Array.from(t.files || []);
     plog(`change on #${t.id}: ${fl.length} file(s)${fl.length ? ' ' + fl.map(fdesc).join(', ') : ''}`);
+    if (!S.recBusy) S.recMsg = null;   // 换了照片，上一次的提示过时
     await addPhotos(fl); t.value = ''; render();
     plog(`after render: ${document.querySelectorAll('.tray-item').length} thumbnail(s) in the DOM`);
     return;
@@ -3272,12 +3327,13 @@ async function saveDraft(d) {
       const createdAt = (old && old.createdAt) || localToday();
       const doc = Object.assign(r.doc, { createdAt, attempts, owner: d.owner || null });
       if (old && old.recordedAt) doc.recordedAt = old.recordedAt;
+      if (old && old.recordedBy) doc.recordedBy = old.recordedBy;   // 录入人只在新建时写；编辑保留原值或原来的缺省，不写编辑人
       if (old && old.test) doc.test = true;
       await S.db.doc('exercises/' + d.editId).set(doc);
       if (d.origSetId && d.origSetId !== setId) await cleanupSet(d.origSetId, d.editId);
     } else {
       const createdAt = localToday();
-      await S.db.collection('exercises').doc().set(Object.assign(r.doc, { createdAt, recordedAt: nowLocal(), owner: recOwner(), attempts: [] }));
+      await S.db.collection('exercises').doc().set(Object.assign(r.doc, { createdAt, recordedAt: nowLocal(), recordedBy: S.me, owner: recOwner(), attempts: [] }));
     }
     S.drafts = S.drafts.filter(x => x !== d);
     S.setDrafts = S.setDrafts.filter(sd => !sd.savedId || S.drafts.some(x => x.setRef === 'new:' + sd.key));
@@ -3347,13 +3403,15 @@ function readFail(err) {
   return c === 'rate_limited' ? 'Too many reads; please wait a moment and try again.' : c === 'not_granted' ? "This page hasn't been allowed to use Claude, so reading is unavailable." : c === 'invalid_json' ? "Reading failed: the reply couldn't be read." : `Reading is unavailable (${c || 'unknown error'}).`;
 }
 function timingNote(tm) {
-  // 提示末尾的用时小段，用来看时间花在哪一段；没有的项不写
+  // 识别用时（上传、首字、总用时）只写进诊断记录，不进用户提示（0047）；没有的项不写
   const s = ms => Math.round(ms / 1000) + ' s', parts = [];
   if (tm.up != null) parts.push('upload ' + s(tm.up));
   if (tm.first != null) parts.push('first text ' + s(tm.first));
   if (tm.total != null) parts.push('total ' + s(tm.total));
-  return parts.length ? ` (${parts.join(' · ')})` : '';
+  if (parts.length) plog('read timing: ' + parts.join(' · '));
+  return '';
 }
+const sentence = t => String(t || '').trim().replace(/[.;]+$/, '');
 function setRecMsg(kind, text) {
   // 识别进行中只改提示这一行，不重画整页
   S.recMsg = { kind, text };
@@ -3383,7 +3441,7 @@ async function recognise() {
   if (S.recSet) return recogniseMore();
   const photos = S.recPhotos.slice();
   const text = S.recText.trim();
-  if (!photos.length && !text) { S.recMsg = { kind: 'err', text: 'Add a photo or paste the question text first.' }; render(); return; }
+  if (!photos.length && !text) { S.recMsg = { kind: 'warn', text: 'Add a photo or paste the question text first' }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   const t0 = Date.now(), tm = {}, files = photos.map(p => p.file);
   // 上一次识别成功、只是有照片没传上时，留下了结果；照片、文字都没变就只补传，不再识别
@@ -3395,7 +3453,7 @@ async function recognise() {
     let bad = '';
     for (const p of photos.filter(x => !x.assetId)) {
       try { const a = await S.assets.upload(p.file); p.assetId = a.id; }
-      catch (err) { bad = bad || `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}); press Read with AI again.`; }
+      catch (err) { bad = bad || `Photo "${p.file.name}" didn't upload (${err && err.code || 'unknown'}) · press Read with AI to retry`; }
     }
     tm.up = Date.now() - t0;
     return bad;
@@ -3405,12 +3463,12 @@ async function recognise() {
   else {
     const opts = readOptions(t0, tm);
     if (files.length) opts.images = files;
-    S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+    S.recMsg = { kind: '', text: 'Reading with AI… usually about half a minute' }; render();
     try { out = await S.sample.json(recognisePrompt('', text, files.length), opts); }
     catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
     S.recCtl = null;
   }
-  if (stopped) { S.recBusy = false; S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  if (stopped) { S.recBusy = false; S.recMsg = { kind: '', text: 'Stopped · your photos and text are still here' }; render(); return; }
   const r = fail ? { drafts: null, sets: [], fail } : parseReading(out);
   let bad = '';
   if (r.drafts && r.drafts.length) bad = await uploading;
@@ -3431,12 +3489,12 @@ async function recognise() {
       // 题组的材料照片挂在题组上；独立题挂这批照片（以后可按这批照片补录）
       S.drafts.push(newDraft(Object.assign({}, x, { images: si === null ? imageIds : [], setRef: si === null ? '' : 'new:' + setKeys[si] })));
     }
-    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')}. Check each one before saving; the answers were read or worked out by AI.` + note };
+    S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')} · check each before saving (answers are from AI)` + note };
     S.recText = ''; clearPhotos();
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (r.fail || 'No questions found.') + ' The photos and text are still here; adjust them and press Read with AI again.' + note };
+    S.recMsg = { kind: 'err', text: (r.fail ? sentence(r.fail) + ' · your photos and text are still here' : 'No questions found · adjust the photos or text and try again') + note };
     render();
   }
 }
@@ -3491,10 +3549,10 @@ async function recogniseMore() {
   const src = recSource();
   if (!src) { S.recSet = ''; render(); return; }
   const blk = supplementBlock(src, S.sets, S.exercises, recOwner());
-  if (blk) { S.recSet = ''; S.recMsg = { kind: 'err', text: (SUPP_NOTE[blk] || "Can't add questions to this set") + '.' }; render(); return; }
+  if (blk) { S.recSet = ''; S.recMsg = { kind: 'err', text: SUPP_NOTE[blk] || "Can't add questions to this set" }; render(); return; }
   S.recBusy = true; S.saveMsg = null;
   const t0 = Date.now(), tm = {}, opts = readOptions(t0, tm);
-  S.recMsg = { kind: '', text: 'Thinking… this usually takes about half a minute.' }; render();
+  S.recMsg = { kind: '', text: 'Reading with AI… usually about half a minute' }; render();
   const L = S.imgLimits, ids = (src.images || []).slice(), blobs = [];
   let skipped = 0;
   if (L) {
@@ -3523,19 +3581,19 @@ async function recogniseMore() {
   }
   S.recCtl = null;
   S.recBusy = false;
-  if (stopped) { S.recMsg = { kind: '', text: 'Stopped. The photos and text are still here.' }; render(); return; }
+  if (stopped) { S.recMsg = { kind: '', text: 'Stopped · nothing was changed' }; render(); return; }
   tm.total = Date.now() - t0;
   const note = timingNote(tm);
-  const photoNote = !skipped ? '' : src.kind === 'set' ? ` Couldn't use ${plural(skipped, 'photo')} of the set; ${skipped === ids.length ? 'used the text only' : 'used the rest'}.`
-    : blobs.length ? ` Couldn't use ${plural(skipped, 'photo')} of the group; used the rest.` : '';
+  const photoNote = !skipped ? '' : src.kind === 'set' ? ` · ${plural(skipped, 'photo')} skipped, ${skipped === ids.length ? 'used the text only' : 'used the rest'}`
+    : blobs.length ? ` · ${plural(skipped, 'photo')} skipped, used the rest` : '';
   if (drafts && drafts.length) {
     for (const x of drafts) S.drafts.push(newDraft(Object.assign({}, x, { subject: src.subject, images: src.kind === 'photos' ? src.images.slice() : [], setRef: src.kind === 'set' ? src.id : '' })));
-    S.recMsg = { kind: 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${src.kind === 'set' ? (src.title || 'Untitled') : 'these photos'}". Check each one before saving; the answers were read or worked out by AI.${photoNote}${note}` };
+    S.recMsg = { kind: photoNote ? 'warn' : 'ok', text: `Found ${plural(drafts.length, 'draft')} for "${src.kind === 'set' ? (src.title || 'Untitled') : 'these photos'}" · check each before saving (answers are from AI)${photoNote}${note}` };
     S.recHint = '';
     render();
     const el = $('#rec-drafts'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    S.recMsg = { kind: 'err', text: (fail || 'No more questions found.') + photoNote + ' Adjust the hint and press Read with AI again.' + note };
+    S.recMsg = { kind: 'err', text: (fail ? sentence(fail) : 'No more questions found · adjust the hint and try again') + photoNote + note };
     render();
   }
 }

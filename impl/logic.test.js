@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,matchInScope,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,saveSummary,matchInScope,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -531,6 +531,23 @@ assert.deepStrictEqual(coin(m4.concat([ca(CD, 'right'), ca(CD, 'partial')])), { 
 assert.deepStrictEqual(coin(m4.concat([ca(CD, 'wrong')])), { up: [1, 1, 1], mastered: 1, tried: 1, total: 15 });   // 掌握后做错：按做错给，回到第 1 级
 assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')]).total, 0);
 assert.deepStrictEqual(coin([ca(CD, 'right', 'daily', 'uA')], 'uA').total, 2);
+// 录入金币（0047）：本人是录入人、本周录入的错题各 2 枚，不设上限；旧错题没有 recordedBy 不给；上周录入的不给；别人录入的不给；与作答金币相加
+const recC = (exs, uid) => L.coinsFor(exs, [], uid || 'uS', CD);
+const recEx = (id, createdAt, recordedBy, attempts) => Object.assign({ id, createdAt, attempts: attempts || [] }, recordedBy ? { recordedBy } : {});
+let rc0 = recC([recEx('a', '2026-10-12', 'uS'), recEx('b', CD, 'uS'), recEx('c', CD, 'uA'), recEx('d', '2026-10-11', 'uS'), recEx('e', CD)]);
+assert.deepStrictEqual([rc0.recorded, rc0.coins, rc0.balance], [2, 4, 4]);
+assert.strictEqual(recC(Array.from({ length: 30 }, (_, i) => recEx('n' + i, CD, 'uS'))).coins, 60);   // 不设上限
+rc0 = recC([recEx('m', '2026-10-12', 'uS', [ca('2026-10-13', 'right')])]);
+assert.deepStrictEqual([rc0.recorded, rc0.up[2], rc0.coins], [1, 1, 4]);   // 录入 2 + 升到 2 级 2
+assert.strictEqual(recC([recEx('a', CD, 'uS')], 'uA').coins, 0);
+assert.strictEqual(L.coinsFor([recEx('a', CD, 'uS')], [{ players: ['uS', 'uA'], rounds: 1, owner: 'uS', stakes: { uS: 10, uA: 10 }, at: CD + 'T09:00', points: [] }], 'uS', CD, 'uS', { uS: 'uS', uA: 'uS' }).balance, -8);   // 删题使录入金币变少时余额可为负；这里只有 2 枚却投了 10
+// Record 页保存结果（0047）：存了的绿行带金币；剩下的另起黄行；一道没存且有没填完的才红
+const ss = (a, b, c) => JSON.stringify(L.saveSummary(a, b, c).map(m => [m.kind, m.text]));
+assert.strictEqual(ss(3, 0, 0), JSON.stringify([['ok', 'Saved 3 · +6 coins']]));
+assert.strictEqual(ss(3, 1, 2), JSON.stringify([['ok', 'Saved 3 · +6 coins'], ['warn', '1 possible duplicate to check, 2 incomplete below']]));
+assert.strictEqual(ss(0, 2, 0), JSON.stringify([['warn', 'Nothing saved · 2 possible duplicates to check below']]));
+assert.strictEqual(ss(0, 0, 1), JSON.stringify([['err', 'Nothing saved · 1 incomplete below']]));
+assert.strictEqual(ss(0, 0, 0), JSON.stringify([['', 'Nothing to save']]));
 // 一张卷挣的金币：按本人这道题的全部历史重放，只加带本卷 paperId 的；同一周里已给过「做了」的，卷上做错不再给
 const pc = (exs, pid) => JSON.stringify(L.paperCoins(exs, 'uS', pid));
 const pcEx = [
