@@ -6,19 +6,17 @@ The page needs four platform capabilities (`db`, `assets`, `sample`, `user`) and
 
 ## Decision
 
-Acceptance has two tiers. The unmodified candidate page runs in a headless browser against an in-memory platform fake with fault injection; this simulated runtime counts as acceptance evidence for page-side boundaries, is a declared substitute, and its automated pass is required before `ONLINE` release. The real platform is judged only for platform boundaries, in an authorized `OFFLINE` test Artifact, on an `on-touch` manual cadence (reconsidered 2026-11-22 from "once per release candidate": run only for platform boundaries touched since the last release, or when widened by the user, with any unrun or skipped boundaries disclosed as `unverified`). `./check.sh` and the logic suite stay implementation-stage checks, not acceptance evidence.
+Acceptance stays lightweight for a fast-moving personal app (reconsidered 2026-11-23). The unmodified candidate page can be checked locally in headless Chrome against a minimal in-memory platform fake (zero npm dependencies); this simulated runtime is an optional `on-touch` substitute for page-side boundaries and is **not** a mandatory pre-release blocker. The workspace is prod-only by default (no maintained `OFFLINE` test Artifact): real platform boundaries remain `unverified` during local acceptance, are disclosed before `ONLINE` release, and are spot-checked live after publication. `./check.sh` and `impl/logic.test.js` (`< 1s`, zero dependencies) stay fast implementation-stage checks, not acceptance evidence.
 
 ## Rationale
 
-- Failure injection makes the dangerous paths testable on every slice at low cost.
-- The platform surface is small, so the fake stays small and the page needs no test hooks.
-- Sizing manual real-platform checks `on-touch` by component/capability keeps real-platform evidence focused on changes that actually touch platform boundaries without blocking UI-only or projection-only releases on manual walkthroughs.
+- Keeping `impl/logic.test.js` fast (`< 1s`) and simulated browser smoke small, dependency-free and `on-touch` removes Playwright and test-Artifact ceremony while keeping a quick local browser check available when page wiring or fault paths change.
+- Disclosing `unverified` boundaries before `ONLINE` publication preserves honesty without blocking single-user iteration.
 
 ## Cost
 
-- The fake can drift from the real platform; a call it models only by assumption is judged as page-side behavior, and platform boundaries stay `unverified` until an authorized run exercises them.
-- Both intermediate slices and release candidates whose platform boundaries were untouched (or explicitly skipped by the user) are completed and released with platform boundaries `unverified` and disclosed.
-- Each authorized run is an external write that needs fresh authorization.
+- The fake can drift from the real platform; skipped smoke checks and real platform boundaries stay `unverified` until live post-publish inspection (or an ad-hoc test Artifact run).
+- Any ad-hoc external test target still needs explicit authorization.
 
 ## Open
 

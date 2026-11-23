@@ -19,7 +19,7 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The operator identifies the exact candidate revision/content identity, matching completed `scope: integration` [0013](./0013-accept-integrated-slice.md) evidence (zero `fail`), mandatory automated release prerequisites defined in [deploy contract](../model/operate/deploy/SPEC.md), and all `unverified` boundaries.
+1. The operator identifies the exact candidate revision/content identity, passing local checks, matching completed `scope: integration` [0013](./0013-accept-integrated-slice.md) evidence (zero `fail`), and all `unverified` boundaries.
 2. The operator discloses every `unverified` boundary to the user and confirms intended target, explicit publication authorization, artifact inventory and available recovery entry/source.
 3. The operator publishes only the accepted HTML through the established platform entry.
 4. The operator checks actual target identity, loading and affected behavior against the acceptance baseline.
@@ -27,7 +27,7 @@ sequenceDiagram
 
 ## Extensions
 
-- **1a. Integration acceptance is missing, describes another candidate, or lacks a mandatory automated prerequisite.** Stop and obtain matching evidence through [0013](./0013-accept-integrated-slice.md).
+- **1a. Completed `scope: integration` acceptance is missing, has a `fail`, or describes another candidate.** Stop and obtain matching evidence through [0013](./0013-accept-integrated-slice.md).
 - **2a. Target access, authority or recovery capability is unknown.** Record limits; do not invent rollback or proceed without required authorization.
 - **3a. Upload fails.** Inspect actual target state; the prior version is not assumed to have survived.
 - **4a. Target identity or behavior differs.** Delivery failed. Record the gap; restoration requires an available prior candidate and established authority/entry.
