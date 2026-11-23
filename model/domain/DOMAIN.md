@@ -19,7 +19,7 @@ Terms are defined in [GLOSSARY.md](./GLOSSARY.md). Stored shapes, writes and com
 | Paper | Ordered Exercise references, draft state and per-actor acknowledgment | Gateway via Papers | 0002, 0003, 0008; retention |
 | Match | Committed entrants/Stake values and contained Round result | Gateway via Games | 0005 |
 
-The gateway is one logical persistence responsibility, not an exclusive browser writer or cross-document transaction. No new collection, recorder provenance, immutable paper snapshot or judgment audit trail is introduced.
+The gateway is one logical persistence responsibility, not an exclusive browser writer or cross-document transaction. No new collection, immutable paper snapshot or judgment audit trail is introduced. An Exercise records its Recorder once, for the recording reward (0001).
 
 ## Conceptual relations
 
@@ -68,6 +68,7 @@ classDiagram
     UserSettings "0..1" --> "1" User : belongs to
     UserSettings --> User : selects default owner
     Exercise "0..*" --> "1" User : owned by
+    Exercise "0..*" --> "0..1" User : recorded by
     Exercise "0..*" --> "0..1" QuestionSet : reuses material
     QuestionSet "0..*" --> "1" User : owned by
     QuestionSet "1" *-- "0..1" WordBank : contains
@@ -89,7 +90,7 @@ classDiagram
     Match "1" *-- "0..1" Round : pending or completed
 ```
 
-This is the target relation for new/validated records. Legacy ownerless/mixed-owner sets remain readable under DATA without invented owners/new links. Legacy missing creators/stakes and historical multi-round matches remain readable. Deleted references are unresolved. Daily/Exam are Paper variants, not separate roots/tables.
+This is the target relation for new/validated records. Legacy ownerless/mixed-owner sets remain readable under DATA without invented owners/new links. Legacy missing creators/recorders/stakes and historical multi-round matches remain readable. Deleted references are unresolved. Daily/Exam are Paper variants, not separate roots/tables.
 
 ## Values and derived models
 
@@ -102,7 +103,7 @@ Attempt/Judgment are embedded values changed through Exercise. Word bank and Sta
 | Paper assessment | Remaining references, saved actor judgments, distinct hand-in fact | 0002, 0003, 0004, 0009 |
 | Paper outcome | One actor's saved attempts on one paper: ladder before and after, daily coins, assessment status (judged, pending, deleted) | 0002, 0003, 0004, 0009 |
 | Progress, Streak, Mastery transition | Actor history in subscribed scope; conditional forecast | 0004, 0009 |
-| Coin and Balance | Weekly daily rewards in the selected library minus committed spending of matches belonging to that library | 0004, 0005, 0009 |
+| Coin and Balance | Weekly daily rewards plus recording rewards (Recorder's exercises created this week) in the selected library, minus committed spending of matches belonging to that library | 0001, 0004, 0005, 0007, 0009 |
 | Star and Starboard | Saved rounds, period and users' Default-owner grouping | 0004, 0005 |
 
 These are computed models, not independently persisted aggregates.
@@ -111,7 +112,7 @@ These are computed models, not independently persisted aggregates.
 
 1. Actor supplies attempt authorship; selected owner supplies content scope. Shared-library access is not transfer or a permission role ([ADR 0002](../adr/0002-each-user-opens-the-arena-with-their-own-claude-account.md); 0006, 0010).
 2. New/validated sets and members have the same owner/subject. Reuse is within that library, not cross-owner sharing. Each actor's ladder remains per question ([ADR 0003](../adr/0003-question-set-holds-shared-material-questions-keep-own-ladder.md); 0001, 0002, 0007).
-3. Ordinary edits preserve owner, timestamps and attempts. Material/bank edits preserve usable material and every member word-pick answer; no automatic answer rewriting, rejudging or ladder reset (0007).
+3. Ordinary edits preserve owner, Recorder (or its absence), timestamps and attempts. Material/bank edits preserve usable material and every member word-pick answer; no automatic answer rewriting, rejudging or ladder reset (0007).
 4. Last-member set deletion is command-triggered and conditional on valid ownership and complete current empty membership. Uncertainty retains/defers cleanup; the page performs no orphan purge or asset deletion (0007). Asset deletion is only an authorized operator action under the [capacity contract](../operate/capacity/SPEC.md).
 5. Legacy compatibility preserves material access, valid unchanged-reference Exercise edits and actor attempt/judgment writes. Missing/conflicting owners do not authorize set mutation/new links/cleanup. A uniquely inferred owner is not persisted automatically; repair is separately authorized and deferred (0001, 0002, 0003, 0007, 0009, 0010).
 6. Papers hold mutable/deletable references. At creation references belong to the current owner scope; stale previews require re-preview. Exercise deletion removes all embedded attempts and leaves missing paper references (0007, 0008).

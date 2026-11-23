@@ -21,7 +21,7 @@ sequenceDiagram
 
 1. The user opens Today or Exercises and checks the selected content owner.
 2. The user inspects their own due work, ladder distribution, streak and recent attempts on those exercises.
-3. The user reviews weekly progress, newly mastered exercises, coins/balance of the selected library and any conditional forecast.
+3. The user reviews weekly progress, newly mastered exercises, coins/balance of the selected library (redo and recording coins) and any conditional forecast.
 4. The user opens available exercise history, or a handed-in paper from Today or Papers, to understand an outcome. The Paper page shows the same outcome block as right after hand-in: score and assessment status, ladder movement and, for daily papers, coins.
 5. The user returns to the overview without changing content or judgments.
 
@@ -30,7 +30,7 @@ sequenceDiagram
 - **1a. Owner scope changes.** Reload before showing new results. Selecting an owner does not impersonate that owner's attempts or ladder.
 - **2a. There is no activity.** Show an empty state, not a loading/subscription failure disguised as zero progress.
 - **3a. A forecast is shown.** It assumes on-time right answers; it is not a fixed assignment.
-- **3b. A late correction or concurrent match spending affects balance.** Recompute from saved attempts/stakes; balance may be negative.
+- **3b. A late correction, a deleted recorded exercise or concurrent match spending affects balance.** Recompute from saved attempts/stakes; balance may be negative.
 - **4d. A written answer has no saved judgment.** The paper page shows it as not judged and counts it in "N to judge", never as no answer.
 - **3c. Default owner was changed after earning coins or playing under another library.** Coins and balance cover only the selected library: other libraries' coins are not counted and their match stakes are not deducted, so the change alone never makes balance negative. Selecting the earlier library again shows its figures as before.
 - **4a. Daily-paper retention or exercise deletion removed details.** Show their unavailability; attempts survive paper retention but not exercise deletion.

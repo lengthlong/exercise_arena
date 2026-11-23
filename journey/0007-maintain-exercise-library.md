@@ -4,7 +4,7 @@
 - **Goal** Keep recorded exercises and material accurate.
 - **Trigger** The user finds content to inspect, correct or delete.
 - **Prerequisites** [0010](./0010-open-shared-arena.md); acknowledged content and required membership reads.
-- **Success** The deliberate edit/delete is acknowledged and visible. Edits preserve owner, creation timestamps and attempts; valid set members remain consistent. Any deferred set cleanup is reported separately.
+- **Success** The deliberate edit/delete is acknowledged and visible. Edits preserve owner, Recorder, creation timestamps and attempts; valid set members remain consistent. Any deferred set cleanup is reported separately.
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +35,7 @@ sequenceDiagram
 - **4b. Ownership or complete membership is uncertain.** Block destructive bank changes. An unresolved legacy set cannot be edited or receive new links; ordinary valid Exercise edits may preserve a compatible unchanged legacy reference, owner and subject.
 - **5a. The write fails.** Report failure and retryable session work; do not claim a saved edit.
 - **5b. An unrelated material/title edit is saved from a stale form.** It must not overwrite unchanged owner, subject or word-bank fields.
-- **6a. An Exercise is deleted.** Its embedded attempts for every actor disappear; papers show missing references rather than reconstructed history.
+- **6a. An Exercise is deleted.** Its embedded attempts for every actor disappear; papers show missing references rather than reconstructed history. If it was recorded this week, its Recorder loses the 2 recording coins, whoever deleted it; balance may become negative.
 - **6b. Cleanup reads are incomplete, ownership is invalid, or deletion fails.** Retain/defer set cleanup and report it separately even if the Exercise change succeeded. The page does not purge other orphan sets or delete assets; only an authorized [capacity operation](../model/operate/capacity/SPEC.md) deletes assets.
 - **6c. Another browser mutates membership/material concurrently.** Serial validation is not a transactional reference-integrity guarantee.
 

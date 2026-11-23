@@ -20,7 +20,7 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The user opens Games and reviews balance in the selected library, eligible entrants sharing the opener's Default owner, and recent matches.
+1. The user opens Games and reviews balance in the selected library with how its coins were earned (redo and recording), eligible entrants sharing the opener's Default owner, and recent matches.
 2. The user selects Lift and may add 0-10 extra coins to the opener's standard 10-coin stake.
 3. The user starts the match after confirming entrants and spending; every entrant must afford their stake and the opener must be included. The match belongs to the opener's Default owner library at that moment.
 4. The page saves the committed start, computes one automatic round, and saves its result before animation.

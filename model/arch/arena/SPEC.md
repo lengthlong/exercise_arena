@@ -27,7 +27,9 @@ The source header records its platform runtime declaration; this review does not
 
 - **Journeys / scenarios** 0001 1-7; S2-S3.
 - **Prerequisites** Ready current owner scope, confirmed usable input/material and valid content/answers under DATA.
-- **Outcome** Per-draft acknowledged Exercise writes and, where applicable, same-owner/subject set writes. New set ownership is valid; supplementation creates a member only in its owning library.
+- **Outcome** Per-draft acknowledged Exercise writes and, where applicable, same-owner/subject set writes. New set ownership is valid; supplementation creates a member only in its owning library. Each new Exercise carries the actor as Recorder (DATA `recordedBy`), earning the recording reward under C7.
+- **Coins on Record** The page header shows the actor's coins earned this week in the selected library (C7's earned figure, not Balance). A save that earns coins, individual or batch, reports them ("+N coins") and plays a short celebration that updates the total; edits and saves earning nothing do not. With reduced motion the "+N" appears without movement.
+- **Status messages** One status per area: reading status under the read action, save result under the batch actions, per-draft notes on drafts; only the save area may show two lines for a mixed result. Each line is short: what happened, then the next step. Style by outcome: neutral for progress and cancel; success green; needs attention amber (duplicates or incomplete drafts left, partial save, skipped photos, nothing saved because all were duplicates); failure red only when nothing was done. Reading status clears when input changes or a save happens. Timing and photo diagnostics never appear in user messages; they sit behind a collapsed diagnostics control. Exact wording and diagnostics placement are delegated to implementation.
 - **User decisions** AI drafts are untrusted. Duplicate warnings prompt decisions: batch saving skips warned drafts, individual saving is deliberate confirmation.
 - **Partial effects** Prepare/upload assets, save new set, then save members. No atomicity; a saved asset/set may outlive a failed member save. Keep unsaved drafts/input retryable in-session, not a promised durable draft store.
 - **Scope changes** Revalidate new/changed references at save, including partially saved new-set drafts. Reject retained A-set references being saved as B-owned questions; never silently share/copy/reassign.
@@ -38,7 +40,7 @@ The source header records its platform runtime declaration; this review does not
 ## C3 Edit/delete content and material
 
 - **Journeys / scenarios** 0007 1-6; S4.
-- **Preservation** Ordinary edits preserve content owner, creation timestamps and embedded attempts. Ownership transfer is not added. Usable text/photo material and subject/reference consistency remain valid.
+- **Preservation** Ordinary edits preserve content owner, Recorder (or its absence; never the editor's id), creation timestamps and embedded attempts. Ownership transfer is not added. Usable text/photo material and subject/reference consistency remain valid.
 - **Material/bank edits** Preserve set owner/subject and member history. Permit add/reorder/remove only when every member word-pick correct answer remains in the resulting bank; reject and identify affected questions otherwise. No automatic answer rewrite, rejudgment or ladder reset.
 - **Evidence** Destructive bank changes require complete current same-owner membership and valid ownership; unavailable/uncertain evidence blocks the affected edit.
 - **Stale forms** An unrelated title/material edit does not rewrite unchanged owner/subject/word-bank fields. Field-update mechanics are delegated within this boundary.
@@ -79,10 +81,10 @@ The source header records its platform runtime declaration; this review does not
 
 ## C7 Read progress and rewards
 
-- **Journeys / scenarios** 0004 1-5 and outcome reads in 0002, 0003, 0005, 0009; S9.
-- **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity. Coins and Balance use one scope: coins from the selected library's attempts, spending only from matches belonging to that library (owner field, or legacy inference per DATA).
+- **Journeys / scenarios** 0004 1-5 and outcome reads in 0001, 0002, 0003, 0005, 0007, 0009; S9.
+- **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity. Coins and Balance use one scope: coins from the actor's attempts on, and recordings of, the selected library's exercises, spending only from matches belonging to that library (owner field, or legacy inference per DATA).
 - **Rules** GLOSSARY/DATA own meanings and derivation contracts; exact algorithms stay executable in mapped source/tests. Keep taxonomy IDs in TAX.
-- **Failure/limits** Empty activity differs from failed supporting reads. Forecasts are conditional; local dates/week boundaries are device-local. Corrections and concurrent match starts may cause negative balances; retained attempts may have unavailable paper details.
+- **Failure/limits** Empty activity differs from failed supporting reads. Forecasts are conditional; local dates/week boundaries are device-local. Corrections, deletion of exercises recorded this week and concurrent match starts may cause negative balances; retained attempts may have unavailable paper details.
 - **Writes** None: no persisted ladder, score or coin side store.
 
 ## C8 Start/finish matches

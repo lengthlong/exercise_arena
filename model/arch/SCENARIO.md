@@ -44,9 +44,9 @@ sequenceDiagram
     AI-->>P: Untrusted output or failure
     P-->>U: Drafts for correction and duplicate decisions
     U->>P: Confirm saving
-    P->>D: Save owned material then confirmed members
+    P->>D: Save owned material then confirmed members with actor as Recorder
     D-->>P: Per-write outcomes
-    P-->>U: Successful exercises and retryable drafts
+    P-->>U: Successful exercises, coins earned and retryable drafts
 ```
 
 AI is not the decision maker. Upload/AI/parse cancellation and per-draft failures are distinct; artifacts can survive failed member writes. Same-owner/subject reference validation occurs at save; no automatic orphan/asset purge (C2).
@@ -69,9 +69,9 @@ sequenceDiagram
     P->>AI: Draft from existing set or derived photo group
     AI-->>P: Candidate additional exercises
     U->>P: Confirm content and duplicate decisions
-    P->>D: Validate current scope and persist members
+    P->>D: Validate current scope and persist members with actor as Recorder
     D-->>P: Per-write outcomes
-    P-->>U: Recorded or rejected stale/legacy reference
+    P-->>U: Recorded with coins earned, or rejected stale/legacy reference
 ```
 
 Saved photo groups are derived from scoped independent exercises; they are not another collection. Read failures/skipped images are reported: available set text or remaining photos may support drafting, but a photo-only group with no readable photos stops before AI. A retained A-set draft cannot save a B member; unresolved legacy sets cannot receive new links. Changing settings does not share or copy a set (C2).
@@ -207,7 +207,7 @@ This changes an existing own Attempt, not authorship or a new attempt/coin grant
 
 ## S9 Read progress
 
-- **Trigger / journey steps** 0004 1-5; 0002 1/7, 0003 6, 0009 5.
+- **Trigger / journey steps** 0004 1-5; 0001 1/6, 0002 1/7, 0003 6, 0007 6, 0009 5.
 - **Entry responsibility** Progress.
 
 ```mermaid
@@ -220,7 +220,7 @@ sequenceDiagram
     P-->>U: Actor-specific projections and unavailable references
 ```
 
-Reads create no durable projection store. Forecasts are conditional; corrections can alter historical mastery/rewards and produce negative balance. Paper retention affects details but not Exercise attempts; scope selection does not impersonate owner progress. Coins and balance are derived in the selected library only; match spending of other libraries is excluded (C7).
+Reads create no durable projection store. Forecasts are conditional; corrections and deleted recorded exercises can alter rewards and produce negative balance. Paper retention affects details but not Exercise attempts; scope selection does not impersonate owner progress. Coins (from attempts and recordings) and balance are derived in the selected library only; match spending of other libraries is excluded (C7).
 
 ## S10 Match start and result
 
