@@ -6,15 +6,16 @@
 ## Upstream
 <!-- upstream -->
 
-- 0047 #1 implemented
-- 0047 #2 implemented
-- 0047 #3 no-implementation
-- 0047 #4 implemented
-- 0047 #5 implemented
-- 0047 #6 implemented
-- 0047 #7 implemented
-- 0047 #8 implemented
-- 0047 #9 no-implementation
+- 0047 Q1 implemented
+- 0047 Q2 implemented
+- 0047 Q3 implemented
+- 0047 Q4 implemented
+- 0047 Q5 implemented
+- 0047 Q6 implemented
+- 0047 Q7 implemented
+- 0047 Q8 no-implementation
+- 0047 Q9 implemented
+- 0047 Q10 implemented
 
 ## Affected journey steps and scenarios
 
@@ -42,3 +43,7 @@
 - `node verify/fake-platform-smoke.js impl/arena.html`: 4/4 passed. This is a regression run, not an acceptance verdict.
 - Manual preview on a local fake platform (scratchpad only): checked the coin total (2 → 4 → 6), the "Found 3 drafts" line, "Saved 2 · +4 coins" with "1 incomplete below", the celebration with the header scrolled out of view, the Games breakdown "2 recorded × 2" and the failed-read wording.
 - Not covered: the real platform (`recordedBy` writes via live `db`, real `sample` timing), a narrow phone viewport in the real Artifact wrapper, and screen-reader announcement of the coin total.
+
+## Round notes
+
+- Upstream cites 0047 questions, not write-off rows: the frozen 0047 write-off table has an extra empty column, so the checker indexes no rows. Q8 (agent-written `recordedBy`) is a DATA rule for agents with no page code. Q9 (Starboard) needs no new code because `weekCoins` reads the same coin total.
