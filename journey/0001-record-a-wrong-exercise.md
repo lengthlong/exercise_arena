@@ -10,7 +10,7 @@
 sequenceDiagram
     actor U as User
     participant P as Exercise Arena page
-    U->>P: 1. Inspect current content owner and this week's coins
+    U->>P: 1. Inspect current content owner and this week's recording coins
     U->>P: 2. Supply photos/text or select saved material
     U->>P: 3. Request drafting and inspect results
     P-->>U: 3. Return untrusted material and question drafts
@@ -23,12 +23,12 @@ sequenceDiagram
 
 ## Main success scenario
 
-1. The user checks the selected content owner and the coins they have earned this week in that library; changing owner belongs to [0006](./0006-manage-settings.md).
+1. The user checks the selected content owner and the coins they have earned this week by recording in that library; changing owner belongs to [0006](./0006-manage-settings.md).
 2. The user supplies new photos/text, or selects an eligible saved Question set or same-subject photo group and specifies what to supplement.
 3. The user requests AI drafting and inspects the returned material and exercises.
 4. The user confirms or edits material, subject, topic, optional concept/question type, answer format, correct answer, explanation, wrong answer and error cause.
 5. The user decides whether each possible duplicate should be saved or skipped.
-6. The user confirms saving, one draft or all. The page reports per-draft results in one short line per outcome and, when the save earned coins (2 per new exercise), celebrates them and updates this week's total; new material is saved before its first member, with the same content owner and subject.
+6. The user confirms saving, one draft or all. The page reports per-draft results in one short line per outcome. While a save that can earn coins runs, a treasure bowl shows its progress and passes one coin (2 per new exercise) to the recording total for each saved exercise; when it ends having earned coins, a final celebration carries the amount into that total; new material is saved before its first member, with the same content owner and subject.
 7. The user inspects the successfully recorded exercises and any drafts still needing attention.
 
 ## Extensions
