@@ -155,7 +155,7 @@ add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
   // 0001 step 1: the Record pill shows only coins from own recordings this week (2 each); daily-redo coins, legacy (no recordedBy) and others' recordings are excluded.
   await c.clickAct('tab', { v: 'record' });
   const pill = () => c.eval(`(() => { const p = document.querySelector('#rec-coins'); return p ? p.innerText.replace(/\\s+/g, ' ').trim() : ''; })()`);
-  c.assertOk('Record pill shows "2 from recording" (own recording only, not the redo coin)', /^\S*\s*2 from recording$/.test(await pill()));
+  c.assertOk('Record line shows "2 coins from recording this week" (own recording only, not the redo coin)', /^\S*\s*2 coins from recording this week\b/.test(await pill()));
   // 0001 steps 3, 6: read with AI, short ok line without timing diagnostics.
   await c.eval(`window.__sampleOut.drafts.forEach(d => { if (d.topic === '__TOPIC__') d.topic = TAX.english.topics[0][0]; })`);   // a valid topic id from the page's own taxonomy (input data, not an oracle)
   await c.fill('#rec-text', 'She go to school yesterday.');
@@ -172,7 +172,7 @@ add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
   for (let i = 0; i < 60 && await c.eval(`!!S.recAnim`); i++) await new Promise(r => setTimeout(r, 100));
   c.assertOk('the save animation finishes and cleans up', await c.eval(`!S.recAnim && !document.querySelector('.bowl-wrap, .coin-badge')`));
   c.assertOk('new exercises record the saver as recordedBy and the owner as owner', await c.eval(`Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).length === 2 && Object.values(window.__data.exercises).filter(e => /school/.test(e.stem)).every(e => e.recordedBy === 'uS' && e.owner === 'uS')`));
-  c.assertOk('Record pill now shows "6 from recording"', /^\S*\s*6 from recording$/.test(await pill()));
+  c.assertOk('Record line now shows "6 coins from recording this week"', /^\S*\s*6 coins from recording this week\b/.test(await pill()));
   // 0004 step 3 / 0005 step 1: Games shows the recording part and the same earned total.
   await c.clickAct('tab', { v: 'games' });
   const g = await c.eval(`document.querySelector('.panel.coins').innerText.replace(/\\s+/g, ' ')`);
