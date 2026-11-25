@@ -29,7 +29,7 @@ sequenceDiagram
 
 - **1a. Owner scope changes.** Reload before showing new results. Selecting an owner does not impersonate that owner's attempts or ladder.
 - **2a. There is no activity.** Show an empty state, not a loading/subscription failure disguised as zero progress.
-- **3a. A forecast is shown.** It assumes on-time right answers; it is not a fixed assignment.
+- **3a. A forecast is shown.** Today's This week bars assume on-time right answers; they are not a fixed assignment. The Finish forecast in Settings uses the recent right rate instead ([0006](./0006-manage-settings.md)).
 - **3b. A late correction, a deleted recorded exercise or concurrent match spending affects balance.** Recompute from saved attempts/stakes; balance may be negative.
 - **4d. A written answer has no saved judgment.** The paper page shows it as not judged and counts it in "N to judge", never as no answer.
 - **3c. Default owner was changed after earning coins or playing under another library.** Coins and balance cover only the selected library: other libraries' coins are not counted and their match stakes are not deducted, so the change alone never makes balance negative. Selecting the earlier library again shows its figures as before.

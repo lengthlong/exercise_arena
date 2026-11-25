@@ -14,6 +14,7 @@ Goals, not screens. Existing IDs remain stable; status describes body availabili
 | 0008 | User | Prepare a check paper | [0008-prepare-check-paper.md](./0008-prepare-check-paper.md) | detailed | Stale-preview scope validation |
 | 0009 | User | Correct my own judgment | [0009-correct-own-judgment.md](./0009-correct-own-judgment.md) | detailed | Runtime recalculation evidence |
 | 0010 | Account holder | Open the shared arena | [0010-open-shared-arena.md](./0010-open-shared-arena.md) | detailed | Readiness and legacy-loading evidence |
+| 0015 | User | Follow my PSLE paper plan | [0015-follow-psle-paper-plan.md](./0015-follow-psle-paper-plan.md) | detailed | Runtime evidence |
 
 ```mermaid
 flowchart LR
@@ -27,6 +28,8 @@ flowchart LR
     Progress -. Correct own judgment .-> Override["0009 Override"]
     Progress -. Optional .-> Match["0005 Match"]
     Settings["0006 Configure"] -. Scope and batch size .-> Daily
+    Build["0016 Build plan (operator)"] --> Plan["0015 Paper plan"]
+    Plan -. Record mistakes .-> Record
     Deliver["0012 Deliver"] --> Access
 ```
 

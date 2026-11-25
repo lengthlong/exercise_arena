@@ -1,13 +1,13 @@
 # Recover support contract
 
-- **Journey or trigger** [0014](../../../journey/0014-back-up-production-library.md) steps 1–5: the operator's own schedule, and immediately before any authorized production repair.
+- **Journey or trigger** [0014](../../../journey/0014-back-up-production-library.md) steps 1–5: the operator's own schedule, and immediately before any authorized production repair or paper-plan re-plan ([plan contract](../plan/SPEC.md)).
 - **Operator and authorization** Operator with owner access to the production Artifact. Backup reads production only and writes only local files. Restore writes production, so it needs its own explicit authorization.
 - **Environment and dependencies** Local checkout, Node.js, and the Claude Artifact tools reading as the owner (no credentials stored on disk). The asset tool fetches one asset per call.
 
 ## Take a backup
 
 - **Prerequisites and scope**
-  - Objects: every document in `exercises`, `sets`, `papers`, `users`, `settings` and `matches`; the published page; every platform asset.
+  - Objects: every document in `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans` and `schoolPapers`; the published page; every platform asset.
   - Allowed actions: reads of production, and writes to the local backup folder only.
 - **Layout**
   - A dated snapshot holds a full copy of every collection, the page source and a manifest.

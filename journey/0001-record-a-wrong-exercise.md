@@ -34,6 +34,7 @@ sequenceDiagram
 ## Extensions
 
 - **2a. Saved material is unavailable or legacy ownership is unresolved.** Existing member questions remain usable under compatibility rules, but supplementation into that set is blocked until separately authorized ownership repair.
+- **2b. Recording starts from a School paper ([0015](./0015-follow-psle-paper-plan.md)).** Record opens for new photos or text with the paper's subject selected and the paper's name as the default Source. Each draft's Source keeps that name; a paper or question number the AI reads from the photo is added to it. Recording is otherwise unchanged.
 - **3a. Upload, drafting or parsing fails, or the user cancels.** Report the stage; retain retryable input/available drafts in the current session. Retry or discard explicitly; durable cross-session draft recovery is not promised.
 - **3b. Referenced saved photos cannot all be read.** Report unavailable/skipped photos and use remaining photos or available set text; a photo-only group with no readable photos cannot proceed to AI drafting.
 - **4a. Content or a word-pick answer is invalid.** Identify the affected draft and require correction before saving.

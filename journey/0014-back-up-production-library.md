@@ -2,7 +2,7 @@
 
 - **Actor** Operator with owner access to the production Artifact, delegating reads and local checks to an agent. The operator decides when to back up.
 - **Goal** Keep a local, verified copy of every production record and photo.
-- **Trigger** The operator's own schedule, or any authorized production repair (a verified backup must exist immediately before it).
+- **Trigger** The operator's own schedule, any authorized production repair, or a paper-plan re-plan ([0016](./0016-build-paper-plan.md)); a verified backup must exist immediately before the latter two.
 - **Success** A new snapshot holds every document of every collection and the published page. The local asset store holds every asset the platform lists, and the snapshot's verification passes. Backup data stays local and outside the repository.
 
 ```mermaid
@@ -21,7 +21,7 @@ sequenceDiagram
 ## Main success scenario
 
 1. The operator starts a snapshot named by date.
-2. The agent reads every document of `exercises`, `sets`, `papers`, `users`, `settings` and `matches`, plus the published page, into the snapshot. These reads are read-only.
+2. The agent reads every document of `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans` and `schoolPapers`, plus the published page, into the snapshot. These reads are read-only.
 3. The agent lists the platform's assets and downloads only those not already in the local asset store.
 4. The agent finalizes the snapshot. The stored asset count and bytes equal the platform listing, and every asset referenced by a document is stored.
 5. The agent verifies the snapshot against its manifest and reports the result to the operator.

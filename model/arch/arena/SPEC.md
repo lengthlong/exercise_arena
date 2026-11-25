@@ -25,7 +25,7 @@ The source header records its platform runtime declaration; this review does not
 
 ## C2 Record confirmed drafts
 
-- **Journeys / scenarios** 0001 1-7; S2-S3.
+- **Journeys / scenarios** 0001 1-7, 2b; S2-S3, S14.
 - **Prerequisites** Ready current owner scope, confirmed usable input/material and valid content/answers under DATA.
 - **Outcome** Per-draft acknowledged Exercise writes and, where applicable, same-owner/subject set writes. New set ownership is valid; supplementation creates a member only in its owning library. Each new Exercise carries the actor as Recorder (DATA `recordedBy`), earning the recording reward under C7.
 - **Coins on Record** Under the tab bar, a borderless hand-written line shows the actor's coins from recording this week in the selected library (C7 recorded count × 2, not the earned total or Balance) as "N coins from recording this week" in gold, followed by a muted "+2 for each question" hint. A save that can earn coins, individual or batch, shows a mid-screen treasure bowl (聚宝盆) with coins dancing out and a "Saving i of n…" caption; for each acknowledged new Exercise write one coin flies from the bowl to the line's number, which ticks up by 2. When the save ends having earned coins, the bowl bursts (coins and confetti), a "+N coins" badge appears in its place and flies onto the line's number, which glows; edits and saves earning nothing show no bowl or celebration. The save result line appears when writes finish, independent of the animation. With reduced motion the bowl and badge show without movement. Animation visuals and timing are delegated to implementation and never delay or gate writes.
@@ -35,6 +35,7 @@ The source header records its platform runtime declaration; this review does not
 - **Scope changes** Revalidate new/changed references at save, including partially saved new-set drafts. Reject retained A-set references being saved as B-owned questions; never silently share/copy/reassign.
 - **Legacy exception** Ordinary Exercise edits may retain a compatible unchanged legacy reference, owner and subject under C3; this exception is not a new member or automatic ownership repair.
 - **Cancel/failure** Report upload, AI, parse, validation and persistence results distinctly; only acknowledged exercises count as recorded.
+- **Entry from a School paper** Record mistakes (C11) opens Record in new photos/text mode with the paper's subject selected and a default Source label `<year> P6 <Kind> <School> <Subject>`, for example "2023 P6 Prelim Nanyang Maths". Each draft's Source starts with the label; a paper number ("Paper 2") and a question number ("Q7") found in the AI's free-text `source` are appended, the rest of the AI text is dropped, and the label is never replaced. The user may edit Source before saving. No other field or stored link is added. Matching patterns are delegated to implementation.
 - **Saved photo reads** Resolve referenced assets for supplementation, reporting unreadable/skipped images. Use available set text/remaining photos when possible; a photo-only independent group with no readable images stops before AI. Platform image-limit algorithms remain delegated, not copied here.
 
 ## C3 Edit/delete content and material
@@ -84,6 +85,8 @@ The source header records its platform runtime declaration; this review does not
 - **Journeys / scenarios** 0004 1-5 and outcome reads in 0001, 0002, 0003, 0005, 0007, 0009; S9.
 - **Inputs/outcomes** Actor-specific derivation in selected owner scope; not the owner's personal attempt history. Names do not determine identity. Coins and Balance use one scope: coins from the actor's attempts on, and recordings of, the selected library's exercises, spending only from matches belonging to that library (owner field, or legacy inference per DATA).
 - **Rules** GLOSSARY/DATA own meanings and derivation contracts; exact algorithms stay executable in mapped source/tests. Keep taxonomy IDs in TAX.
+- **Finish forecast** (0006 6, S11) Inputs: the actor's unmastered exercises in the selected library with their ladder state, Questions per day `x` (or recent pace when unset: the actor's daily-redo attempts in the selected library over the last 7 calendar days ÷ 7, rounded, minimum 1), recent results (the actor's daily-redo attempts in the selected library over the last 30 days: shares of right, partial and wrong; the displayed right rate counts partial as 0.5; fewer than 20 attempts → 80 % right and 20 % wrong, shown as assumed) and recent recording rate (exercises created in the selected library over the last 28 days ÷ 4 per week, spread evenly over days). Each simulated day takes up to `x` due unmastered exercises, oldest due first, applies the Review ladder (GLOSSARY) with right, partial and wrong drawn at their recent shares, and adds new exercises. An odd, fixed number of seeded runs gives the same result for the same inputs. Output per week from this week: median existing and median new exercises left at the end of the week; the finish week is the first week whose median existing count is zero. At most 52 weeks; beyond that, "not within a year". It never limits the Daily redo. Seed count and data structures are delegated to implementation.
+- **Presentation** Settings shows Questions per day as a − / + stepper (1–150) with "recent pace N" beside it and the hint "For the forecast below. Today isn't limited by this.", then the finish line and vertical stacked weekly bars (existing dark, new light) with the existing count above each bar and a dashed marker at the PSLE week when the actor has a Paper plan.
 - **Failure/limits** Empty activity differs from failed supporting reads. Forecasts are conditional; local dates/week boundaries are device-local. Corrections, deletion of exercises recorded this week and concurrent match starts may cause negative balances; retained attempts may have unavailable paper details.
 - **Writes** None: no persisted ladder, score or coin side store.
 
@@ -98,7 +101,7 @@ The source header records its platform runtime declaration; this review does not
 ## C9 Persist settings and retain papers
 
 - **Journeys / scenarios** 0006 1-5; 0002/0004 affected by S12; S11-S12.
-- **Settings** Write only actor settings with acknowledgment; DATA owns defaults/clamping. Reload owner scope through C1, including another-device changes; coins, balance and match eligibility are recomputed in the new scope only, so the change itself cannot produce a negative balance. Nonempty ID is not automatic validation of a registered owner.
+- **Settings** Write only actor settings with acknowledgment; DATA owns defaults/clamping. Questions per day (1–150) saves like other settings; when unset, a save keeps it absent and never stores the recent-pace placeholder. Reload owner scope through C1, including another-device changes; coins, balance and match eligibility are recomputed in the new scope only, so the change itself cannot produce a negative balance. Nonempty ID is not automatic validation of a registered owner.
 - **Retention** After required current views are ready, delete only eligible submitted daily Paper documents for that actor/current owner scope using DATA's exact age boundary. Attempts survive.
 - **Failure** Settings failure is unsaved, not success. Retention deletes are best-effort; unavailable scope cannot authorize a global purge.
 - **Boundary** Runtime cleanup is not deployment, maintenance or ownership-migration authorization.
@@ -115,6 +118,15 @@ The source header records its platform runtime declaration; this review does not
   - Judgment control: a pending written answer whose response is still in the current session offers Right/Partial/Wrong, saved per C5; once judged, the card offers the Override of C5 in both the just-handed-in and the re-opened page. A pending question without its response cannot get a created attempt (0009 1b).
 - **Derived, not stored** Score, status, ladder and coins are recomputed from attempts after every acknowledged write, including an override; no field is added to DATA.
 - **Failure/limits** A missing paper or question is explicit. A failed judgment or override write leaves the prior stored result authoritative. Unsaved written responses and Exam drafts are not recovered across sessions.
+
+## C11 Follow the paper plan
+
+- **Journeys / scenarios** 0015 1-7; S14.
+- **Inputs** The actor's `plans/<actor>` and `schoolPapers` where `for` is the actor (DATA), local date. Independent of the selected owner.
+- **Presentation** Papers gains a PSLE sub-tab after Exam and Daily, labelled with the count of this week's unfinished papers. It shows a line "D of T done · B behind · W weeks to PSLE" and a grid: one row per week that holds assigned papers (Monday date), columns Maths, English and Science. A cell shows a short school name and, when done, the score; done is green, behind (an earlier week, not done) red, this week blue with the row outlined, and future plain. The grid opens scrolled to this week. Choosing a cell opens a panel under the grid with the full paper name and Open paper (new tab), Mark done with date (today by default, earlier allowed) and optional score (marks and total), Undo, and Record mistakes (C2). Reserve papers (`week` null) are listed, folded, under the grid by rank. Short names, colours and scrolling details are delegated to implementation.
+- **Writes** Update only `doneOn`, `score` and `total` on a School paper whose `for` is the actor; Undo sets all three to null. A future date, a negative or non-numeric score, or a score above its total is rejected before writing.
+- **Failure** A failed write shows the mark as not saved and leaves the grid as it was. No plan document → "No plan yet"; a failed read → "Plan unavailable", never an empty plan. A paper whose link fails is reported by the user and replaced only by an operator re-plan.
+- **Boundary** The page never creates, reschedules or deletes School papers or the Paper plan ([plan contract](../../operate/plan/SPEC.md)). Plan progress is derived, not stored.
 
 ## Baseline gaps and handoff
 

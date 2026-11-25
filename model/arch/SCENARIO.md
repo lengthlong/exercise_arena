@@ -49,7 +49,7 @@ sequenceDiagram
     P-->>U: Successful exercises, coins earned and retryable drafts
 ```
 
-AI is not the decision maker. Upload/AI/parse cancellation and per-draft failures are distinct; artifacts can survive failed member writes. Same-owner/subject reference validation occurs at save; no automatic orphan/asset purge (C2).
+AI is not the decision maker. Upload/AI/parse cancellation and per-draft failures are distinct; artifacts can survive failed member writes. Same-owner/subject reference validation occurs at save; no automatic orphan/asset purge (C2). Entered from a School paper (0001 2b, S14), the session starts with the paper's subject and a default Source label that drafts keep (C2).
 
 ## S3 Record from saved material
 
@@ -258,7 +258,7 @@ sequenceDiagram
     P-->>U: Saved/unsaved outcome and owner reload when required
 ```
 
-Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks. After an owner change, balance is recomputed in the new library and never charges another library's match stakes (C9, C7).
+Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. Changing Questions per day saves it like any setting and redraws the Finish forecast from current snapshots (Progress, no write); the forecast also redraws on owner reload. A save never stores the recent-pace placeholder (C9, C7). Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks. After an owner change, balance is recomputed in the new library and never charges another library's match stakes (C9, C7).
 
 ## S12 Page-triggered daily-paper retention
 
@@ -309,22 +309,57 @@ sequenceDiagram
 
 The same page serves the first review right after hand-in and every later one; rows from Today and Papers share the Start-or-Review rule. Pending judgments are shown as not judged, never as no answer, and cannot be created without their response. No stored field is added (C10).
 
+## S14 Follow the paper plan
+
+- **Trigger / journey steps** 0015 1-7.
+- **Entry responsibility** Papers; Session supplies the actor's Paper plan and School papers.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant P as Arena page
+    participant D as Platform db
+    participant X as sgexam.com
+    P->>D: Subscribe to the actor's Paper plan and School papers
+    D-->>P: Snapshots, or read failure
+    U->>P: Open Papers, then PSLE
+    P-->>U: Progress line and week × subject grid at this week
+    U->>P: Choose a cell
+    opt Open the paper
+        U->>X: Open the paper page in a new tab
+    end
+    opt Mark done, change score or undo
+        U->>P: Done date and optional score, or Undo
+        P->>D: Update only the done mark, score and total
+        D-->>P: Acknowledgment or failure
+        P-->>U: Saved mark, or unsaved message with the grid unchanged
+    end
+    opt Record mistakes
+        U->>P: Record mistakes
+        P-->>U: Record with subject and Source prefilled (S2)
+    end
+```
+
+A missing plan document is "no plan yet"; a failed read is "plan unavailable", never an empty plan. The page never creates, reschedules or deletes School papers; an operator re-plan ([plan contract](../operate/plan/SPEC.md)) changes only weeks and ranks, so a concurrent done mark survives (C11).
+
 ## Support scenarios
 
-0011 maps to [maintain SPEC](../operate/maintain/SPEC.md). 0013 uses [acceptance SPEC](../../verify/SPEC.md) and deploy-provided test candidates. 0012 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
+0011 maps to [maintain SPEC](../operate/maintain/SPEC.md). 0016 maps to [plan SPEC](../operate/plan/SPEC.md); 0014 to [recover SPEC](../operate/recover/SPEC.md). 0013 uses [acceptance SPEC](../../verify/SPEC.md) and deploy-provided test candidates. 0012 maps to [deploy SPEC](../operate/deploy/SPEC.md). Repository checks/publication are not Games interactions or in-page services.
 
 ## Journey coverage
 
 | Journey | Runtime/support coverage |
 |---|---|
-| 0001 | S1-S3; C1-C2 |
+| 0001 | S1-S3/S14; C1-C2 |
 | 0002 | S5/S9/S12/S13; C4-C5/C7/C9/C10 |
 | 0003 | S7/S9/S13; C5-C7/C10 |
 | 0004 | S9/S12/S13; C7/C9/C10 |
 | 0005 | S10; C8 |
-| 0006 | S1/S11; C1/C9 |
+| 0006 | S1/S11; C1/C7/C9 |
 | 0007 | S4; C3 |
 | 0008 | S6; C6 |
 | 0009 | S8/S9/S13; C5/C7/C10 |
 | 0010 | S1; C1 |
+| 0015 | S2/S14; C2/C11 |
 | 0011-0013 | Owning maintain/deploy/acceptance contracts |
+| 0014, 0016 | Owning recover and plan contracts |

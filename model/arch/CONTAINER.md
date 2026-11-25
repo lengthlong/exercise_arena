@@ -15,6 +15,7 @@ flowchart LR
         AI["Platform sample<br/>AI drafting"]
     end
     K["Knowledge maps<br/>Optional references"]
+    X["sgexam.com<br/>School paper pages"]
     F["Font delivery<br/>Local fallbacks"]
     U -->|Use| P
     P -->|Resolve actor| I
@@ -22,6 +23,8 @@ flowchart LR
     P -->|Upload and read| A
     P -->|Request drafts| AI
     P -. Optional topic links .-> K
+    P -. School paper links .-> X
+    O -. Plan reads and writes, on request .-> D
     P -. Presentation .-> F
     O -->|Maintain and accept| W
     W -. Accepted page supply .-> Host
@@ -36,6 +39,7 @@ flowchart LR
 | Claude Artifact host | External access/sharing and capability supply | Generic platform |
 | Platform user/db/assets/sample | External identity/profiles, persistent records, photos and untrusted AI | Generic platform |
 | Science/math knowledge maps | Optional explanations; taxonomy IDs remain embedded TAX | External reference |
+| sgexam.com | School paper pages opened from the PSLE sub-tab in a new tab; never fetched by the page. The operator reads its listings when building a plan ([plan contract](../operate/plan/SPEC.md)) | External reference |
 | Font delivery | Presentation dependency with local fallbacks | No domain context |
 
 ## Runtime nodes
