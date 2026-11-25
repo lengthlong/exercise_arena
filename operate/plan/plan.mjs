@@ -151,7 +151,8 @@ function preview(work, docs, weeks) {
 
 function main(argv) {
   const [cmd, ...args] = argv, { o, rest } = opts(args);
-  const now = new Date().toISOString().slice(0, 16);
+  const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+  const now = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;   // device-local time, as DATA.md requires for 时刻
   if (cmd === 'build') {
     const [cat, work] = rest; if (!cat || !work || !o.user || !o.start || !o.psle) die('usage: build <catalog.json> <work> --user <id> --start <date> --psle <date>');
     const r = buildPlan(readJson(cat), { user: o.user, start: o.start, psle: o.psle, perWeek: Number(o['per-week'] || 1), poolPerWeek: Number(o['pool-per-week'] || 2) });
