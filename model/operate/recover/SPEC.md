@@ -7,7 +7,7 @@
 ## Take a backup
 
 - **Prerequisites and scope**
-  - Objects: every document in `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans` and `schoolPapers`; the published page; every platform asset.
+  - Objects: every document in `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans`, `schoolPapers` and `paperMarks`; the published page; every platform asset.
   - Allowed actions: reads of production, and writes to the local backup folder only.
 - **Layout**
   - A dated snapshot holds a full copy of every collection, the page source and a manifest.

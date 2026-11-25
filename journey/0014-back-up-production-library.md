@@ -21,7 +21,7 @@ sequenceDiagram
 ## Main success scenario
 
 1. The operator starts a snapshot named by date.
-2. The agent reads every document of `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans` and `schoolPapers`, plus the published page, into the snapshot. These reads are read-only.
+2. The agent reads every document of `exercises`, `sets`, `papers`, `users`, `settings`, `matches`, `plans`, `schoolPapers` and `paperMarks`, plus the published page, into the snapshot. These reads are read-only.
 3. The agent lists the platform's assets and downloads only those not already in the local asset store.
 4. The agent finalizes the snapshot. The stored asset count and bytes equal the platform listing, and every asset referenced by a document is stored.
 5. The agent verifies the snapshot against its manifest and reports the result to the operator.

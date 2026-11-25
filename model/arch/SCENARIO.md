@@ -258,7 +258,7 @@ sequenceDiagram
     P-->>U: Saved/unsaved outcome and owner reload when required
 ```
 
-Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. Changing Questions per day saves it like any setting and redraws the Finish forecast from current snapshots (Progress, no write); the forecast also redraws on owner reload. A save never stores the recent-pace placeholder (C9, C7). Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks. After an owner change, balance is recomputed in the new library and never charges another library's match stakes (C9, C7).
+Apply DATA defaults/clamping; nonempty owner ID is not proof of a registered User. A − / + tap on Questions per day or New per week redraws the Finish forecast at once from current snapshots (Progress, no write), and one settings write follows shortly after the last tap; the forecast also redraws on owner reload. A save never stores either placeholder (C9, C7). Same-device and other-device owner changes share S1's reload boundary; retained drafts/previews must not bypass current scope checks. After an owner change, balance is recomputed in the new library and never charges another library's match stakes (C9, C7).
 
 ## S12 Page-triggered daily-paper retention
 
@@ -312,7 +312,7 @@ The same page serves the first review right after hand-in and every later one; r
 ## S14 Follow the paper plan
 
 - **Trigger / journey steps** 0015 1-7.
-- **Entry responsibility** Papers; Session supplies the actor's Paper plan and School papers.
+- **Entry responsibility** Papers; Session supplies the shared Paper plan, its School papers and the Paper marks shown.
 
 ```mermaid
 sequenceDiagram
@@ -320,17 +320,20 @@ sequenceDiagram
     participant P as Arena page
     participant D as Platform db
     participant X as sgexam.com
-    P->>D: Subscribe to the actor's Paper plan and School papers
+    P->>D: Subscribe to the shared Paper plan, its School papers and Paper marks (actor; Default owner if someone else)
     D-->>P: Snapshots, or read failure
     U->>P: Open Papers, then PSLE
-    P-->>U: Progress line and week × subject grid at this week
+    P-->>U: Progress line and week × subject grid at this week, from the actor's marks
+    opt Default owner is someone else
+        U->>P: Switch to the owner's marks (read-only)
+    end
     U->>P: Choose a cell
     opt Open the paper
         U->>X: Open the paper page in a new tab
     end
     opt Mark done, change score or undo
         U->>P: Done date and optional score, or Undo
-        P->>D: Update only the done mark, score and total
+        P->>D: Set only the actor's Paper mark
         D-->>P: Acknowledgment or failure
         P-->>U: Saved mark, or unsaved message with the grid unchanged
     end
@@ -340,7 +343,7 @@ sequenceDiagram
     end
 ```
 
-A missing plan document is "no plan yet"; a failed read is "plan unavailable", never an empty plan. The page never creates, reschedules or deletes School papers; an operator re-plan ([plan contract](../operate/plan/SPEC.md)) changes only weeks and ranks, so a concurrent done mark survives (C11).
+No followed plan is "no plan yet"; a failed plan read is "plan unavailable" and a failed marks read "marks unavailable", never an empty plan or nothing done. The page writes only the actor's Paper marks; an operator re-plan ([plan contract](../operate/plan/SPEC.md)) changes only weeks and ranks of this and later weeks and never writes marks, so a concurrent done mark survives (C11).
 
 ## Support scenarios
 

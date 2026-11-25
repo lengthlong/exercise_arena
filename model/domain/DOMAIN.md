@@ -13,15 +13,16 @@ Terms are defined in [GLOSSARY.md](./GLOSSARY.md). Stored shapes, writes and com
 | Aggregate root | Contained concepts | Logical writer | Journey commands |
 |---|---|---|---|
 | User | Platform registration; no stored display-name authority | Platform/data gateway | 0010 |
-| User settings | Default owner, batch-size and Questions per day configuration | Gateway via Session/settings | 0006, 0010 |
+| User settings | Default owner, batch-size, Questions per day and New per week configuration | Gateway via Session/settings | 0006, 0010 |
 | Exercise | Content, optional material reference, embedded Attempts/Judgments | Gateway via Record, Exercise library or Papers | 0001, 0002, 0003, 0007, 0009 |
 | Question set | One owner's same-subject material and optional Word bank | Gateway via Record/Exercise library | 0001, 0007 |
 | Paper | Ordered Exercise references, draft state and per-actor acknowledgment | Gateway via Papers | 0002, 0003, 0008; retention |
 | Match | Committed entrants/Stake values and contained Round result | Gateway via Games | 0005 |
-| Paper plan | One user's PSLE date, start week and papers per subject per week | Operator (agent) under the [plan contract](../operate/plan/SPEC.md) | 0016 |
-| School paper | One external paper: subject, school, year, kind, link, assigned week or reserve, rank, done mark and optional score | Operator (agent) for assignment; gateway via Papers for the done mark and score only | 0015, 0016 |
+| Paper plan | The shared PSLE date, start week and papers per subject per week for every user | Operator (agent) under the [plan contract](../operate/plan/SPEC.md) | 0016 |
+| School paper | One external paper of the plan: subject, school, year, kind, link, assigned week or reserve, rank | Operator (agent) | 0015, 0016 |
+| Paper mark | One user's done date and optional score for one School paper | Gateway via Papers, the actor's own only; operator only when migrating | 0015 |
 
-The gateway is one logical persistence responsibility, not an exclusive browser writer or cross-document transaction. Paper plan and School paper are the only roots added for the PSLE plan ([ADR 0006](../adr/0006-paper-plan-is-agent-curated-data.md)); no immutable paper snapshot or judgment audit trail is introduced. An Exercise records its Recorder once, for the recording reward (0001).
+The gateway is one logical persistence responsibility, not an exclusive browser writer or cross-document transaction. Paper plan, School paper and Paper mark are the only roots added for the PSLE plan ([ADR 0006](../adr/0006-paper-plan-is-agent-curated-data.md)); no immutable paper snapshot or judgment audit trail is introduced. An Exercise records its Recorder once, for the recording reward (0001).
 
 ## Conceptual relations
 
@@ -44,6 +45,9 @@ classDiagram
         <<AggregateRoot>>
     }
     class SchoolPaper {
+        <<AggregateRoot>>
+    }
+    class PaperMark {
         <<AggregateRoot>>
     }
     class Paper {
@@ -96,9 +100,9 @@ classDiagram
     Match "1" *-- "2..*" Stake : committed stakes
     Stake "0..*" --> "1" User : committed by
     Match "1" *-- "0..1" Round : pending or completed
-    PaperPlan "0..1" --> "1" User : planned for
-    SchoolPaper "0..*" --> "1" User : planned for
-    SchoolPaper "0..*" --> "0..1" PaperPlan : scheduled by week
+    SchoolPaper "0..*" --> "1" PaperPlan : belongs to, scheduled by week
+    PaperMark "0..*" --> "1" SchoolPaper : marks
+    PaperMark "0..*" --> "1" User : done by
 ```
 
 This is the target relation for new/validated records. Legacy ownerless/mixed-owner sets remain readable under DATA without invented owners/new links. Legacy missing creators/recorders/stakes and historical multi-round matches remain readable. Deleted references are unresolved. Daily/Exam are Paper variants, not separate roots/tables.
@@ -116,8 +120,8 @@ Attempt/Judgment are embedded values changed through Exercise. Word bank and Sta
 | Progress, Streak, Mastery transition | Actor history in subscribed scope; conditional forecast | 0004, 0009 |
 | Coin and Balance | Weekly daily rewards plus recording rewards (Recorder's exercises created this week) in the selected library, minus committed spending of matches belonging to that library | 0001, 0004, 0005, 0007, 0009 |
 | Star and Starboard | Saved rounds, period and users' Default-owner grouping | 0004, 0005 |
-| Finish forecast | Actor ladders in the selected library, Questions per day, recent right rate (30 days), recent recording rate (28 days); seeded day-by-day projection, weekly medians, 52-week cap | 0006 |
-| Plan progress | Actor's School papers, local date: done, behind, this week, weeks to PSLE | 0015 |
+| Finish forecast | Actor ladders in the selected library, Questions per day, New per week (or recent recording rate, 28 days), recent right rate (30 days); seeded day-by-day projection, weekly medians, 52-week cap | 0006 |
+| Plan progress | The plan's School papers, the shown user's Paper marks (the actor's, or the Default owner's read-only), local date: done, behind, this week, weeks to PSLE | 0015 |
 
 These are computed models, not independently persisted aggregates.
 
@@ -135,7 +139,7 @@ These are computed models, not independently persisted aggregates.
 10. Retention deletes eligible submitted daily Paper documents in the actor's current owner scope, not embedded attempts. Details may become unavailable (0002, 0004; DATA).
 11. Match start commits spending before round-result persistence. Result failure does not refund; derived eligibility cannot prevent concurrent overspending (0005).
     - A Match belongs to its opener's Default owner library at start. Coins and Stakes are derived in the same library scope, so changing Default owner changes which purse is shown and never charges one library's stake against another's coins. Legacy matches without an owner are attributed only when all entrants currently share the scope; the inferred attribution is not persisted (0004, 0005, 0006; DATA).
-12. The page writes only the done mark (`doneOn`), score and total of the actor's own School papers, and Undo clears them. The agent alone creates School papers and the Paper plan and changes weeks and ranks; a re-plan never deletes School papers or changes done marks, and unfinished papers move to reserve. Questions per day never limits the Daily redo (0006, 0015, 0016; [plan contract](../operate/plan/SPEC.md)).
+12. The page writes only the actor's own Paper marks, and Undo clears their done date and score. The agent alone writes the shared Paper plan and School papers and changes weeks and ranks; a re-plan never deletes School papers, never moves papers of weeks before the current one and never writes Paper marks, which the agent writes only when migrating a per-user plan. Questions per day and New per week never limit the Daily redo (0006, 0015, 0016; [plan contract](../operate/plan/SPEC.md)).
 13. No writer label proves a transaction/complete snapshot. Attempt-array, marker-map, bank and membership writes retain distinct concurrent overwrite/reference risks.
 
 ## Implementation boundary
