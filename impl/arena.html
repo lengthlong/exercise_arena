@@ -3121,7 +3121,7 @@ function renderForecast() {
   const pw = Math.round(f.perWeek);
   let line;
   if (!f.start) line = `You have no unmastered exercises in this library right now.`;
-  else if (f.finish < 0) line = `At ${f.x} a day, today's ${f.start} won't all be mastered within a year. Try more a day.`;
+  else if (f.finish < 0) line = `At ${f.x} a day, today's ${f.start} won't all be mastered within a year. Try more a day. (At ${rate}, with about ${pw} new a week.)`;
   else line = `At ${f.x} a day you'll master today's ${f.start} in the <b>week of ${esc(fmtDate(f.weeks[f.finish].week))}</b> (${plural(f.finish + 1, 'week')}), at ${rate}, with about ${pw} new a week.`;
   return `<div class="fc"><p class="fc-line">${line}</p>${f.start ? fcChart(f) : ''}
     <p class="small muted fc-key"><span class="fc-sw fc-old"></span>today's questions <span class="fc-sw fc-new"></span>new ones not yet mastered</p></div>`;
