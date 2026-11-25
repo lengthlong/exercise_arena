@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert');
 // 用法：node impl/logic.test.js impl/arena.html —— 抽出 arena.html 里 LOGIC:BEGIN 到 LOGIC:END 的纯函数断言；这些断言就是页面规则的规格。
 const html = fs.readFileSync(process.argv[2], 'utf8');
 const src = html.slice(html.indexOf('/* LOGIC:BEGIN'), html.indexOf('/* LOGIC:END */'));
-const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,saveSummary,matchInScope,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb};', ctx);
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src + ';this.L={viewFor,staleDailyPapers,dailyBySubject,deriveState,judgeAuto,dailyList,drawPaper,paperLayout,matchShort,addDays,localToday,paperRows,withLiveAttempts,paperAssess,paperScore,mustUseCheck,parseList,parseExplanation,sortExercises,pageSlice,streakInfo,masteredOn,dashboardData,helloStats,readSettings,weekStart,weekReview,dayRates,axisMax,reviewLine,weekPlan,ladderAt,weekLadders,paperLadders,questionClimb,topicSummary,dailyGroups,dueSplit,viewFor,ownedBy,attemptGroups,todayScope,isDaily,handedInAt,makeDailyPaper,openDailyPaper,visiblePapers,dueByDay,subjectBatch,dueNowIds,todayPapers,paperProgress,todayCounts,leftMix,ladderInput,subjectSummary,matchesQuery,filterPapers,sortPapers,paperMarks,unansweredNos,paperName,pagerSlots,coinsFor,saveSummary,matchInScope,paperCoins,maxExtra,stakeOf,roundPoints,scoreboard,entrants,liftRound,liftChances,podium,matchTotals,weekMatches,fitSize,countStems,photoGroups,savedMaterials,matchMaterial,dupKey,findDuplicate,protectedDailyPapers,replaceableDailyPapers,recoverRun,previewCheck,setOwnership,checkSetLink,cleanupDecision,bankEdit,setPatch,supplementBlock,missingRefCount,retryUnavailable,retryingDb,settingsDoc,schoolPaperLabel,composeSource,markOf,planView,validateMark,recentPace,recentResults,recordRate,simulateFinish};', ctx);
 const L = ctx.L;
 const ids = a => Array.from(a, e => e.id);
 const A = (date, result) => ({ date, result });
@@ -196,10 +196,10 @@ assert.deepStrictEqual(Array.from(L.helloStats({ todayRight: 0, newMasteredToday
 const ds = L.dashboardData([dex[4]], dex, T0);
 assert.deepStrictEqual([ds.total, ds.mastered, { ...ds.ladder }, ds.streak, ds.newMastered7], [1, 0, { 1: 1, 2: 0, 3: 0, 4: 0, mastered: 0 }, 2, 2]);
 // 设置：缺字段与非数按默认，超出范围收紧，0 保留
-assert.deepStrictEqual({ ...L.readSettings(null) }, { dailyLimit: 10, defaultOwner: null });
-assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 18 }) }, { dailyLimit: 18, defaultOwner: null });
-assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 0, practiceDays: 9 }) }, { dailyLimit: 1, defaultOwner: null });
-assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 'x', papersPerWeek: 5 }) }, { dailyLimit: 10, defaultOwner: null });
+assert.deepStrictEqual({ ...L.readSettings(null) }, { dailyLimit: 10, defaultOwner: null, questionsPerDay: null });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 18 }) }, { dailyLimit: 18, defaultOwner: null, questionsPerDay: null });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 0, practiceDays: 9 }) }, { dailyLimit: 1, defaultOwner: null, questionsPerDay: null });
+assert.deepStrictEqual({ ...L.readSettings({ dailyLimit: 'x', papersPerWeek: 5 }) }, { dailyLimit: 10, defaultOwner: null, questionsPerDay: null });
 // 默认归属人：用户 id 照读；缺省、空串、非字符串、null 都读成本人
 assert.strictEqual(L.readSettings({ defaultOwner: 'u_S' }, 'u_me').defaultOwner, 'u_S');
 assert.strictEqual(L.readSettings(null, 'u_me').defaultOwner, 'u_me');
@@ -955,3 +955,84 @@ assert.strictEqual(L.missingRefCount({}, []), 0);
   w.collection('x').doc(); w.collection('x').doc('given'); assert.deepStrictEqual(log.filter(x => x[0] === 'cdoc'), [['cdoc', 'x', 'auto'], ['cdoc', 'x', 'given']]);
   assert.strictEqual(typeof w.collection('x').where, 'undefined');   // 包装没有读查询：页面的成员查询要用原来的 db（S.rawDb）
 })().then(() => console.log('all logic tests passed'), e => { console.error(e); process.exit(1); });   // 重试断言是异步的：全部过了才报通过
+
+{ // 0050 用例放在块里，免得与上面的名字冲突
+// 0050 每日题量：缺或不是数为未设（null），收紧到 1–150；存设置时未设不写这个字段，已设原样写
+assert.strictEqual(L.readSettings({ questionsPerDay: 20 }).questionsPerDay, 20);
+assert.strictEqual(L.readSettings({ questionsPerDay: 0 }).questionsPerDay, 1);
+assert.strictEqual(L.readSettings({ questionsPerDay: 999 }).questionsPerDay, 150);
+assert.strictEqual(L.readSettings({ questionsPerDay: 'x' }).questionsPerDay, null);
+assert.strictEqual(L.readSettings({ questionsPerDay: true }).questionsPerDay, null);
+assert.deepStrictEqual({ ...L.settingsDoc({ dailyLimit: 10, defaultOwner: 'u', questionsPerDay: null }) }, { dailyLimit: 10, defaultOwner: 'u' });
+assert.deepStrictEqual({ ...L.settingsDoc({ dailyLimit: 10, defaultOwner: 'u', questionsPerDay: 25 }) }, { dailyLimit: 10, defaultOwner: 'u', questionsPerDay: 25 });
+
+// 0050 学校卷 Source 标签与 AI 文字合成：标签不被替换，只接卷号与题号
+const sp = { subject: 'math', school: 'Nanyang Primary', year: 2023, kind: 'prelim' };
+assert.strictEqual(L.schoolPaperLabel(sp), '2023 P6 Prelim Nanyang Maths');
+assert.strictEqual(L.schoolPaperLabel({ subject: 'science', school: 'Rosyth School', year: 2024, kind: 'prelim' }), '2024 P6 Prelim Rosyth Science');
+assert.strictEqual(L.schoolPaperLabel({ subject: 'english', school: 'Catholic High (Primary)', year: 2025, kind: 'prelim' }), '2025 P6 Prelim Catholic High English');
+const lab = '2023 P6 Prelim Nanyang Maths';
+assert.strictEqual(L.composeSource(lab, 'Nanyang Primary 2023 Prelim Paper 2 Q7'), lab + ' Paper 2 Q7');
+assert.strictEqual(L.composeSource(lab, 'P6 Prelim P1 Question 12'), lab + ' Paper 1 Q12');
+assert.strictEqual(L.composeSource(lab, 'Q3b'), lab + ' Q3b');
+assert.strictEqual(L.composeSource(lab, ''), lab);
+assert.strictEqual(L.composeSource(lab, '2026 P6 SA2'), lab);   // P6 不是卷号
+
+// 0050 计划网格：按周一成行、三科成列；落后=之前的周未做完；储备卷 week 为 null；做完标记按契约读
+const today = '2026-12-30';   // 周三，本周一 12-28
+const spp = (id, subject, week, extra) => Object.assign({ id, subject, week, rank: 1, school: 'X', year: 2023, kind: 'prelim', doneOn: null, score: null, total: null }, extra || {});
+const pv = L.planView([
+  spp('a', 'math', '2026-12-21', { doneOn: '2026-12-22', score: 72, total: 100 }),
+  spp('b', 'english', '2026-12-21'),
+  spp('c', 'science', '2026-12-23'),                                 // 不是周一：归到 12-21 那周
+  spp('d', 'math', '2026-12-28', { doneOn: '2026-12-31', score: 5, total: 10 }),   // 日期在今天之后：未做完
+  spp('e', 'english', '2026-12-28', { doneOn: '2026-12-29', score: 120, total: 100 }), // 超过满分：得分按 null
+  spp('f', 'science', '2027-01-04'),
+  spp('r', 'math', null, { rank: 50 })], { psleDate: '2027-09-23' }, today);
+assert.deepStrictEqual([pv.thisWeek, pv.total, pv.done, pv.behind, pv.thisLeft, pv.weeksLeft, pv.psleWeek], ['2026-12-28', 6, 2, 2, 1, 2, '2027-09-20']);
+assert.deepStrictEqual(Array.from(pv.weeks, w => w.week), ['2026-12-21', '2026-12-28', '2027-01-04']);
+assert.deepStrictEqual(ids(pv.weeks[0].cells.science), ['c']);
+assert.deepStrictEqual(ids(pv.reserve), ['r']);
+assert.deepStrictEqual({ ...pv.weeks[1].cells.english[0].mark }, { done: '2026-12-29', score: null, total: 100 });
+assert.strictEqual(pv.weeks[1].cells.math[0].mark.done, null);
+assert.strictEqual(L.planView([], null, today).psleWeek, null);
+
+// 0050 做完标记写前校验
+assert.deepStrictEqual({ ...L.validateMark('2026-12-29', '78', '100', today) }, { doneOn: '2026-12-29', score: 78, total: 100 });
+assert.deepStrictEqual({ ...L.validateMark('2026-12-29', '', '', today) }, { doneOn: '2026-12-29', score: null, total: null });
+assert.deepStrictEqual({ ...L.validateMark('2026-12-29', '', '100', today) }, { doneOn: '2026-12-29', score: null, total: null });
+assert.ok(L.validateMark('2026-12-31', '', '', today).error);
+assert.ok(L.validateMark('', '', '', today).error);
+assert.ok(L.validateMark('2026-12-29', '-1', '', today).error);
+assert.ok(L.validateMark('2026-12-29', 'abc', '', today).error);
+assert.ok(L.validateMark('2026-12-29', '120', '100', today).error);
+
+// 0050 完成预测的输入：近期节奏（7 个日历天 ÷ 7）、近 30 天结果占比（少于 20 次按假定）、近 28 天录入 ÷ 4
+const fa = (date, result, by, mode) => ({ by: by || 'uA', date, result, mode: mode || 'daily' });
+const fv = [{ id: 'q', createdAt: '2026-12-01', attempts: [fa('2026-12-30', 'right'), fa('2026-12-29', 'wrong'), fa('2026-12-24', 'right'), fa('2026-12-23', 'right'), fa('2026-12-30', 'right', 'uB'), fa('2026-12-30', 'wrong', 'uA', 'paper')] }];
+assert.strictEqual(L.recentPace(fv, 'uA', today), 1);    // 3 次 ÷ 7 ≈ 0.4 → 至少 1
+const many = [{ id: 'm', attempts: Array.from({ length: 20 }, (_, i) => fa('2026-12-' + String(10 + i).padStart(2, '0'), i < 15 ? 'right' : i < 17 ? 'partial' : 'wrong')) }];
+assert.strictEqual(L.recentPace(many, 'uA', today), 1);   // 12-24…12-29 之间 6 次 ÷ 7 ≈ 0.86 → 1
+let rr = L.recentResults(fv, 'uA', today); assert.deepStrictEqual([rr.right, rr.wrong, rr.assumed], [0.8, 0.2, true]);
+rr = L.recentResults(many, 'uA', today); assert.deepStrictEqual([rr.right, rr.partial, rr.wrong, rr.shown, rr.assumed], [0.75, 0.1, 0.15, 0.8, false]);
+assert.strictEqual(L.recordRate([{ createdAt: '2026-12-30' }, { createdAt: '2026-12-03' }, { createdAt: '2026-12-02' }, { createdAt: 'x' }], today), 0.5);
+
+// 0050 完成预测：全对、无新题时，10 道第 1 级、今天到期的题每天 10 道，至少 14 天（1+2+4+7）后才掌握；同样输入同样结果；按周从本周起
+const lvl1 = Array.from({ length: 10 }, () => ({ step: 1, due: '2026-12-30' }));
+const allRight = { right: 1, partial: 0, wrong: 0 };
+let fc = L.simulateFinish(lvl1, 10, allRight, 0, today);
+assert.strictEqual(fc.weeks[0].week, '2026-12-28');
+assert.strictEqual(fc.finish, 2);   // 第一次 12-30，再 01-01、01-05、01-12 掌握，01-12 在第 3 周（01-11 周一）
+assert.deepStrictEqual(Array.from(fc.weeks, w => w.old), [10, 10, 0]);
+assert.deepStrictEqual(JSON.stringify(L.simulateFinish(lvl1, 10, allRight, 0, today)), JSON.stringify(fc));
+// 每天只做 1 道：慢得多；正确率低：更慢；有新题：新题部分不为 0，完成周只看现有题
+const slow = L.simulateFinish(lvl1, 1, allRight, 0, today).finish;
+assert.ok(slow > fc.finish);
+const shaky = L.simulateFinish(lvl1, 10, { right: 0.6, partial: 0, wrong: 0.4 }, 0, today).finish;
+assert.ok(shaky > fc.finish || shaky === -1);
+fc = L.simulateFinish(lvl1, 10, allRight, 14, today);
+assert.ok(fc.weeks[fc.weeks.length - 1].neu > 0 && fc.weeks[fc.weeks.length - 1].old === 0);
+// 一年内做不完：finish 为 -1，给满 52 周
+fc = L.simulateFinish(lvl1, 1, { right: 0.3, partial: 0, wrong: 0.7 }, 50, today);
+assert.deepStrictEqual([fc.finish, fc.weeks.length], [-1, 52]);
+}

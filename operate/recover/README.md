@@ -19,7 +19,7 @@ operate/recover/
 backups/                     git-ignored local backup data
   assets/<assetId>.<ext>     shared photo store keyed by asset id (checked against sha256 hashes in each manifest); grows incrementally; never prune an asset a retained snapshot lists
   snapshots/<YYYYMMDD>/      one full db snapshot per run (add -2, -3 for more runs on one day)
-    db/<collection>/<docId>.json   exercises, sets, papers, users, settings, matches
+    db/<collection>/<docId>.json   exercises, sets, papers, users, settings, matches, plans, schoolPapers
     page/index.html          published page source at backup time
     manifest.json            counts, hashes, asset references, server listing totals
 ```
@@ -35,7 +35,7 @@ asset with its sha256, so you can check any snapshot against the shared store.
 Download with Claude Code's `ArtifactData` / `Artifact` tools. They read as the owner, so no
 credentials go on disk. Use `S` = today's `YYYYMMDD`.
 
-1. **DB**: for each collection in `exercises sets papers users settings matches`, call
+1. **DB**: for each collection in `exercises sets papers users settings matches plans schoolPapers`, call
    `ArtifactData list` with `query.limit: 1000` and `out_dir: backups/snapshots/S/db`.
    If a result has a `next_cursor`, keep paging until none is left.
 2. **Page**: `Artifact read` with `path: "index.html"`, `out_dir: backups/snapshots/S/page`.

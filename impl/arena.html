@@ -527,6 +527,49 @@ details.panel > summary { cursor: pointer; font: 600 15.5px/1.3 var(--font-body)
 .h-when { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .h-line { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13.5px; }
 .h-body { display: grid; gap: 8px; padding: 0 10px 10px; }
+
+/* PSLE 子标签：周 × 科目网格（0050） */
+.sp-sum { margin: 0; font-size: 14px; }
+.sp-sum b { font-weight: 600; }
+.sp-bad { color: var(--red); }
+.sp-wrap { max-height: 62vh; overflow: auto; border: 1px solid var(--rule); border-radius: var(--r); background: var(--surface); }
+.sp-grid { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 13px; }
+.sp-grid thead th { position: sticky; top: 0; background: var(--surface); color: var(--muted); font-weight: 500; padding: 4px; z-index: 1; }
+.sp-grid tbody th { color: var(--muted); font-weight: 400; white-space: nowrap; text-align: left; padding: 0 4px; font-size: 12px; }
+.sp-grid td { padding: 0; }
+.sp-now th { color: var(--pen) !important; font-weight: 600 !important; }
+.sp-now td { outline: 2px solid var(--pen); outline-offset: -1px; border-radius: 7px; }
+.sp-cell { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 4px 3px; margin: 1px 0; background: var(--surface); color: var(--ink); font: 500 12.5px/1.25 var(--font-body); cursor: pointer; text-align: center; }
+.sp-cell.sp-done { background: var(--green-soft); color: var(--green); border-color: transparent; }
+.sp-cell.sp-behind { background: var(--red-soft); color: var(--red); border-color: transparent; }
+.sp-cell.sp-now { background: var(--pen-soft); color: var(--pen); border-color: transparent; }
+.sp-cell[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pen); }
+.sp-panel { border: 1px solid var(--line); border-radius: var(--r); padding: 10px; display: grid; gap: 8px; background: var(--surface-2); }
+.sp-panel p { margin: 0; }
+.sp-name { font-weight: 600; }
+.sp-panel a.btn { text-decoration: none; }
+.sp-form { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px; }
+.sp-res { display: grid; gap: 4px; }
+@media (max-width: 480px) { .sp-form { grid-template-columns: 1fr 1fr; } .sp-form .f:first-child { grid-column: 1 / -1; } .sp-grid { font-size: 12px; } .sp-cell { font-size: 12px; padding: 4px 1px; } }
+.sp-res .sp-cell { text-align: left; font-weight: 400; }
+/* Settings：每日题量步进器与每周燃尽柱（0050） */
+.stepper { display: inline-flex; align-items: center; gap: 2px; }
+.stepper .btn { min-width: 34px; padding: 4px 8px; font-weight: 600; }
+.stepper input { width: 64px; text-align: center; }
+.fc { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.fc-line { margin: 0; font-size: 14px; }
+.fc-line b { color: var(--pen); font-weight: 600; }
+.fc-svg { width: 100%; height: auto; display: block; }
+.fc-svg .fc-old, .fc-sw.fc-old { fill: var(--pen); background: var(--pen); }
+.fc-svg .fc-new, .fc-sw.fc-new { fill: var(--pen); background: var(--pen); opacity: .25; }
+.fc-num { font: 500 10.5px var(--font-body); fill: var(--ink); }
+.fc-wk { font: 400 10px var(--font-body); fill: var(--muted); }
+.fc-axis { stroke: var(--line); }
+.fc-psle { stroke: var(--amber); stroke-dasharray: 3 3; }
+.fc-psle-t { font: 500 10px var(--font-body); fill: var(--amber); }
+.fc-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin: 0 3px 0 8px; }
+.fc-key .fc-sw:first-child { margin-left: 0; }
+.rec-paper { margin: 0; }
 </style>
 
 <div class="wrap" id="app"></div>
@@ -1013,8 +1056,145 @@ function readSettings(v, uid) {
     if (v[k] == null || v[k] === '' || typeof v[k] === 'boolean' || !Number.isFinite(n)) return SETTINGS_DEFAULT[k];
     return Math.max(lo, Math.min(hi, Math.round(n)));
   };
+  // questionsPerDay（每日题量，0050）：缺字段或不是数读成未设（null），超出 1–150 收紧
+  const q = Number(v.questionsPerDay);
+  const qpd = v.questionsPerDay == null || v.questionsPerDay === '' || typeof v.questionsPerDay === 'boolean' || !Number.isFinite(q) ? null : Math.max(QPD_MIN, Math.min(QPD_MAX, Math.round(q)));
   return { dailyLimit: num('dailyLimit', 1, 50),
-    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null) };
+    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null), questionsPerDay: qpd };
+}
+const QPD_MIN = 1, QPD_MAX = 150;
+function settingsDoc(s) {
+  // 存设置：全部字段一起写；每日题量未设就不写这个字段（绝不把「近期节奏」占位值当设定存，DATA.md settings）
+  const d = { dailyLimit: s.dailyLimit, defaultOwner: s.defaultOwner };
+  if (s.questionsPerDay != null) d.questionsPerDay = s.questionsPerDay;
+  return d;
+}
+
+/* ---------- 备考计划：学校卷网格与做完标记（0050，SPEC C11） ---------- */
+const PLAN_SUBJECTS = ['math', 'english', 'science'];
+const KIND_LABEL = { prelim: 'Prelim', sa2: 'SA2', sa1: 'SA1', wa: 'WA', other: '' };
+const isIsoDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+function schoolShort(school) {
+  // 学校名去掉末尾的 Primary School / Primary / School / (Primary)，用于 Source 标签
+  return String(school || '').replace(/\s*\((primary)\)\s*$/i, '').replace(/\s+(primary school|primary|school)\s*$/i, '').trim();
+}
+function schoolPaperLabel(p) {
+  // Source 标签：<年份> P6 <种类> <学校> <科目>，例如 2023 P6 Prelim Nanyang Maths（SPEC C2）
+  const subj = { math: 'Maths', english: 'English', science: 'Science' }[p.subject] || '';
+  return [p.year, 'P6', KIND_LABEL[p.kind] != null ? KIND_LABEL[p.kind] : String(p.kind || ''), schoolShort(p.school), subj].filter(x => x !== '' && x != null).join(' ');
+}
+function composeSource(label, aiSource) {
+  // 草稿的 Source 以标签开头；AI 文字里找到的卷号（Paper 2 / P2，仅 1–3）与题号（Q7 / Question 7）接在后面，其余丢掉
+  const s = String(aiSource || '');
+  const pm = s.match(/\bpaper\s*([1-3])\b/i) || s.match(/\bP([1-3])\b/);
+  const qm = s.match(/\bQ(?:uestion)?\.?\s*(\d+[a-z]?)\b/i);
+  return label + (pm ? ' Paper ' + pm[1] : '') + (qm ? ' Q' + qm[1] : '');
+}
+function markOf(p, today) {
+  // 页面按契约读做完标记：日期不合法或在今天之后算未做完；得分不合约束按 null
+  const done = isIsoDate(p.doneOn) && p.doneOn <= today ? p.doneOn : null;
+  const tot = typeof p.total === 'number' && Number.isFinite(p.total) && p.total > 0 ? p.total : null;
+  const sc = typeof p.score === 'number' && Number.isFinite(p.score) && p.score >= 0 && (tot == null || p.score <= tot) ? p.score : null;
+  return { done, score: done ? sc : null, total: done ? tot : null };
+}
+function planView(papers, plan, today) {
+  // 网格：每个有排卷的周一一行，三科各一格（可多份）；储备卷按名次；进度：做完、落后（之前的周未做完）、到 PSLE 的周数
+  const thisWeek = weekStart(today);
+  const rows = new Map(), reserve = [];
+  let total = 0, done = 0, behind = 0, thisLeft = 0;
+  for (const p of papers || []) {
+    if (!PLAN_SUBJECTS.includes(p.subject)) continue;
+    const m = markOf(p, today);
+    const v = Object.assign({}, p, { mark: m });
+    if (!isIsoDate(p.week)) { reserve.push(v); continue; }
+    const wk = weekStart(p.week);
+    if (!rows.has(wk)) rows.set(wk, { week: wk, cells: { math: [], english: [], science: [] } });
+    rows.get(wk).cells[p.subject].push(v);
+    total++;
+    if (m.done) done++;
+    else if (wk < thisWeek) behind++;
+    else if (wk === thisWeek) thisLeft++;
+  }
+  const weeks = Array.from(rows.values()).sort((a, b) => a.week < b.week ? -1 : 1);
+  for (const w of weeks) for (const k of PLAN_SUBJECTS) w.cells[k].sort((a, b) => (a.rank || 0) - (b.rank || 0));
+  reserve.sort((a, b) => (a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0) || (a.rank || 0) - (b.rank || 0));
+  const psleWeek = plan && isIsoDate(plan.psleDate) ? weekStart(plan.psleDate) : null;
+  const weeksLeft = weeks.filter(w => w.week >= thisWeek).length;
+  return { thisWeek, weeks, reserve, total, done, behind, thisLeft, weeksLeft, psleWeek };
+}
+function validateMark(doneOn, score, total, today) {
+  // 写前校验（SPEC C11）：日期必须合法且不在今天之后；得分、满分可都空；有得分须是不小于 0 的数且不超过满分
+  if (!isIsoDate(doneOn)) return { error: 'Choose the day you did it.' };
+  if (doneOn > today) return { error: "The date can't be in the future." };
+  const blank = v => v == null || String(v).trim() === '';
+  const sc = blank(score) ? null : Number(score), tot = blank(total) ? null : Number(total);
+  if (sc != null && (!Number.isFinite(sc) || sc < 0)) return { error: 'The score must be 0 or more.' };
+  if (tot != null && (!Number.isFinite(tot) || tot <= 0)) return { error: 'The total must be more than 0.' };
+  if (sc != null && tot != null && sc > tot) return { error: "The score can't be more than the total." };
+  return { doneOn, score: sc, total: sc == null ? null : tot };
+}
+
+/* ---------- 完成预测：每日题量下的每周剩余题数（0050，SPEC C7） ---------- */
+const FC_RUNS = 15, FC_WEEKS = 52, FC_MIN_ATTEMPTS = 20;
+function daysBetween(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000); }
+function recentPace(view, uid, today) {
+  // 近期节奏：本人最近 7 个日历天（含今天，闲着的天也算）在所选库里的每日重做作答数 ÷ 7，四舍五入，至少 1
+  const from = addDays(today, -6);
+  let n = 0;
+  for (const e of view) for (const a of e.attempts || []) if (a.by === uid && a.mode !== 'paper' && a.date >= from && a.date <= today) n++;
+  return Math.max(1, Math.round(n / 7));
+}
+function recentResults(view, uid, today) {
+  // 近 30 天本人每日重做的对、部分对、错的占比；少于 20 次按 80% 对、20% 错，标为假定；显示的正确率部分对算半个
+  const from = addDays(today, -29);
+  const c = { right: 0, partial: 0, wrong: 0 };
+  for (const e of view) for (const a of e.attempts || []) if (a.by === uid && a.mode !== 'paper' && a.date >= from && a.date <= today && c[a.result] != null) c[a.result]++;
+  const n = c.right + c.partial + c.wrong;
+  if (n < FC_MIN_ATTEMPTS) return { right: 0.8, partial: 0, wrong: 0.2, shown: 0.8, assumed: true, n };
+  return { right: c.right / n, partial: c.partial / n, wrong: c.wrong / n, shown: (c.right + c.partial / 2) / n, assumed: false, n };
+}
+function recordRate(exercises, today) {
+  // 近期录入：所选库最近 28 天（含今天）新建的错题数 ÷ 4，每周
+  const from = addDays(today, -27);
+  return (exercises || []).filter(e => isIsoDate(e.createdAt) && e.createdAt >= from && e.createdAt <= today).length / 4;
+}
+function simulateFinish(items, x, res, perWeek, today, runs, seed) {
+  // 逐日推演：每天取到期的未掌握题（最早到期的先）至多 x 道，按近期占比判对、部分对、错走复习阶梯，每天按录入速度加新题；
+  // 奇数次带种子的推演取每周中位数；现有题中位数为 0 的第一周即完成周；至多 52 周（SPEC C7）
+  runs = runs || FC_RUNS; seed = seed == null ? 1 : seed;
+  const toSun = (7 - (new Date(today + 'T00:00:00Z').getUTCDay())) % 7;   // 今天到本周日的天数
+  const perDay = perWeek / 7;
+  const all = [];
+  for (let r = 0; r < runs; r++) {
+    let s = (seed * 2654435761 + r * 40503) >>> 0;
+    const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const it = items.map((e, i) => ({ o: 1, l: Math.max(1, Math.min(4, e.step || 1)), d: e.due ? Math.max(0, daysBetween(today, e.due)) : 0, i }));
+    let acc = 0, nid = it.length;
+    const weeks = [];
+    for (let w = 0; w < FC_WEEKS; w++) {
+      const end = toSun + 7 * w;
+      for (let d = w === 0 ? 0 : end - 6; d <= end; d++) {
+        const due = it.filter(e => !e.m && e.d <= d).sort((a, b) => a.d - b.d || a.i - b.i).slice(0, x);
+        for (const e of due) {
+          const u = rnd();
+          if (u < res.right) { if (e.l === 4) e.m = 1; else { e.l++; e.d = d + GAPS[e.l]; } }
+          else if (u < res.right + res.partial) e.d = d + GAPS[e.l];
+          else { e.l = 1; e.d = d + GAPS[1]; }
+        }
+        acc += perDay;
+        while (acc >= 1) { it.push({ o: 0, l: 1, d: d + 1, i: nid++ }); acc -= 1; }
+      }
+      let o = 0, n = 0;
+      for (const e of it) if (!e.m) { if (e.o) o++; else n++; }
+      weeks.push({ o, n });
+    }
+    all.push(weeks);
+  }
+  const med = a => a.slice().sort((p, q) => p - q)[(a.length - 1) >> 1];
+  const out = [];
+  for (let w = 0; w < FC_WEEKS; w++) out.push({ week: addDays(weekStart(today), 7 * w), old: med(all.map(r => r[w].o)), neu: med(all.map(r => r[w].n)) });
+  const finish = out.findIndex(w => w.old === 0);
+  return { weeks: finish < 0 ? out : out.slice(0, finish + 1), finish, start: items.length };
 }
 function dueByDay(todo, today) {
   // 未来 7 天每天的题数（This week 的计划柱取用）：今天一格是今天做过与此刻到期的并集（与 Today 的「一共」相同；已掌握的不算，今天做过的除外）；
@@ -1610,12 +1790,14 @@ const S = {
   sets: [], setDrafts: [], setEdit: null,
   drafts: [], recMode: 'new', recSet: '', recHint: '', matQuery: '', matPage: 1, recText: '', recPhotos: [], recBusy: false, recPrep: false, recCtl: null, recPending: null, recMsg: null, saveMsg: null, recAnim: null,   // recPhotos: {file, url, assetId, uid}；recMsg 只放 AI 识别的状态；recPrep：正在缩小新加的照片；recCtl：识别调用的 AbortController；recPending：识别成功但有照片没传上时留下的 {sig, out}
   filters: { subject: store.get('arena.exSubject') || '', topic: '', cause: '', state: '', q: '' },
-  paperTab: store.get('arena.paperTab') === 'daily' ? 'daily' : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
+  paperTab: ['daily', 'psle'].includes(store.get('arena.paperTab')) ? store.get('arena.paperTab') : 'check', dailyAll: false, paperFilters: { subject: '', status: '' }, paperSort: { key: 'created', dir: 'desc' }, paperPage: 1,
   detailId: null, detailFrom: null, backScroll: 0, pageBack: null, nmSubj: {}, nmOpen: {}, confirmDel: null,
   paperForm: { subject: 'science', topics: [], count: 10 }, paperPreview: null, paperMsg: null, listSort: { key: 'recorded', dir: 'desc' }, listPage: 1,
     settingsMsg: null, errMsg: null, notice: null, bootWarn: null,   // errMsg：写数据出错，显示在当前标签页最上方；notice：错题已改好、但题组清理等后续没做时的提示
   paperPreviewOwner: null,   // 检验卷预览时的默认归属人；创建前要与当前范围核对
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
+  plan: undefined, planFail: false, schoolPapers: [], spReady: false, planSel: null, planMsg: null, planScrolled: false,   // 备考计划（0050）：plan undefined=读取中、null=没有计划；planSel：网格里选中的学校卷 id
+  recPaper: null,   // 从学校卷进 Record 时的 {label, subject}（0050，SPEC C2）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
 };
 let draftSeq = 1, setSeq = 1;
@@ -1772,6 +1954,11 @@ function render() {
   else if (S.status === 'ready') h += renderManage();
   app.innerHTML = h;
   if (S.status === 'ready' && ((S.tab === 'today' && !S.run) || (S.run && S.run.phase === 'review'))) armLadders();
+  // PSLE 网格第一次打开时滚到本周那一行（SPEC C11）
+  if (S.tab === 'papers' && S.paperTab === 'psle' && !S.planScrolled) {
+    const wrap = $('#sp-wrap'), now = $('#sp-now');
+    if (wrap && now) { wrap.scrollTop = Math.max(0, now.offsetTop - 34); S.planScrolled = true; }
+  }
 }
 
 /* ---------- Today ---------- */
@@ -2340,6 +2527,7 @@ function renderRecord() {
       : `<div class="mats">${pg.items.map(m => materialCard(m, !!rs && rs.id === m.id, busy, supplementBlock(m, S.sets, S.exercises, recOwner()))).join('')}</div>`;
     h += nav.bottom + `</div>${diagBlock()}</section>`;
   } else {
+    if (S.recPaper) h += `<p class="note ok rec-paper">Recording mistakes from <b>${esc(S.recPaper.label)}</b>. Subject and Source are filled in for you. <button type="button" class="linkbtn" data-act="rec-paper-clear">Clear</button></p>`;
     h += `<div class="grp">`;
     if (canPhoto) {
       // 两个按钮：拍照（直接开相机）与选照片（从相册或文件里多选）
@@ -2782,8 +2970,10 @@ function paperPool() {
 function renderPapers() {
   // 两个子标签：Exam（组卷与检验卷列表）、Daily（按天分组的每日卷）
   const view0 = mine(), shown0 = visiblePapers(S.papers, view0, S.me), nD = shown0.filter(isDaily).length;
-  const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Exam', shown0.length - nD], ['daily', 'Daily', nD]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
+  const psleN = S.plan ? planView(S.schoolPapers, S.plan, localToday()).thisLeft : '';
+  const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Exam', shown0.length - nD], ['daily', 'Daily', nD], ['psle', 'PSLE', psleN]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
   if (S.paperTab === 'daily') return tabs + renderDailyPapers(shown0, view0);
+  if (S.paperTab === 'psle') return tabs + renderPsle();
   const P = S.paperForm;
   const T = TAX[P.subject];
   const counts = {};
@@ -2827,6 +3017,59 @@ function renderPapers() {
   return h + `</section>`;
 }
 
+/* ---------- PSLE 子标签：学校卷的周 × 科目网格（0050，SPEC C11） ---------- */
+const PLAN_COL = { math: 'Maths', english: 'English', science: 'Science' };
+function spShort(p) { if (p.short) return p.short; const w = schoolShort(p.school).split(/[\s-]+/).filter(Boolean); return (w.length === 1 ? w[0].slice(0, 8) : w.map(x => x[0]).join('').toUpperCase().slice(0, 4)) || '?'; }
+function spName(p) { return `${p.year} P6 ${KIND_LABEL[p.kind] || p.kind || ''} · ${p.school} · ${PLAN_COL[p.subject] || p.subject}`; }
+function renderPsle() {
+  if (S.planFail) return `<section class="panel"><p class="note err">Your PSLE plan is unavailable right now. Reload the page to try again.</p></section>`;
+  if (S.plan === undefined || !S.spReady) return `<section class="panel"><p class="small muted">Loading your PSLE plan…</p></section>`;
+  if (!S.plan) return `<section class="panel"><p class="h2">No plan yet</p><p class="small muted">Ask Claude to build your PSLE paper plan: one Maths, one English and one Science school paper each week, picked from sgexam.com.</p></section>`;
+  const today = localToday(), v = planView(S.schoolPapers, S.plan, today);
+  let h = `<section class="panel"><p class="sp-sum"><b>${v.done}</b> of ${v.total} done · <span class="${v.behind ? 'sp-bad' : ''}">${v.behind} behind</span> · ${plural(v.weeksLeft, 'week')} to PSLE</p>`;
+  h += `<div class="sp-wrap" id="sp-wrap"><table class="sp-grid"><thead><tr><th></th>${PLAN_SUBJECTS.map(k => `<th>${PLAN_COL[k]}</th>`).join('')}</tr></thead><tbody>`;
+  for (const w of v.weeks) {
+    const cur = w.week === v.thisWeek, past = w.week < v.thisWeek;
+    h += `<tr class="${cur ? 'sp-now' : ''}" ${cur ? 'id="sp-now"' : ''}><th scope="row">${esc(fmtDate(w.week))}</th>`;
+    for (const k of PLAN_SUBJECTS) {
+      h += `<td>${w.cells[k].map(p => {
+        const st = p.mark.done ? 'done' : past ? 'behind' : cur ? 'now' : 'later';
+        const lab = st === 'done' ? `${esc(spShort(p))}${p.mark.score != null ? ' ' + esc(fmtP(p.mark.score)) : ' ✓'}` : esc(spShort(p));
+        return `<button type="button" class="sp-cell sp-${st}" data-act="sp-sel" data-id="${esc(p.id)}" aria-pressed="${S.planSel === p.id}" title="${esc(spName(p))}">${lab}</button>`;
+      }).join('')}</td>`;
+    }
+    h += `</tr>`;
+  }
+  h += `</tbody></table></div>`;
+  const sel = S.schoolPapers.find(p => p.id === S.planSel);
+  if (sel) h += spPanel(Object.assign({}, sel, { mark: markOf(sel, today) }), today);
+  if (v.psleWeek) h += `<p class="small muted">PSLE written papers from the week of ${esc(fmtDate(v.psleWeek))} (${esc(S.plan.psleDate)}).</p>`;
+  h += `</section>`;
+  if (v.reserve.length) h += `<details class="panel"><summary>Reserve: ${plural(v.reserve.length, 'paper')}</summary><div class="sp-res">${v.reserve.map(p => `<button type="button" class="sp-cell sp-later" data-act="sp-sel" data-id="${esc(p.id)}" aria-pressed="${S.planSel === p.id}">${esc(spName(p))}</button>`).join('')}</div></details>`;
+  return h;
+}
+function spPanel(p, today) {
+  const m = p.mark;
+  let h = `<div class="sp-panel" id="sp-panel"><p class="sp-name">${esc(spName(p))}</p><p class="small muted">${p.week ? 'Week of ' + esc(fmtDate(weekStart(p.week))) : 'Reserve'}${m.done ? ` · done ${esc(fmtDate(m.done))}${m.score != null ? ` · ${esc(fmtP(m.score))}${m.total != null ? ' / ' + esc(fmtP(m.total)) : ''}` : ''}` : ''}</p>`;
+  h += `<div class="row">${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">Open paper ↗</a>` : ''}<button type="button" class="btn" data-act="sp-record" data-id="${esc(p.id)}">Record mistakes</button></div>`;
+  h += `<div class="sp-form"><label class="f"><span>Done on</span><input type="date" id="sp-date" max="${today}" value="${esc(m.done || today)}"></label>
+    <label class="f"><span>Score</span><input type="number" id="sp-score" min="0" step="any" inputmode="decimal" value="${m.score != null ? m.score : ''}"></label>
+    <label class="f"><span>Out of</span><input type="number" id="sp-total" min="0" step="any" inputmode="decimal" value="${m.total != null ? m.total : 100}"></label></div>`;
+  h += `<div class="row"><button type="button" class="btn primary" data-act="sp-done" data-id="${esc(p.id)}">${m.done ? 'Save changes' : 'Mark done'}</button>${m.done ? `<button type="button" class="btn ghost" data-act="sp-undo" data-id="${esc(p.id)}">Undo done</button>` : ''}<button type="button" class="btn ghost" data-act="sp-close">Close</button></div>`;
+  if (S.planMsg) h += `<p class="note ${S.planMsg.kind}" role="status">${esc(S.planMsg.text)}</p>`;
+  return h + `</div>`;
+}
+async function spWrite(id, patch) {
+  // 只写本人学校卷的 doneOn、score、total（DATA.md 学校卷写入规则）；失败时网格保持原样
+  const p = S.schoolPapers.find(x => x.id === id);
+  if (!p || p.for !== S.me) { S.planMsg = { kind: 'err', text: "This paper isn't in your plan." }; render(); return; }
+  try {
+    await S.db.doc('schoolPapers/' + id).update(patch);
+    S.planMsg = { kind: 'ok', text: patch.doneOn ? 'Saved' : 'Done mark removed' };
+  } catch (err) { S.planMsg = { kind: 'err', text: dbErr(err) }; }
+  render();
+}
+
 function renderDailyPapers(shown, view) {
   // 每日卷（都是我交过的）：默认只列最近 7 天，按天分组、新的在前；底下「Show older (N)」列全部；筛选只有 Subject，不排序、不分页
   const PF = S.paperFilters, today = localToday();
@@ -2846,6 +3089,61 @@ function renderDailyPapers(shown, view) {
 }
 
 const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
+/* ---------- Settings：每日题量与完成预测（0050，SPEC C7、C9） ---------- */
+let fcCache = { key: null, v: null };
+function qpdInputs() {
+  const today = localToday(), view = mine();
+  const pace = recentPace(view, S.me, today);
+  const x = S.settings.questionsPerDay != null ? S.settings.questionsPerDay : pace;
+  return { today, view, pace, x };
+}
+function qpdRow() {
+  const { pace } = qpdInputs(), set = S.settings.questionsPerDay != null;
+  return `<div class="form-row"><span>Questions per day <span class="muted small">· recent pace ${pace}</span></span>
+    <span class="stepper"><button type="button" class="btn ghost" data-act="qpd-dec" aria-label="One fewer a day">−</button><input type="number" id="set-qpd" min="${QPD_MIN}" max="${QPD_MAX}" value="${set ? S.settings.questionsPerDay : ''}" placeholder="${pace}" aria-label="Questions per day"><button type="button" class="btn ghost" data-act="qpd-inc" aria-label="One more a day">+</button></span></div>
+    <p class="form-row"><span class="hint small muted">For the forecast below. Today isn't limited by this.${set ? '' : ' Not set yet, so your recent pace is used.'}</span></p>`;
+}
+function forecastNow() {
+  // 同样的输入不重算：错题数组（换了文档就换数组）、本人、每日题量、日期
+  const { today, view, x } = qpdInputs();
+  const key = [S.me, x, today, S.settings.defaultOwner].join('|');
+  if (fcCache.key === key && fcCache.src === S.exercises) return fcCache.v;
+  const items = view.filter(e => !e.mastered).map(e => ({ step: e.step, due: e.due }));
+  const res = recentResults(view, S.me, today), perWeek = recordRate(S.exercises, today);
+  const sim = simulateFinish(items, x, res, perWeek, today);
+  fcCache = { key, src: S.exercises, v: Object.assign({ x, res, perWeek, today }, sim) };
+  return fcCache.v;
+}
+function renderForecast() {
+  if (S.status !== 'ready') return '';
+  const f = forecastNow();
+  const rate = Math.round(f.res.shown * 100) + '%' + (f.res.assumed ? ' (assumed: too few recent answers)' : '');
+  const pw = Math.round(f.perWeek);
+  let line;
+  if (!f.start) line = `You have no unmastered exercises in this library right now.`;
+  else if (f.finish < 0) line = `At ${f.x} a day, today's ${f.start} won't all be mastered within a year. Try more a day.`;
+  else line = `At ${f.x} a day you'll master today's ${f.start} in the <b>week of ${esc(fmtDate(f.weeks[f.finish].week))}</b> (${plural(f.finish + 1, 'week')}), at ${rate} right with about ${pw} new a week.`;
+  return `<div class="fc"><p class="fc-line">${line}</p>${f.start ? fcChart(f) : ''}
+    <p class="small muted fc-key"><span class="fc-sw fc-old"></span>today's questions <span class="fc-sw fc-new"></span>new ones not yet mastered</p></div>`;
+}
+function fcChart(f) {
+  // 每周一根叠柱：深色=今天已有的未掌握题，浅色=推演里新录、还没掌握的；深色的数字写在柱顶；有备考计划时 PSLE 那周画虚线
+  const n = f.weeks.length, W = 640, H = 190, top = 18, base = 160, left = 8, slot = (W - left * 2) / n, bw = Math.max(3, Math.min(34, slot - 3));
+  const mx = Math.max(1, ...f.weeks.map(w => w.old + w.neu));
+  const every = n <= 16 ? 1 : Math.ceil(n / 16), lab = n <= 10 ? 1 : Math.ceil(n / 8);
+  let s = `<svg class="fc-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Questions left at the end of each week">`;
+  f.weeks.forEach((w, i) => {
+    const x = left + i * slot + (slot - bw) / 2, ho = w.old / mx * (base - top), hn = w.neu / mx * (base - top), y = base - ho - hn;
+    s += `<rect class="fc-new" x="${x}" y="${y}" width="${bw}" height="${hn}" rx="2"/><rect class="fc-old" x="${x}" y="${base - ho}" width="${bw}" height="${ho}" rx="2"><title>Week of ${fmtDate(w.week)}: ${w.old} of today's left, ${w.neu} new</title></rect>`;
+    if (i % every === 0 || i === n - 1) s += `<text class="fc-num" x="${x + bw / 2}" y="${y - 4}" text-anchor="middle">${w.old}</text>`;
+    if ((i % lab === 0 && (i === n - 1 || n - 1 - i >= lab / 2)) || i === n - 1) s += `<text class="fc-wk" x="${x + bw / 2}" y="${base + 16}" text-anchor="middle">${fmtDate(w.week)}</text>`;
+  });
+  s += `<line class="fc-axis" x1="${left}" y1="${base}" x2="${W - left}" y2="${base}"/>`;
+  const pw = S.plan && isIsoDate(S.plan.psleDate) ? weekStart(S.plan.psleDate) : null;
+  const pi = pw ? f.weeks.findIndex(w => w.week === pw) : -1;
+  if (pi >= 0) { const x = left + pi * slot + slot / 2; s += `<line class="fc-psle" x1="${x}" y1="${top - 8}" x2="${x}" y2="${base}"/><text class="fc-psle-t" x="${x + 3}" y="${top - 1}">PSLE</text>`; }
+  return s + `</svg>`;
+}
 function renderSettings() {
   // 一块两行（左标签、右控件），改一项存一项，存好在块底出一个小 Saved；阶梯说明默认展开
   return `<section class="panel">
@@ -2853,8 +3151,10 @@ function renderSettings() {
       <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
       <p class="form-row"><span class="hint small muted">Today, new exam papers and new exercises use this person.</span></p>
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
+      ${qpdRow()}
     </div>
     ${S.settingsMsg ? '<p class="small saved" role="status">Saved</p>' : ''}
+    ${renderForecast()}
   </section>
   <details class="panel" open><summary>How the review ladder works</summary>
     <p class="small muted">After an exercise is recorded it climbs 4 levels: a redo on day 1, 3, 7 and 14. Right moves it up a level, wrong sends it back to level 1, partly right keeps it on the same level. Right at level 4 means mastered. On an exam paper, right and partly right answers don't move a question; a wrong one sends it back to level 1.</p>
@@ -3084,6 +3384,14 @@ function failed(err) {
   render();
 }
 async function addAttempt(e, a) { await writeAttempts(e, (e.attempts || []).concat([Object.assign({ by: S.me }, a)])); }
+async function saveSettings(v) {
+  // 全部字段一起写；每日题量未设不写（settingsDoc）
+  try {
+    await S.db.doc('settings/' + S.me).set(settingsDoc(v));
+    S.settings = v; S.settingsMsg = { kind: 'ok' }; S.errMsg = null;
+  } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
+  render();
+}
 function dbErr(err) {
   const c = err && err.code;
   if (c === 'quota_exceeded') return 'The database is full; delete some old exercises and try again.';
@@ -3114,7 +3422,27 @@ document.addEventListener('click', async ev => {
       case 'ex-subj': S.filters.subject = SUBJ[b.dataset.v] ? b.dataset.v : ''; S.filters.topic = ''; S.listPage = 1; store.set('arena.exSubject', S.filters.subject); render(); window.scrollTo(0, 0); break;
       case 'topic-row': S.filters.topic = S.filters.topic === b.dataset.v ? '' : b.dataset.v; S.listPage = 1; render(); break;
       case 'paper-clear': S.paperFilters = { subject: '', status: '' }; S.paperPage = 1; render(); break;
-      case 'paper-tab': S.paperTab = b.dataset.v === 'daily' ? 'daily' : 'check'; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
+      case 'paper-tab': S.paperTab = ['daily', 'psle'].includes(b.dataset.v) ? b.dataset.v : 'check'; S.planScrolled = false; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
+      case 'sp-sel': S.planSel = S.planSel === b.dataset.id ? null : b.dataset.id; S.planMsg = null; render(); { const el = $('#sp-panel'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } break;
+      case 'sp-close': S.planSel = null; S.planMsg = null; render(); break;
+      case 'sp-done': {
+        const v = validateMark(($('#sp-date') || {}).value, ($('#sp-score') || {}).value, ($('#sp-total') || {}).value, localToday());
+        if (v.error) { S.planMsg = { kind: 'err', text: v.error }; render(); break; }
+        await spWrite(b.dataset.id, { doneOn: v.doneOn, score: v.score, total: v.total }); break;
+      }
+      case 'sp-undo': await spWrite(b.dataset.id, { doneOn: null, score: null, total: null }); break;
+      case 'sp-record': {
+        // 记这份卷的错题：进 Record 的 New photos or text，科目与 Source 标签预填（SPEC C2）；录入本身不变
+        const p = S.schoolPapers.find(x => x.id === b.dataset.id); if (!p) break;
+        resetRecMode(); S.recPaper = { label: schoolPaperLabel(p), subject: p.subject }; S.recMsg = null;
+        S.tab = 'record'; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.detailId = null; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
+      }
+      case 'rec-paper-clear': S.recPaper = null; render(); break;
+      case 'qpd-dec': case 'qpd-inc': {
+        // 每日题量的 − / +：未设时从近期节奏起步；改一下存一下（与其他设置一样全部字段一起写）
+        const cur = S.settings.questionsPerDay != null ? S.settings.questionsPerDay : recentPace(mine(), S.me, localToday());
+        await saveSettings(Object.assign({}, S.settings, { questionsPerDay: Math.max(QPD_MIN, Math.min(QPD_MAX, cur + (b.dataset.act === 'qpd-inc' ? 1 : -1))) })); break;
+      }
       case 'daily-older': S.dailyAll = true; render(); break;
       case 'paper-dir': S.paperSort.dir = S.paperSort.dir === 'desc' ? 'asc' : 'desc'; S.paperPage = 1; render(); break;
       case 'paper-page': S.paperPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
@@ -3339,14 +3667,11 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'set-owner' || t.id === 'set-limit') {
-    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值
-    try {
-      const v = readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value }, S.me);
-      await S.db.doc('settings/' + S.me).set(v);
-      S.settings = v; S.settingsMsg = { kind: 'ok' }; S.errMsg = null;
-    } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
-    render(); return;
+  if (t.id === 'set-owner' || t.id === 'set-limit' || t.id === 'set-qpd') {
+    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值；每日题量输入框空着就保持原值（未设就仍未设）
+    const q = $('#set-qpd') ? $('#set-qpd').value : '';
+    await saveSettings(readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value, questionsPerDay: q === '' ? S.settings.questionsPerDay : q }, S.me));
+    return;
   }
   if (t.dataset.photos) {
     const fl = Array.from(t.files || []);
@@ -3569,7 +3894,7 @@ async function recognise() {
     const opts = readOptions(t0, tm);
     if (files.length) opts.images = files;
     S.recMsg = { kind: '', text: 'Reading with AI… usually about half a minute' }; render();
-    try { out = await S.sample.json(recognisePrompt('', text, files.length), opts); }
+    try { out = await S.sample.json(recognisePrompt(S.recPaper ? S.recPaper.subject : '', text, files.length), opts); }
     catch (err) { if (err && err.code === 'cancelled') stopped = true; else fail = readFail(err); }
     S.recCtl = null;
   }
@@ -3585,14 +3910,16 @@ async function recognise() {
     const { drafts, sets } = r, imageIds = photos.map(p => p.assetId);
     const setKeys = sets.map((x, i) => {
       const member = drafts.find(dd => dd.set === i);
-      const sd = newSetDraft(Object.assign({}, x, { subject: (member && member.subject) || '', images: imageIds }));
+      const rp = S.recPaper;   // 从学校卷进来：科目用卷的科目，Source 以卷的标签开头（SPEC C2）
+      const sd = newSetDraft(Object.assign({}, x, { subject: rp ? rp.subject : (member && member.subject) || '', images: imageIds }, rp ? { source: composeSource(rp.label, x.source) } : {}));
       S.setDrafts.push(sd);
       return sd.key;
     });
     for (const x of drafts) {
       const si = Number.isInteger(x.set) && x.set >= 0 && x.set < setKeys.length ? x.set : null;
       // 题组的材料照片挂在题组上；独立题挂这批照片（以后可按这批照片补录）
-      S.drafts.push(newDraft(Object.assign({}, x, { images: si === null ? imageIds : [], setRef: si === null ? '' : 'new:' + setKeys[si] })));
+      const rp = S.recPaper;
+      S.drafts.push(newDraft(Object.assign({}, x, { images: si === null ? imageIds : [], setRef: si === null ? '' : 'new:' + setKeys[si] }, rp ? { subject: rp.subject, source: composeSource(rp.label, x.source) } : {})));
     }
     S.recMsg = { kind: 'ok', text: 'Found ' + (setKeys.length ? `${plural(setKeys.length, 'question set')} and ` : '') + `${plural(drafts.length, 'draft')} · check each before saving (answers are from AI)` + note };
     S.recText = ''; clearPhotos();
@@ -3776,6 +4103,11 @@ async function boot() {
     S.owners = Object.fromEntries(snap.docs.map(d => [d.id, readSettings(d.data(), d.id).defaultOwner]));
     softRender();
   }, () => {});
+  // 备考计划与学校卷按本人加载，与默认归属人无关；缺计划文档=还没有计划，读取失败=暂不可用（DATA.md 加载）
+  db.doc('plans/' + me).onSnapshot(snap => { S.plan = snap.exists ? snap.data() : null; S.planFail = false; softRender(); }, () => { S.planFail = true; softRender(); });
+  db.collection('schoolPapers').where('for', '==', me).onSnapshot(snap => {
+    S.schoolPapers = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); S.spReady = true; softRender();
+  }, () => { S.planFail = true; softRender(); });
   let settingsRead = false;
   db.doc('settings/' + me).onSnapshot(snap => {
     settingsRead = true;

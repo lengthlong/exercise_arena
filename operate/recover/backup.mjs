@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const ROOT = join(REPO, 'backups');
 const ASSETS = join(ROOT, 'assets');
-const COLLECTIONS = ['exercises', 'sets', 'papers', 'users', 'settings', 'matches'];
+const COLLECTIONS = ['exercises', 'sets', 'papers', 'users', 'settings', 'matches', 'plans', 'schoolPapers'];
+// Snapshots taken before `plans` and `schoolPapers` existed (0050) have no entry for them; an absent entry with no documents verifies.
 // Collections whose documents carry `images` (asset ids), per DATA.md.
 const IMAGE_COLLECTIONS = ['exercises', 'sets'];
 
@@ -166,6 +167,7 @@ function cmdVerify(snapArg) {
   const db = readDb(snap);
   const problems = [];
   for (const c of COLLECTIONS) {
+    if (!m.collections[c] && db[c].length === 0) continue;
     const h = createHash('sha256');
     for (const { id, raw } of db[c]) h.update(`${id}\n${sha256(raw)}\n`);
     if (db[c].length !== m.collections[c]?.count || h.digest('hex') !== m.collections[c]?.sha256) problems.push(`db/${c} changed`);
