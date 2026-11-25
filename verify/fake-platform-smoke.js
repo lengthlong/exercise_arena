@@ -276,6 +276,7 @@ add('questions-per-day-forecast', ['0006'], async c => {
   await c.select('#set-qpd', '20');
   const f = await c.txt();
   c.assertOk('step 6: at 20 a day the line names the finish week for today\'s 12', /At 20 a day you'll master today's 12 in the week of \d+ \w+ \(\d+ weeks?\)/.test(f) && await c.eval(`window.__data.settings.uS.questionsPerDay === 20`));
+  c.assertOk('6a: the dated line also states the assumed right rate and the weekly recording', /80% right \(assumed: too few recent answers\), with about 3 new a week/.test(f));
   c.assertOk('step 6: one bar pair per week with the remaining count above each bar, falling to 0 in the finish week', await c.eval(`(() => { const n = document.querySelectorAll('.fc-svg rect.fc-old').length, nums = [...document.querySelectorAll('.fc-svg .fc-num')].map(x => Number(x.textContent)); return n >= 2 && document.querySelectorAll('.fc-svg rect.fc-new').length === n && nums[0] === 12 && nums[nums.length - 1] === 0; })()`));
   // Questions per day never limits the Daily redo
   await c.select('#set-qpd', '1');
