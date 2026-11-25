@@ -4,8 +4,8 @@ Stable workspace acceptance policy only; exclusively owned by `design-verify`. C
 
 ## Journeys served
 
-- [User index](../journey/USER.md): 0001–0010, including their success conditions and affected extensions.
-- [Operator index](../journey/OPERATOR.md): 0011 aligned local evidence, 0013 acceptance, 0012 target release. 0014 backups and capacity repairs are verified by their own contracts ([recover](../model/operate/recover/SPEC.md), [capacity](../model/operate/capacity/SPEC.md)), not by slice acceptance.
+- [User index](../journey/USER.md): 0001–0010 and 0015, including their success conditions and affected extensions.
+- [Operator index](../journey/OPERATOR.md): 0011 aligned local evidence, 0013 acceptance, 0012 target release. 0014 backups, capacity repairs and 0016 paper-plan builds are verified by their own contracts ([recover](../model/operate/recover/SPEC.md), [capacity](../model/operate/capacity/SPEC.md), [plan](../model/operate/plan/SPEC.md)), not by slice acceptance.
 
 ## Environments and substitutes (prod-only default)
 

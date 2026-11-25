@@ -195,6 +195,110 @@ add('record-coins-and-messages', ['0001', '0004', '0005', '0007'], async c => {
   s.exercises.r3 = ex('r3', { createdAt: T, recordedBy: 'uB' });
 }, flags: { __sampleOut: { sets: [], drafts: [1, 2, 3].map(i => ({ subject: 'english', topic: i < 3 ? '__TOPIC__' : 'no-such-topic', format: 'short', stem: 'She ___ to school yesterday. (' + i + ')', answer: 'went', accepted: ['went'], options: [], solution: 'Key idea: past tense', wrongAnswer: 'go', cause: 'careless', source: 'P5' })) } } });
 
+// 0015 / 0016 / 0006 (discussion 0050): PSLE paper plan and Questions per day finish forecast.
+const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+const MON = addDays(T, -((today.getDay() + 6) % 7)), PREV = addDays(MON, -7), NEXT = addDays(MON, 7);
+const spDoc = (subject, week, school, short, o) => Object.assign({ for: 'uS', subject, school, short, year: 2023, kind: 'prelim', url: 'https://sgexam.com/x', week, rank: 1, doneOn: null, score: null, total: null }, o);
+const planSeed = s => {
+  s.plans = { uS: { psleDate: addDays(NEXT, 10), startWeek: PREV, perWeek: 1, updatedAt: T + 'T07:00' } };
+  s.schoolPapers = {
+    pm1: spDoc('math', PREV, 'Nanyang Primary', 'NY', { doneOn: PREV, score: 71, total: 100 }),
+    pe1: spDoc('english', PREV, 'Rosyth School', 'RS'), ps1: spDoc('science', PREV, 'Tao Nan School', 'TN'),
+    pm2: spDoc('math', MON, 'Henry Park Primary', 'HP'), pe2: spDoc('english', MON, 'Nan Hua Primary', 'NH'), ps2: spDoc('science', MON, 'Catholic High (Primary)', 'CHS'),
+    pm3: spDoc('math', NEXT, 'Rosyth School', 'RS'), pe3: spDoc('english', NEXT, 'Tao Nan School', 'TN'), ps3: spDoc('science', NEXT, 'Nanyang Primary', 'NY'),
+    pr1: spDoc('math', null, 'Red Swastika School', 'RSS', { rank: 40, year: 2022 }),
+    other: spDoc('math', MON, 'Ai Tong School', 'AT', { for: 'uB' }),
+  };
+};
+
+add('psle-paper-plan', ['0015', '0001'], async c => {
+  await c.clickAct('tab', { v: 'papers' });
+  await c.clickAct('paper-tab', { v: 'psle' });
+  const t = await c.txt();
+  // 0015 steps 1-2: sub-tab next to Exam and Daily; progress line; week × subject grid with this week marked; only the actor's papers
+  c.assertOk('PSLE sub-tab sits after Exam and Daily', await c.eval(`[...document.querySelectorAll('[data-act="paper-tab"]')].map(b => b.dataset.v).join() === 'check,daily,psle'`));
+  c.assertOk('progress line "1 of 9 done · 2 behind · 2 weeks to PSLE"', /1 of 9 done · 2 behind · 2 weeks to PSLE/.test(t));
+  c.assertOk('grid has Maths, English, Science columns and three week rows in order', await c.eval(`[...document.querySelectorAll('.sp-grid thead th')].map(x => x.textContent).join('|') === '|Maths|English|Science' && document.querySelectorAll('.sp-grid tbody tr').length === 3`));
+  c.assertOk('done paper shows its score, behind papers are marked, this week stands out', await c.eval(`document.querySelector('[data-id="pm1"]').className.includes('sp-done') && /71/.test(document.querySelector('[data-id="pm1"]').textContent) && document.querySelector('[data-id="pe1"]').className.includes('sp-behind') && document.querySelector('#sp-now [data-id="pm2"]') !== null`));
+  c.assertOk("another user's paper is not shown", await c.eval(`!document.querySelector('[data-id="other"]')`));
+  c.assertOk('reserve papers are listed, folded', /Reserve: 1 paper\b/.test(t) && await c.eval(`!document.querySelector('details.panel').open`));
+  // 0015 steps 3-6: choose a paper, open link, mark done with a score; only the done mark is written
+  await c.clickAct('sp-sel', { id: 'pm2' });
+  c.assertOk('panel shows the full paper name and an Open paper link to sgexam.com', /2023 P6 Prelim · Henry Park Primary · Maths/.test(await c.txt()) && await c.eval(`(document.querySelector('#sp-panel a[href]') || {}).href === 'https://sgexam.com/x' && document.querySelector('#sp-panel a[href]').target === '_blank'`));
+  const before = await c.eval(`JSON.stringify(window.__data.schoolPapers.pm2)`);
+  await c.fill('#sp-date', addDays(T, 1)); await c.clickAct('sp-done', { id: 'pm2' });
+  c.assertOk('5c: a future date is rejected and nothing is written', /can't be in the future/.test(await c.txt()) && await c.eval(`JSON.stringify(window.__data.schoolPapers.pm2)`) === before);
+  await c.fill('#sp-date', T); await c.fill('#sp-score', '120'); await c.fill('#sp-total', '100'); await c.clickAct('sp-done', { id: 'pm2' });
+  c.assertOk('5c: a score above the total is rejected', /can't be more than the total/.test(await c.txt()) && await c.eval(`JSON.stringify(window.__data.schoolPapers.pm2)`) === before);
+  await c.eval(`window.__failWrite = { n: 99, code: 'permission-denied', calls: 0, match: 'schoolPapers/' }`);
+  await c.fill('#sp-score', '78'); await c.clickAct('sp-done', { id: 'pm2' });
+  c.assertOk('6a: a failed save says so and the paper is not shown as done', /Saving failed/.test(await c.txt()) && await c.eval(`!window.__data.schoolPapers.pm2.doneOn && !document.querySelector('[data-id="pm2"]').className.includes('sp-done')`));
+  await c.eval(`window.__failWrite = null`);
+  await c.fill('#sp-score', '78'); await c.clickAct('sp-done', { id: 'pm2' });
+  c.assertOk('step 5-6: mark done saves date, score and total only, and the grid shows it done', await c.eval(`(() => { const a = JSON.parse(${JSON.stringify(before)}), b = window.__data.schoolPapers.pm2; return b.doneOn === ${JSON.stringify(T)} && b.score === 78 && b.total === 100 && ['for','subject','school','year','kind','url','week','rank'].every(k => a[k] === b[k]); })()`) && await c.eval(`document.querySelector('[data-id="pm2"]').className.includes('sp-done')`) && /2 of 9 done/.test(await c.txt()));
+  // 2b / 5a: an earlier-week paper can still be done; a later paper can be done ahead
+  await c.clickAct('sp-sel', { id: 'pe3' }); await c.clickAct('sp-done', { id: 'pe3' });
+  c.assertOk('5a: a paper can be marked done ahead of its week', await c.eval(`window.__data.schoolPapers.pe3.doneOn === ${JSON.stringify(T)} && window.__data.schoolPapers.pe3.week === ${JSON.stringify(NEXT)}`));
+  // 5b: undo clears the mark and score
+  await c.clickAct('sp-undo', { id: 'pe3' });
+  c.assertOk('5b: Undo clears date, score and total', await c.eval(`(() => { const p = window.__data.schoolPapers.pe3; return p.doneOn === null && p.score === null && p.total === null; })()`));
+  // step 7 / 0001 2b: Record mistakes opens Record with the paper's subject and its name as Source; AI numbers are added, never replacing the name
+  await c.clickAct('sp-record', { id: 'pe1' });
+  c.assertOk('step 7: Record opens on New photos or text with a banner naming the paper', await c.eval(`S.tab === 'record' && S.recMode === 'new'`) && /Recording mistakes from 2023 P6 Prelim Rosyth English/.test(await c.txt()));
+  await c.eval(`window.__sampleOut.drafts.forEach(d => { d.topic = TAX.english.topics[0][0]; })`);
+  await c.fill('#rec-text', 'Q7. She ___ (go) to school yesterday.');
+  await c.clickAct('recognise'); await new Promise(r => setTimeout(r, 400));
+  c.assertOk("0001 2b: each draft takes the paper's subject and a Source starting with the paper name plus the AI's paper and question numbers", await c.eval(`S.drafts.length === 2 && S.drafts.every(d => d.subject === 'english') && S.drafts[0].source === '2023 P6 Prelim Rosyth English Paper 2 Q7' && S.drafts[1].source === '2023 P6 Prelim Rosyth English'`));
+  // 1a / 2a: no plan, and a failed plan read
+  const noPlan = baseSeed(); await c.reload(noPlan);
+  await c.clickAct('tab', { v: 'papers' }); await c.clickAct('paper-tab', { v: 'psle' });
+  c.assertOk('1a: without a plan the sub-tab says "No plan yet" and Exam/Daily still work', /No plan yet/.test(await c.txt()) && await c.eval(`document.querySelectorAll('[data-act="paper-tab"]').length === 3`));
+  const failSeed = baseSeed(); planSeed(failSeed); await c.reload(failSeed, { __failRead: 'plans' });
+  await c.clickAct('tab', { v: 'papers' }); await c.clickAct('paper-tab', { v: 'psle' });
+  c.assertOk('2a: a failed plan read says the plan is unavailable, not an empty plan', /plan is unavailable/.test(await c.txt()) && !/No plan yet/.test(await c.txt()));
+}, { seed: planSeed, flags: { __sampleOut: { sets: [], drafts: [
+  { subject: 'math', topic: 'x', format: 'short', stem: 'She ___ (go) to school yesterday.', answer: 'went', accepted: ['went'], options: [], solution: 'Key idea: past tense', wrongAnswer: 'go', cause: 'concept', source: 'Rosyth 2023 Prelim Paper 2 Question 7' },
+  { subject: 'science', topic: 'x', format: 'short', stem: 'They ___ (be) late.', answer: 'were', accepted: ['were'], options: [], solution: 'Key idea: past tense', wrongAnswer: 'was', cause: 'concept', source: '' }] } } });
+
+add('questions-per-day-forecast', ['0006'], async c => {
+  await c.clickAct('tab', { v: 'settings' });
+  const t = await c.txt();
+  // 0006 step 1 / 1b: Questions per day under batch size, unset shows recent pace, and the hint says Today isn't limited
+  c.assertOk('1b: Questions per day is unset and shows the recent pace instead', await c.eval(`document.querySelector('#set-qpd').value === '' && document.querySelector('#set-qpd').placeholder === '1'`) && /recent pace 1/.test(t) && /Today isn't limited by this/.test(t));
+  // 6a: too few recent answers → the stated rate is marked assumed
+  c.assertOk('6a: the forecast line marks the right rate as assumed', /80% right \(assumed/.test(t));
+  // 1b: saving another setting never stores the recent pace
+  await c.select('#set-limit', '12');
+  c.assertOk('1b: saving batch size does not store Questions per day', await c.eval(`window.__data.settings.uS.dailyLimit === 12 && !('questionsPerDay' in window.__data.settings.uS)`));
+  // step 2-3: the stepper saves; step 6: the forecast redraws with one bar per week and a named finish week
+  await c.clickAct('qpd-inc');
+  c.assertOk('step 2: + starts from the recent pace and saves 2', await c.eval(`window.__data.settings.uS.questionsPerDay === 2`));
+  await c.select('#set-qpd', '20');
+  const f = await c.txt();
+  c.assertOk('step 6: at 20 a day the line names the finish week for today\'s 12', /At 20 a day you'll master today's 12 in the week of \d+ \w+ \(\d+ weeks?\)/.test(f) && await c.eval(`window.__data.settings.uS.questionsPerDay === 20`));
+  c.assertOk('step 6: one bar pair per week with the remaining count above each bar, falling to 0 in the finish week', await c.eval(`(() => { const n = document.querySelectorAll('.fc-svg rect.fc-old').length, nums = [...document.querySelectorAll('.fc-svg .fc-num')].map(x => Number(x.textContent)); return n >= 2 && document.querySelectorAll('.fc-svg rect.fc-new').length === n && nums[0] === 12 && nums[nums.length - 1] === 0; })()`));
+  // Questions per day never limits the Daily redo
+  await c.select('#set-qpd', '1');
+  await c.select('#set-limit', '5');
+  await c.clickAct('tab', { v: 'today' });
+  await c.clickAct('start-daily', { subject: 'math' });
+  c.assertOk('Today is not limited: the Maths batch takes the batch size (5), not Questions per day (1)', await c.eval(`(() => { const p = Object.values(window.__data.papers).filter(p => p.kind === 'daily' && p.subject === 'math'); return p.length === 1 && p[0].exerciseIds.length === 5; })()`));
+  // 6b: far too few a day for the library and its recording → no date within a year
+  const big = baseSeed();
+  for (let i = 0; i < 300; i++) big.exercises['b' + i] = ex('b' + i, { subject: 'math', createdAt: T });
+  big.settings.uS = { dailyLimit: 10, defaultOwner: 'uS', questionsPerDay: 1 };
+  await c.reload(big);
+  await c.clickAct('tab', { v: 'settings' });
+  c.assertOk("6b: at 1 a day the line says not within a year instead of a date", /won't all be mastered within a year\. Try more a day\./.test(await c.txt()));
+}, { seed: s => {
+  for (const e of Object.values(s.exercises)) e.attempts = [];
+  s.papers = {};
+  for (let i = 0; i < 12; i++) s.exercises['m' + i] = ex('m' + i, { subject: 'math', createdAt: Y });
+  for (const id of ['e1', 'e2', 'e3', 'e4', 'e5']) delete s.exercises[id];
+  s.sets = {};
+  s.exercises.m0.attempts = [{ by: 'uS', date: T, mode: 'daily', paperId: null, response: 'a', result: 'right', judgedBy: 'auto', at: T + 'T08:00' }];
+} });
+
 const wait = ms => new Promise(r => setTimeout(r, ms));
 async function runWithChrome(sel) {
   const html = readFileSync(target, 'utf8');
