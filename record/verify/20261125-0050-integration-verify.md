@@ -1,9 +1,9 @@
 # Integration verify after 0050 (prod-only baseline)
 
-> status: in-progress (2026-11-25)
+> status: completed (2026-11-25)
 > location: branch `develop`
 > scope: integration
-> baseline: ca4daa7
+> baseline: 884f6d9
 
 ## Upstream
 <!-- upstream -->
@@ -19,7 +19,8 @@
   - extends the catalog row and the served-journey list. 0016 is verified by the plan contract (`operate/plan/plan.test.mjs`, read-back `check`), not by slice acceptance.
   - Oracle sanity check: both new cases fail on the release 96 page (`1d48095:impl/arena.html`).
 - Entries run:
-  - `simulated-smoke` (`automated`): all 7 cases on `ca4daa7`. Six passed; `questions-per-day-forecast` failed one assertion (judgment 10).
+  - `simulated-smoke` (`automated`): all 7 cases. Round 1 on `ca4daa7`: six passed and `questions-per-day-forecast` failed judgment 10. Round 2 on `884f6d9`: all 7 passed.
+- `verify/`-only commit `884f6d9` adds an assertion (judgment 16) that the dated forecast line also states the assumed rate.
   - `live-spot-check` (`manual`): not run (prod-only; needs an authorized publication).
 - No `agent` entries are catalogued for these areas.
 
@@ -41,12 +42,13 @@ None.
 | 7 | 0015 1a, 2a, 2c: no plan → "No plan yet"; failed read → "unavailable"; reserve folded | pass | Reload without plan shows "No plan yet" with three sub-tabs; plan read failure shows "plan is unavailable"; "Reserve: 1 paper" in a closed `details` |
 | 8 | 0015 7 / 0001 2b: Record mistakes opens Record with the paper's subject and name as Source; AI paper and question numbers are added, never replacing the name | pass | Banner "Recording mistakes from 2023 P6 Prelim Rosyth English"; AI drafts said math/science, saved drafts are English; Sources "2023 P6 Prelim Rosyth English Paper 2 Q7" and "2023 P6 Prelim Rosyth English" |
 | 9 | 0006 1, 1b, 2–3: Questions per day sits in Settings, shows the recent pace when unset, saves on change, and other saves never store the pace | pass | Empty field with placeholder 1 and "recent pace 1"; batch-size save stores no `questionsPerDay`; + saves 2; typed 20 saves 20 |
-| 10 | 0006 6a: with too few recent answers the forecast says the right rate is assumed | fail | The line reads "…at 80% (assumed: too few recent answers) right with about 3 new a week": "right" is split from its rate, so the sentence is garbled. The assertion expects "80% right (assumed…". Product wording in `renderForecast` (`impl/arena.html`) → `design-implement` |
+| 10 | 0006 6a: with too few recent answers the forecast says the right rate is assumed | pass | Round 2: at the default pace (1 a day) the line reads "…won't all be mastered within a year. Try more a day. (At 80% right (assumed: too few recent answers), with about 3 new a week.)". Round 1 failed because that line stated no rate at all (fixed in `c61695d`) |
 | 11 | 0006 6: the forecast shows one bar per week with the count of today's questions left and names the finish week | pass | "At 20 a day you'll master today's 12 in the week of … (N weeks)"; matching old/new bar pairs; first count 12, last 0 |
 | 12 | 0006 6b: far too few a day → no date within a year | pass | 300 new exercises at 1 a day: "won't all be mastered within a year. Try more a day." |
 | 13 | 0006 2: Questions per day never limits the Daily redo | pass | With Questions per day 1 and batch size 5, the Maths daily paper holds 5 questions |
-| 14 | Regression 0001–0010 core flows | pass | The five existing `simulated-smoke` cases pass on `ca4daa7` |
+| 14 | Regression 0001–0010 core flows | pass | The five existing `simulated-smoke` cases pass on `ca4daa7` and `884f6d9` |
 | 15 | Real platform boundaries: `where('for', '==', …)` subscription, `update` on `schoolPapers`, AI drafting with the prefill, the forecast's speed on the full library | unverified | Prod-only; the simulated `db` and AI stub do not prove platform behaviour. `live-spot-check` needs an authorized publication |
+| 16 | 0006 6a: the dated forecast line states the assumed right rate and weekly recording | pass | At 20 a day: "…(N weeks), at 80% right (assumed: too few recent answers), with about 3 new a week" |
 
 ## Substitutes and unverified boundaries
 
@@ -62,3 +64,8 @@ None.
 - CF-5 open — Pool shortfall for 2022 and earlier: part of the first plan build.
 - CF-6 open — Syllabus first-P6 year: part of the first plan build.
 - CF-7 open — Settings responsiveness on the full library: needs a live spot-check after publication.
+
+## Round notes
+
+- Round 1 (`ca4daa7`): judgment 10 failed. The first diagnosis was wrong. It blamed the dated line's wording ("at 80% (assumed…) right"), which was also garbled and was fixed in `a92807e`. The re-run still failed: at the case's default pace the line takes the no-date branch, which stated no rate.
+- Round 2 (`884f6d9`): implementation `c61695d` makes the no-date line state the rate and weekly recording. `verify/` added judgment 16 for the dated line. All 7 cases passed.
