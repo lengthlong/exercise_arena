@@ -444,6 +444,7 @@ button.trow[aria-pressed="true"] { border-color: var(--pen); background: var(--p
 .causebar { height: 10px; }
 /* Settings：左标签、右控件 */
 .form-rows { display: grid; gap: 6px; }
+.stepper-rows { display: contents; }
 .saved { margin: 0; text-align: right; color: var(--green); font-weight: 500; }
 p.form-row { margin: 0; }
 .form-row > select, .form-row > input { justify-self: start; }
@@ -1059,14 +1060,18 @@ function readSettings(v, uid) {
   // questionsPerDay（每日题量，0050）：缺字段或不是数读成未设（null），超出 1–150 收紧
   const q = Number(v.questionsPerDay);
   const qpd = v.questionsPerDay == null || v.questionsPerDay === '' || typeof v.questionsPerDay === 'boolean' || !Number.isFinite(q) ? null : Math.max(QPD_MIN, Math.min(QPD_MAX, Math.round(q)));
+  // newPerWeek（每周新题，0051）：同样缺或不是数为未设（null），收紧到 0–100；0 是设定值
+  const w = Number(v.newPerWeek);
+  const npw = v.newPerWeek == null || v.newPerWeek === '' || typeof v.newPerWeek === 'boolean' || !Number.isFinite(w) ? null : Math.max(NPW_MIN, Math.min(NPW_MAX, Math.round(w)));
   return { dailyLimit: num('dailyLimit', 1, 50),
-    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null), questionsPerDay: qpd };
+    defaultOwner: typeof v.defaultOwner === 'string' && v.defaultOwner ? v.defaultOwner : (uid || null), questionsPerDay: qpd, newPerWeek: npw };
 }
-const QPD_MIN = 1, QPD_MAX = 150;
+const QPD_MIN = 1, QPD_MAX = 150, NPW_MIN = 0, NPW_MAX = 100;
 function settingsDoc(s) {
-  // 存设置：全部字段一起写；每日题量未设就不写这个字段（绝不把「近期节奏」占位值当设定存，DATA.md settings）
+  // 存设置：全部字段一起写；每日题量、每周新题未设就不写这个字段（绝不把「近期节奏」「近期录入」占位值当设定存，DATA.md settings）
   const d = { dailyLimit: s.dailyLimit, defaultOwner: s.defaultOwner };
   if (s.questionsPerDay != null) d.questionsPerDay = s.questionsPerDay;
+  if (s.newPerWeek != null) d.newPerWeek = s.newPerWeek;
   return d;
 }
 
@@ -1091,20 +1096,33 @@ function composeSource(label, aiSource) {
   return label + (pm ? ' Paper ' + pm[1] : '') + (qm ? ' Q' + qm[1] : '');
 }
 function markOf(p, today) {
-  // 页面按契约读做完标记：日期不合法或在今天之后算未做完；得分不合约束按 null
+  // 页面按契约读做卷记录（0051 起是 paperMarks 的一条，没有记录=没做完）：日期不合法或在今天之后算未做完；得分不合约束按 null
+  p = p || {};
   const done = isIsoDate(p.doneOn) && p.doneOn <= today ? p.doneOn : null;
   const tot = typeof p.total === 'number' && Number.isFinite(p.total) && p.total > 0 ? p.total : null;
   const sc = typeof p.score === 'number' && Number.isFinite(p.score) && p.score >= 0 && (tot == null || p.score <= tot) ? p.score : null;
   return { done, score: done ? sc : null, total: done ? tot : null };
 }
-function planView(papers, plan, today) {
-  // 网格：每个有排卷的周一一行，三科各一格（可多份）；储备卷按名次；进度：做完、落后（之前的周未做完）、到 PSLE 的周数
+function followedPlan(plans, today, userIds) {
+  // 所跟随的共用计划（DATA.md plans）：psleDate 不早于今天的里最早的一份；id 是用户 id 的是迁移前的按人旧计划，不跟随；同日按 id
+  const users = new Set(userIds || []);
+  return (plans || []).filter(p => p && isIsoDate(p.psleDate) && p.psleDate >= today && !users.has(p.id))
+    .sort((a, b) => (a.psleDate < b.psleDate ? -1 : a.psleDate > b.psleDate ? 1 : 0) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+function marksFor(docs, by) {
+  // 一位用户的做卷记录：学校卷 id → 记录；by、paper 与文档 id 不符的忽略（DATA.md paperMarks）
+  const m = new Map();
+  for (const d of docs || []) if (d && d.by === by && typeof d.paper === 'string' && d.id === d.paper + '-' + by) m.set(d.paper, d);
+  return m;
+}
+function planView(papers, plan, today, marks) {
+  // 网格：每个有排卷的周一一行，三科各一格（可多份）；储备卷按名次；进度按所看那位用户的做卷记录（marks：学校卷 id → 记录）：做完、落后（之前的周未做完）、到 PSLE 的周数
   const thisWeek = weekStart(today);
   const rows = new Map(), reserve = [];
   let total = 0, done = 0, behind = 0, thisLeft = 0;
   for (const p of papers || []) {
     if (!PLAN_SUBJECTS.includes(p.subject)) continue;
-    const m = markOf(p, today);
+    const m = markOf(marks && marks.get(p.id), today);
     const v = Object.assign({}, p, { mark: m });
     if (!isIsoDate(p.week)) { reserve.push(v); continue; }
     const wk = weekStart(p.week);
@@ -1159,8 +1177,9 @@ function recordRate(exercises, today) {
   return (exercises || []).filter(e => isIsoDate(e.createdAt) && e.createdAt >= from && e.createdAt <= today).length / 4;
 }
 function simulateFinish(items, x, res, perWeek, today, runs, seed) {
-  // 逐日推演：每天取到期的未掌握题（最早到期的先）至多 x 道，按近期占比判对、部分对、错走复习阶梯，每天按录入速度加新题；
-  // 奇数次带种子的推演取每周中位数；现有题中位数为 0 的第一周即完成周；至多 52 周（SPEC C7）
+  // 逐日推演：每天取到期的未掌握题（最早到期的先，同日按原序）至多 x 道，按近期占比判对、部分对、错走复习阶梯，每天按每周新题加新题；
+  // 奇数次带种子的推演取每周中位数；现有题中位数为 0 的第一周即完成周；至多 52 周（SPEC C7）。
+  // 待做的题放在按（到期日, 序号）排的小顶堆里，每天只弹出要做的那几道，结果与逐日筛选排序一模一样（0051，断言在 impl/logic.test.js）
   runs = runs || FC_RUNS; seed = seed == null ? 1 : seed;
   const toSun = (7 - (new Date(today + 'T00:00:00Z').getUTCDay())) % 7;   // 今天到本周日的天数
   const perDay = perWeek / 7;
@@ -1168,25 +1187,37 @@ function simulateFinish(items, x, res, perWeek, today, runs, seed) {
   for (let r = 0; r < runs; r++) {
     let s = (seed * 2654435761 + r * 40503) >>> 0;
     const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
-    const it = items.map((e, i) => ({ o: 1, l: Math.max(1, Math.min(4, e.step || 1)), d: e.due ? Math.max(0, daysBetween(today, e.due)) : 0, i }));
-    let acc = 0, nid = it.length;
-    const weeks = [];
+    const H = [];
+    const less = (a, b) => a.d < b.d || (a.d === b.d && a.i < b.i);
+    const push = e => { H.push(e); let k = H.length - 1; while (k) { const q = (k - 1) >> 1; if (!less(H[k], H[q])) break; const t = H[k]; H[k] = H[q]; H[q] = t; k = q; } };
+    const pop = () => {
+      const top = H[0], last = H.pop();
+      if (H.length) {
+        H[0] = last; let k = 0;
+        for (;;) { const a = 2 * k + 1, b = a + 1; let m = k; if (a < H.length && less(H[a], H[m])) m = a; if (b < H.length && less(H[b], H[m])) m = b; if (m === k) break; const t = H[k]; H[k] = H[m]; H[m] = t; k = m; }
+      }
+      return top;
+    };
+    let old = 0, neu = 0;
+    items.forEach((e, i) => { push({ o: 1, l: Math.max(1, Math.min(4, e.step || 1)), d: e.due ? Math.max(0, daysBetween(today, e.due)) : 0, i }); old++; });
+    let acc = 0, nid = items.length;
+    const weeks = [], due = [];
     for (let w = 0; w < FC_WEEKS; w++) {
       const end = toSun + 7 * w;
       for (let d = w === 0 ? 0 : end - 6; d <= end; d++) {
-        const due = it.filter(e => !e.m && e.d <= d).sort((a, b) => a.d - b.d || a.i - b.i).slice(0, x);
+        due.length = 0;
+        while (due.length < x && H.length && H[0].d <= d) due.push(pop());
         for (const e of due) {
           const u = rnd();
-          if (u < res.right) { if (e.l === 4) e.m = 1; else { e.l++; e.d = d + GAPS[e.l]; } }
+          if (u < res.right) { if (e.l === 4) { if (e.o) old--; else neu--; continue; } e.l++; e.d = d + GAPS[e.l]; }
           else if (u < res.right + res.partial) e.d = d + GAPS[e.l];
           else { e.l = 1; e.d = d + GAPS[1]; }
+          push(e);
         }
         acc += perDay;
-        while (acc >= 1) { it.push({ o: 0, l: 1, d: d + 1, i: nid++ }); acc -= 1; }
+        while (acc >= 1) { push({ o: 0, l: 1, d: d + 1, i: nid++ }); neu++; acc -= 1; }
       }
-      let o = 0, n = 0;
-      for (const e of it) if (!e.m) { if (e.o) o++; else n++; }
-      weeks.push({ o, n });
+      weeks.push({ o: old, n: neu });
     }
     all.push(weeks);
   }
@@ -1796,7 +1827,9 @@ const S = {
     settingsMsg: null, errMsg: null, notice: null, bootWarn: null,   // errMsg：写数据出错，显示在当前标签页最上方；notice：错题已改好、但题组清理等后续没做时的提示
   paperPreviewOwner: null,   // 检验卷预览时的默认归属人；创建前要与当前范围核对
   matches: [], owners: {},      // owners：用户 id → 默认归属人（读各人的 settings，缺文档为本人）
-  plan: undefined, planFail: false, schoolPapers: [], spReady: false, planSel: null, planMsg: null, planScrolled: false,   // 备考计划（0050）：plan undefined=读取中、null=没有计划；planSel：网格里选中的学校卷 id
+  plan: undefined, planFail: false, schoolPapers: [], spReady: false, planSel: null, planMsg: null, planScrolled: false,   // 备考计划（0050）：plan 是所跟随的共用计划，undefined=读取中、null=没有计划；planSel：网格里选中的学校卷 id
+  plans: undefined, marksMe: undefined, marksOwner: undefined, marksFail: false, planWho: 'me',   // 0051：全部计划文档；本人与默认归属人的做卷记录（学校卷 id → 记录，undefined=读取中）；planWho：网格看谁的记录
+  pendingSet: null,   // 0051：步进器改了、还没写库的设置（questionsPerDay、newPerWeek）；显示与预测都先用它
   recPaper: null,   // 从学校卷进 Record 时的 {label, subject}（0050，SPEC C2）
   boardPeriod: 'week', gameTab: 'lift', lift: null, hist: null, extra: 0   // lift：Arena 里正在比或刚比完的一局；hist：本周历史里展开的那一项；extra：开赛人多投的枚数
 };
@@ -2970,7 +3003,7 @@ function paperPool() {
 function renderPapers() {
   // 两个子标签：Exam（组卷与检验卷列表）、Daily（按天分组的每日卷）
   const view0 = mine(), shown0 = visiblePapers(S.papers, view0, S.me), nD = shown0.filter(isDaily).length;
-  const psleN = S.plan ? planView(S.schoolPapers, S.plan, localToday()).thisLeft : '';
+  const psleN = S.plan && spShownMarks() ? planView(S.schoolPapers, S.plan, localToday(), spShownMarks()).thisLeft : '';
   const tabs = `<nav class="gtabs subtabs" role="tablist" aria-label="Kinds of paper">${[['check', 'Exam', shown0.length - nD], ['daily', 'Daily', nD], ['psle', 'PSLE', psleN]].map(([k, t, n]) => `<button type="button" role="tab" data-act="paper-tab" data-v="${k}" aria-selected="${S.paperTab === k}">${t} <span class="num muted">${n}</span></button>`).join('')}</nav>`;
   if (S.paperTab === 'daily') return tabs + renderDailyPapers(shown0, view0);
   if (S.paperTab === 'psle') return tabs + renderPsle();
@@ -3021,12 +3054,23 @@ function renderPapers() {
 const PLAN_COL = { math: 'Maths', english: 'English', science: 'Science' };
 function spShort(p) { if (p.short) return p.short; const w = schoolShort(p.school).split(/[\s-]+/).filter(Boolean); return (w.length === 1 ? w[0].slice(0, 8) : w.map(x => x[0]).join('').toUpperCase().slice(0, 4)) || '?'; }
 function spName(p) { return `${p.year} P6 ${KIND_LABEL[p.kind] || p.kind || ''} · ${p.school} · ${PLAN_COL[p.subject] || p.subject}`; }
+function spOwnerView() {
+  // 默认归属人不是本人时可以只读看那位的做卷记录（SPEC C11）
+  return S.settings.defaultOwner && S.settings.defaultOwner !== S.me ? S.settings.defaultOwner : null;
+}
+function spWho() { return S.planWho === 'owner' && spOwnerView() ? 'owner' : 'me'; }
+function spShownMarks() { return spWho() === 'owner' ? S.marksOwner : S.marksMe; }
 function renderPsle() {
-  if (S.planFail) return `<section class="panel"><p class="note err">Your PSLE plan is unavailable right now. Reload the page to try again.</p></section>`;
-  if (S.plan === undefined || !S.spReady) return `<section class="panel"><p class="small muted">Loading your PSLE plan…</p></section>`;
-  if (!S.plan) return `<section class="panel"><p class="h2">No plan yet</p><p class="small muted">Ask Claude to build your PSLE paper plan: one Maths, one English and one Science school paper each week, picked from sgexam.com.</p></section>`;
-  const today = localToday(), v = planView(S.schoolPapers, S.plan, today);
-  let h = `<section class="panel"><p class="sp-sum"><b>${v.done}</b> of ${v.total} done · <span class="${v.behind ? 'sp-bad' : ''}">${v.behind} behind</span> · ${plural(v.weeksLeft, 'week')} to PSLE</p>`;
+  if (S.planFail) return `<section class="panel"><p class="note err">The PSLE plan is unavailable right now. Reload the page to try again.</p></section>`;
+  if (S.plan === undefined || (S.plan && !S.spReady)) return `<section class="panel"><p class="small muted">Loading the PSLE plan…</p></section>`;
+  if (!S.plan) return `<section class="panel"><p class="h2">No plan yet</p><p class="small muted">Ask Claude to build the PSLE paper plan: one Maths, one English and one Science school paper each week, picked from sgexam.com. Everyone here shares it and keeps their own marks.</p></section>`;
+  const owner = spOwnerView(), who = spWho(), ro = who === 'owner';
+  const sw = owner ? `<nav class="gtabs subtabs" role="tablist" aria-label="Whose marks">${[['me', 'Mine'], ['owner', esc(userName(owner))]].map(([k, t]) => `<button type="button" role="tab" data-act="sp-who" data-v="${k}" aria-selected="${who === k}">${t}</button>`).join('')}</nav>` : '';
+  if (S.marksFail) return sw + `<section class="panel"><p class="note err">The paper marks are unavailable right now. Reload the page to try again.</p></section>`;
+  const marks = spShownMarks();
+  if (!marks) return sw + `<section class="panel"><p class="small muted">Loading the paper marks…</p></section>`;
+  const today = localToday(), v = planView(S.schoolPapers, S.plan, today, marks);
+  let h = sw + `<section class="panel">${ro ? `<p class="small muted">${esc(userName(owner))}'s marks, read-only.</p>` : ''}<p class="sp-sum"><b>${v.done}</b> of ${v.total} done · <span class="${v.behind ? 'sp-bad' : ''}">${v.behind} behind</span> · ${plural(v.weeksLeft, 'week')} to PSLE</p>`;
   h += `<div class="sp-wrap" id="sp-wrap"><table class="sp-grid"><thead><tr><th></th>${PLAN_SUBJECTS.map(k => `<th>${PLAN_COL[k]}</th>`).join('')}</tr></thead><tbody>`;
   for (const w of v.weeks) {
     const cur = w.week === v.thisWeek, past = w.week < v.thisWeek;
@@ -3042,16 +3086,18 @@ function renderPsle() {
   }
   h += `</tbody></table></div>`;
   const sel = S.schoolPapers.find(p => p.id === S.planSel);
-  if (sel) h += spPanel(Object.assign({}, sel, { mark: markOf(sel, today) }), today);
+  if (sel) h += spPanel(Object.assign({}, sel, { mark: markOf(marks.get(sel.id), today) }), today, ro);
   if (v.psleWeek) h += `<p class="small muted">PSLE written papers from the week of ${esc(fmtDate(v.psleWeek))} (${esc(S.plan.psleDate)}).</p>`;
   h += `</section>`;
   if (v.reserve.length) h += `<details class="panel"><summary>Reserve: ${plural(v.reserve.length, 'paper')}</summary><div class="sp-res">${v.reserve.map(p => `<button type="button" class="sp-cell sp-later" data-act="sp-sel" data-id="${esc(p.id)}" aria-pressed="${S.planSel === p.id}">${esc(spName(p))}</button>`).join('')}</div></details>`;
   return h;
 }
-function spPanel(p, today) {
+function spPanel(p, today, ro) {
+  // ro：只读看别人的记录，只留打开试卷与关闭
   const m = p.mark;
   let h = `<div class="sp-panel" id="sp-panel"><p class="sp-name">${esc(spName(p))}</p><p class="small muted">${p.week ? 'Week of ' + esc(fmtDate(weekStart(p.week))) : 'Reserve'}${m.done ? ` · done ${esc(fmtDate(m.done))}${m.score != null ? ` · ${esc(fmtP(m.score))}${m.total != null ? ' / ' + esc(fmtP(m.total)) : ''}` : ''}` : ''}</p>`;
-  h += `<div class="row">${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">Open paper ↗</a>` : ''}<button type="button" class="btn" data-act="sp-record" data-id="${esc(p.id)}">Record mistakes</button></div>`;
+  h += `<div class="row">${p.url ? `<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">Open paper ↗</a>` : ''}${ro ? `<button type="button" class="btn ghost" data-act="sp-close">Close</button>` : `<button type="button" class="btn" data-act="sp-record" data-id="${esc(p.id)}">Record mistakes</button>`}</div>`;
+  if (ro) return h + `</div>`;
   h += `<div class="sp-form"><label class="f"><span>Done on</span><input type="date" id="sp-date" max="${today}" value="${esc(m.done || today)}"></label>
     <label class="f"><span>Score</span><input type="number" id="sp-score" min="0" step="any" inputmode="decimal" value="${m.score != null ? m.score : ''}"></label>
     <label class="f"><span>Out of</span><input type="number" id="sp-total" min="0" step="any" inputmode="decimal" value="${m.total != null ? m.total : 100}"></label></div>`;
@@ -3060,11 +3106,11 @@ function spPanel(p, today) {
   return h + `</div>`;
 }
 async function spWrite(id, patch) {
-  // 只写本人学校卷的 doneOn、score、total（DATA.md 学校卷写入规则）；失败时网格保持原样
+  // 只写本人的做卷记录 paperMarks/<学校卷 id>-<本人>（DATA.md 做卷记录写入规则）；撤销写 null 不删；失败时网格保持原样
   const p = S.schoolPapers.find(x => x.id === id);
-  if (!p || p.for !== S.me) { S.planMsg = { kind: 'err', text: "This paper isn't in your plan." }; render(); return; }
+  if (!p || !S.plan || p.plan !== S.plan.id) { S.planMsg = { kind: 'err', text: "This paper isn't in the plan." }; render(); return; }
   try {
-    await S.db.doc('schoolPapers/' + id).update(patch);
+    await S.db.doc('paperMarks/' + id + '-' + S.me).set({ paper: id, by: S.me, doneOn: patch.doneOn, score: patch.score, total: patch.total });
     S.planMsg = { kind: 'ok', text: patch.doneOn ? 'Saved' : 'Done mark removed' };
   } catch (err) { S.planMsg = { kind: 'err', text: dbErr(err) }; }
   render();
@@ -3091,40 +3137,76 @@ function renderDailyPapers(shown, view) {
 const JUDGE = { auto: 'Auto', self: 'Self', parent: 'Override' };
 /* ---------- Settings：每日题量与完成预测（0050，SPEC C7、C9） ---------- */
 let fcCache = { key: null, v: null };
+function effSettings() { return S.pendingSet ? Object.assign({}, S.settings, S.pendingSet) : S.settings; }   // 步进器还没写库的值优先（SPEC C9）
 function qpdInputs() {
-  const today = localToday(), view = mine();
-  const pace = recentPace(view, S.me, today);
-  const x = S.settings.questionsPerDay != null ? S.settings.questionsPerDay : pace;
-  return { today, view, pace, x };
+  const today = localToday(), view = mine(), es = effSettings();
+  const pace = recentPace(view, S.me, today), rate = recordRate(S.exercises, today);
+  const x = es.questionsPerDay != null ? es.questionsPerDay : pace;
+  const perWeek = es.newPerWeek != null ? es.newPerWeek : rate;
+  return { today, view, pace, rate, x, perWeek, es };
+}
+function stepperRow(o) {
+  // 一行 − / + 步进器：未设时输入框空着、占位显示近期值
+  return `<div class="form-row"><span>${o.label} <span class="muted small">· ${o.recentLabel} ${o.recent}</span></span>
+    <span class="stepper"><button type="button" class="btn ghost" data-act="${o.act}-dec" aria-label="${o.less}">−</button><input type="number" id="${o.id}" min="${o.min}" max="${o.max}" value="${o.value != null ? o.value : ''}" placeholder="${o.recent}" aria-label="${o.label}"><button type="button" class="btn ghost" data-act="${o.act}-inc" aria-label="${o.more}">+</button></span></div>
+    <p class="form-row"><span class="hint small muted">${o.hint}${o.value != null ? '' : ' ' + o.unset}</span></p>`;
 }
 function qpdRow() {
-  const { pace } = qpdInputs(), set = S.settings.questionsPerDay != null;
-  return `<div class="form-row"><span>Questions per day <span class="muted small">· recent pace ${pace}</span></span>
-    <span class="stepper"><button type="button" class="btn ghost" data-act="qpd-dec" aria-label="One fewer a day">−</button><input type="number" id="set-qpd" min="${QPD_MIN}" max="${QPD_MAX}" value="${set ? S.settings.questionsPerDay : ''}" placeholder="${pace}" aria-label="Questions per day"><button type="button" class="btn ghost" data-act="qpd-inc" aria-label="One more a day">+</button></span></div>
-    <p class="form-row"><span class="hint small muted">For the forecast below. Today isn't limited by this.${set ? '' : ' Not set yet, so your recent pace is used.'}</span></p>`;
+  const { pace, rate, es } = qpdInputs();
+  return stepperRow({ label: 'Questions per day', recentLabel: 'recent pace', recent: pace, act: 'qpd', id: 'set-qpd', min: QPD_MIN, max: QPD_MAX, value: es.questionsPerDay,
+      less: 'One fewer a day', more: 'One more a day', hint: "For the forecast below. Today isn't limited by this.", unset: 'Not set yet, so your recent pace is used.' })
+    + stepperRow({ label: 'New per week', recentLabel: 'recent', recent: Math.round(rate), act: 'npw', id: 'set-npw', min: NPW_MIN, max: NPW_MAX, value: es.newPerWeek,
+      less: 'One fewer a week', more: 'One more a week', hint: 'Questions you expect to record each week.', unset: 'Not set yet, so your recent recording is used.' });
 }
 function forecastNow() {
-  // 同样的输入不重算：错题数组（换了文档就换数组）、本人、每日题量、日期
-  const { today, view, x } = qpdInputs();
-  const key = [S.me, x, today, S.settings.defaultOwner].join('|');
+  // 同样的输入不重算：错题数组（换了文档就换数组）、本人、每日题量、每周新题、日期
+  const { today, view, x, perWeek, es } = qpdInputs();
+  const key = [S.me, x, perWeek, today, S.settings.defaultOwner].join('|');
   if (fcCache.key === key && fcCache.src === S.exercises) return fcCache.v;
   const items = view.filter(e => !e.mastered).map(e => ({ step: e.step, due: e.due }));
-  const res = recentResults(view, S.me, today), perWeek = recordRate(S.exercises, today);
+  const res = recentResults(view, S.me, today);
   const sim = simulateFinish(items, x, res, perWeek, today);
-  fcCache = { key, src: S.exercises, v: Object.assign({ x, res, perWeek, today }, sim) };
+  fcCache = { key, src: S.exercises, v: Object.assign({ x, res, perWeek, pwSet: es.newPerWeek != null, today }, sim) };
   return fcCache.v;
 }
 function renderForecast() {
   if (S.status !== 'ready') return '';
   const f = forecastNow();
   const rate = Math.round(f.res.shown * 100) + '% right' + (f.res.assumed ? ' (assumed: too few recent answers)' : '');
-  const pw = Math.round(f.perWeek);
+  const pw = (f.pwSet ? '' : 'about ') + Math.round(f.perWeek);
   let line;
   if (!f.start) line = `You have no unmastered exercises in this library right now.`;
-  else if (f.finish < 0) line = `At ${f.x} a day, today's ${f.start} won't all be mastered within a year. Try more a day. (At ${rate}, with about ${pw} new a week.)`;
-  else line = `At ${f.x} a day you'll master today's ${f.start} in the <b>week of ${esc(fmtDate(f.weeks[f.finish].week))}</b> (${plural(f.finish + 1, 'week')}), at ${rate}, with about ${pw} new a week.`;
-  return `<div class="fc"><p class="fc-line">${line}</p>${f.start ? fcChart(f) : ''}
+  else if (f.finish < 0) line = `At ${f.x} a day, today's ${f.start} won't all be mastered within a year. Try more a day. (At ${rate}, with ${pw} new a week.)`;
+  else line = `At ${f.x} a day you'll master today's ${f.start} in the <b>week of ${esc(fmtDate(f.weeks[f.finish].week))}</b> (${plural(f.finish + 1, 'week')}), at ${rate}, with ${pw} new a week.`;
+  return `<div class="fc" id="fc-box"><p class="fc-line">${line}</p>${f.start ? fcChart(f) : ''}
     <p class="small muted fc-key"><span class="fc-sw fc-old"></span>today's questions <span class="fc-sw fc-new"></span>new ones not yet mastered</p></div>`;
+}
+let stepTimer = null;
+function stepSetting(k, delta) {
+  // 步进器一按：先改显示的数、只重画预测那一块（不等写库）；最后一按之后约 600 ms 把全部设置写一次（SPEC C9）
+  const lim = k === 'questionsPerDay' ? [QPD_MIN, QPD_MAX] : [NPW_MIN, NPW_MAX];
+  const { pace, rate, es } = qpdInputs();
+  const cur = es[k] != null ? es[k] : Math.round(k === 'questionsPerDay' ? pace : rate);
+  S.pendingSet = Object.assign({}, S.pendingSet, { [k]: Math.max(lim[0], Math.min(lim[1], cur + delta)) });
+  S.settingsMsg = null;
+  const box = document.querySelector('.form-rows .stepper-rows');
+  if (box) box.innerHTML = qpdRow();
+  const fc = $('#fc-box');
+  if (fc) fc.outerHTML = renderForecast();
+  const saved = document.querySelector('.panel .saved'); if (saved) saved.remove();
+  clearTimeout(stepTimer); stepTimer = setTimeout(flushSettings, 600);
+}
+async function flushSettings() {
+  // 把还没写库的步进器值连同其他设置写一次；失败时回到已存的值并报错
+  clearTimeout(stepTimer); stepTimer = null;
+  if (!S.pendingSet) return;
+  const v = Object.assign({}, S.settings, S.pendingSet);
+  try {
+    await S.db.doc('settings/' + S.me).set(settingsDoc(v));
+    S.settings = v; S.settingsMsg = { kind: 'ok' }; S.errMsg = null;
+  } catch (err) { S.settingsMsg = null; S.errMsg = dbErr(err); }
+  S.pendingSet = null;
+  softRender();
 }
 function fcChart(f) {
   // 每周一根叠柱：深色=今天已有的未掌握题，浅色=推演里新录、还没掌握的；深色的数字写在柱顶；有备考计划时 PSLE 那周画虚线
@@ -3151,7 +3233,7 @@ function renderSettings() {
       <label class="form-row"><span>Default owner</span><select id="set-owner">${ownerOptions(S.settings.defaultOwner)}</select></label>
       <p class="form-row"><span class="hint small muted">Today, new exam papers and new exercises use this person.</span></p>
       <label class="form-row"><span>Questions per batch (1–50)</span><input type="number" id="set-limit" min="1" max="50" value="${S.settings.dailyLimit}"></label>
-      ${qpdRow()}
+      <div class="stepper-rows">${qpdRow()}</div>
     </div>
     ${S.settingsMsg ? '<p class="small saved" role="status">Saved</p>' : ''}
     ${renderForecast()}
@@ -3407,7 +3489,8 @@ document.addEventListener('click', async ev => {
   const R = S.run;
   try {
     switch (act) {
-      case 'tab': if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.pageBack = null; S.run = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
+      case 'tab': if (S.pendingSet) flushSettings();   // 离开设置页时把还没写的步进器值立刻写出（SPEC C9）
+        if (b.dataset.v === 'record' && S.tab !== 'record') resetRecMode(); S.tab = b.dataset.v; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.settingsMsg = null; S.dailyAll = false; S.detailId = null; S.confirmDel = null; S.detailFrom = null; S.pageBack = null; S.run = null; if (!matchLive()) S.lift = null; S.hist = null; render(); break;
       case 'game-tab': S.gameTab = ['lift', 'sprint', 'climb'].includes(b.dataset.v) ? b.dataset.v : 'lift'; S.hist = null; render(); break;
       case 'board-period': S.boardPeriod = b.dataset.v === 'all' ? 'all' : 'week'; render(); break;
       case 'extra': S.extra = Math.max(0, (S.extra || 0) + Number(b.dataset.v)); render(); break;
@@ -3425,6 +3508,7 @@ document.addEventListener('click', async ev => {
       case 'paper-tab': S.paperTab = ['daily', 'psle'].includes(b.dataset.v) ? b.dataset.v : 'check'; S.planScrolled = false; store.set('arena.paperTab', S.paperTab); S.dailyAll = false; S.confirmDel = null; render(); break;
       case 'sp-sel': S.planSel = S.planSel === b.dataset.id ? null : b.dataset.id; S.planMsg = null; render(); { const el = $('#sp-panel'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } break;
       case 'sp-close': S.planSel = null; S.planMsg = null; render(); break;
+      case 'sp-who': S.planWho = b.dataset.v === 'owner' ? 'owner' : 'me'; S.planMsg = null; render(); break;
       case 'sp-done': {
         const v = validateMark(($('#sp-date') || {}).value, ($('#sp-score') || {}).value, ($('#sp-total') || {}).value, localToday());
         if (v.error) { S.planMsg = { kind: 'err', text: v.error }; render(); break; }
@@ -3438,11 +3522,9 @@ document.addEventListener('click', async ev => {
         S.tab = 'record'; store.set('arena.tab', S.tab); S.errMsg = null; S.notice = null; S.detailId = null; S.confirmDel = null; render(); window.scrollTo(0, 0); break;
       }
       case 'rec-paper-clear': S.recPaper = null; render(); break;
-      case 'qpd-dec': case 'qpd-inc': {
-        // 每日题量的 − / +：未设时从近期节奏起步；改一下存一下（与其他设置一样全部字段一起写）
-        const cur = S.settings.questionsPerDay != null ? S.settings.questionsPerDay : recentPace(mine(), S.me, localToday());
-        await saveSettings(Object.assign({}, S.settings, { questionsPerDay: Math.max(QPD_MIN, Math.min(QPD_MAX, cur + (b.dataset.act === 'qpd-inc' ? 1 : -1))) })); break;
-      }
+      case 'qpd-dec': case 'qpd-inc': case 'npw-dec': case 'npw-inc':
+        // 每日题量、每周新题的 − / +：未设时从四舍五入的近期值起步；即时重画，稍后合并写库（stepSetting）
+        stepSetting(act.startsWith('qpd') ? 'questionsPerDay' : 'newPerWeek', act.endsWith('inc') ? 1 : -1); break;
       case 'daily-older': S.dailyAll = true; render(); break;
       case 'paper-dir': S.paperSort.dir = S.paperSort.dir === 'desc' ? 'asc' : 'desc'; S.paperPage = 1; render(); break;
       case 'paper-page': S.paperPage = Number(b.dataset.v) || 1; render(); window.scrollTo(0, 0); break;
@@ -3667,10 +3749,13 @@ document.addEventListener('input', ev => {
 
 document.addEventListener('change', async ev => {
   const t = ev.target;
-  if (t.id === 'set-owner' || t.id === 'set-limit' || t.id === 'set-qpd') {
-    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值；每日题量输入框空着就保持原值（未设就仍未设）
-    const q = $('#set-qpd') ? $('#set-qpd').value : '';
-    await saveSettings(readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value, questionsPerDay: q === '' ? S.settings.questionsPerDay : q }, S.me));
+  if (t.id === 'set-owner' || t.id === 'set-limit' || t.id === 'set-qpd' || t.id === 'set-npw') {
+    // 设置改一项存一项：收紧后写入，重画时输入框显示收紧后的值；每日题量、每周新题的输入框空着就保持原值（未设就仍未设）；
+    // 步进器还没写库的值一并写入
+    clearTimeout(stepTimer); stepTimer = null;
+    const es = effSettings(), val = (id, k) => { const el = $('#' + id), x = el ? el.value : ''; return x === '' ? es[k] : x; };
+    S.pendingSet = null;
+    await saveSettings(readSettings({ dailyLimit: $('#set-limit').value, defaultOwner: $('#set-owner').value, questionsPerDay: val('set-qpd', 'questionsPerDay'), newPerWeek: val('set-npw', 'newPerWeek') }, S.me));
     return;
   }
   if (t.dataset.photos) {
@@ -4082,6 +4167,11 @@ async function boot() {
       });
       ready('exercises'); loadNames();
     }, () => fail('exercises')));
+    // 默认归属人是别人时只读看那位的做卷记录；随本代订阅一起取消（DATA.md 加载）
+    S.marksOwner = undefined; S.planWho = 'me';
+    if (owner && owner !== me) subs.push(db.collection('paperMarks').where('by', '==', owner).onSnapshot(snap => {
+      S.marksOwner = marksFor(snap.docs.map(d => Object.assign({ id: d.id }, d.data())), owner); softRender();
+    }, () => { S.marksFail = true; softRender(); }));
     subs.push(db.collection('papers').where('owner', '==', owner).onSnapshot(snap => {
       S.papers = snap.docs.map(d => Object.assign({ id: d.id, exerciseIds: [] }, d.data()));
       ready('papers'); loadNames();
@@ -4093,7 +4183,7 @@ async function boot() {
   }, () => fail('question sets'));
   db.collection('users').onSnapshot(snap => {
     S.userIds = snap.docs.map(d => d.id).sort((a, b) => (b === me) - (a === me) || a.localeCompare(b));
-    loadNames(); softRender();
+    refreshPlan(); loadNames(); softRender();
   }, () => {});
   db.collection('matches').onSnapshot(snap => {
     S.matches = snap.docs.map(d => Object.assign({ id: d.id, players: [], points: [] }, d.data()));
@@ -4103,11 +4193,26 @@ async function boot() {
     S.owners = Object.fromEntries(snap.docs.map(d => [d.id, readSettings(d.data(), d.id).defaultOwner]));
     softRender();
   }, () => {});
-  // 备考计划与学校卷按本人加载，与默认归属人无关；缺计划文档=还没有计划，读取失败=暂不可用（DATA.md 加载）
-  db.doc('plans/' + me).onSnapshot(snap => { S.plan = snap.exists ? snap.data() : null; S.planFail = false; softRender(); }, () => { S.planFail = true; softRender(); });
-  db.collection('schoolPapers').where('for', '==', me).onSnapshot(snap => {
-    S.schoolPapers = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); S.spReady = true; softRender();
+  // 共用备考计划（0051）：读全部计划，跟随 psleDate 不早于今天的最早一份；学校卷按 plan 字段订阅，换了计划就重订；
+  // 没有计划=还没有计划，读取失败=暂不可用；做卷记录订阅本人的，默认归属人是别人时另订那位的（DATA.md 加载）
+  let spSub = null, spPlanId;
+  const refreshPlan = () => {
+    if (S.plans === undefined) return;
+    const f = followedPlan(S.plans, localToday(), S.userIds);
+    S.plan = f;
+    const id = f ? f.id : null;
+    if (id === spPlanId) return;
+    spPlanId = id; if (spSub) spSub(); spSub = null; S.schoolPapers = []; S.spReady = false; S.planSel = null;
+    if (id) spSub = db.collection('schoolPapers').where('plan', '==', id).onSnapshot(snap => {
+      S.schoolPapers = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); S.spReady = true; softRender();
+    }, () => { S.planFail = true; softRender(); });
+  };
+  db.collection('plans').onSnapshot(snap => {
+    S.plans = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); S.planFail = false; refreshPlan(); softRender();
   }, () => { S.planFail = true; softRender(); });
+  db.collection('paperMarks').where('by', '==', me).onSnapshot(snap => {
+    S.marksMe = marksFor(snap.docs.map(d => Object.assign({ id: d.id }, d.data())), me); softRender();
+  }, () => { S.marksFail = true; softRender(); });
   let settingsRead = false;
   db.doc('settings/' + me).onSnapshot(snap => {
     settingsRead = true;

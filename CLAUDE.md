@@ -100,7 +100,7 @@ flowchart LR
 | operate | `operate/maintain/README.md` | 本地维护命令，对应 `model/operate/maintain/SPEC.md` | `./check.sh` 与 `node impl/logic.test.js impl/arena.html`；不代替集成验收 |
 | operate | `operate/deploy/README.md` | 手动 Artifact 入口，对应 `model/operate/deploy/SPEC.md` | 接受候选后另行授权发布；无自动命令或已验证回滚，扩展步骤待实现 |
 | operate | `operate/capacity/` | 一次性缩小限长前的超大照片：盘点、页面同款缩图（Chrome 跑页面的 `shrinkPhoto`）、改 `images` 的计划、核对与删除清单，对应 `model/operate/capacity/SPEC.md` | `node operate/capacity/shrink-legacy.test.mjs`；只写本地文件，生产读写由 agent 用 Artifact 工具执行，金丝雀、改写、删除各需另行确认；约定以契约为准 |
-| operate | `operate/plan/` | 学校卷备考计划的编排工具与手册：按排序键选卷、排周、生成新建与重做计划的写入批次、回读核对，对应 `model/operate/plan/SPEC.md`（旅程 0016） | `node operate/plan/plan.test.mjs`；只写本地文件，生产读写由 agent 用 Artifact 工具执行，每次生产写入另行确认，重做计划前先有验证过的备份；约定以契约为准 |
+| operate | `operate/plan/` | 共用学校卷备考计划的编排工具与手册：按排序键选卷、排周、生成新建、重做计划与按人旧计划迁移的写入批次、回读核对，对应 `model/operate/plan/SPEC.md`（旅程 0016） | `node operate/plan/plan.test.mjs`；只写本地文件，生产读写由 agent 用 Artifact 工具执行，每次生产写入另行确认，重做计划与迁移前先有验证过的备份；约定以契约为准 |
 | operate | `operate/recover/` | 生产 Artifact 的本地备份工具与手册：`db` 全量快照、按 asset id 增量存储的照片、发布页源码，对应 `model/operate/recover/SPEC.md`（旅程 0014） | 步骤见 `operate/recover/README.md`；`node operate/recover/backup.mjs verify <快照>`；本地数据存于 git 忽略的 `backups/`；只读生产，恢复另行授权；约定以契约为准 |
 
 其余路径按托管块里的标准地图走：`journey/` 管目标与步骤，`model/` 管领域与架构，`impl/` 管实现，`operate/` 管运维工具与手册，`verify/` 管验收策略与入口。

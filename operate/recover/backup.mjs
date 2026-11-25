@@ -24,8 +24,8 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const ROOT = join(REPO, 'backups');
 const ASSETS = join(ROOT, 'assets');
-const COLLECTIONS = ['exercises', 'sets', 'papers', 'users', 'settings', 'matches', 'plans', 'schoolPapers'];
-// Snapshots taken before `plans` and `schoolPapers` existed (0050) have no entry for them; an absent entry with no documents verifies.
+const COLLECTIONS = ['exercises', 'sets', 'papers', 'users', 'settings', 'matches', 'plans', 'schoolPapers', 'paperMarks'];
+// Snapshots taken before `plans` and `schoolPapers` (0050) or `paperMarks` (0051) existed have no entry for them; an absent entry with no documents verifies.
 // Collections whose documents carry `images` (asset ids), per DATA.md.
 const IMAGE_COLLECTIONS = ['exercises', 'sets'];
 
