@@ -1,7 +1,7 @@
 # PSLE paper plan sub-tab and Questions per day finish forecast (0050)
 
 > status: completed (2026-11-25)
-> location: branch `develop`, commits `afeef68..a9c79d9`
+> location: branch `develop`, commits `afeef68..a92807e`
 
 ## Upstream
 <!-- upstream -->
@@ -75,3 +75,7 @@
 - CF-5 open — Count sgexam P6 prelims for 2022 and earlier per subject; report any pool shortfall.
 - CF-6 open — Confirm against MOE that the 2021 Maths and 2023 Science primary syllabuses first reach P6 in 2026, and note which planned papers predate them.
 - CF-7 open — Check that Settings stays responsive with the full production library (forecast simulation over every unmastered exercise for 52 weeks × 15 runs).
+
+## Round notes
+
+- 2026-11-25, `a92807e`: fixed `20261125-0050-integration-verify` #10. The assumed-rate forecast line read "at 80% (assumed: too few recent answers) right"; it now reads "at 80% right (assumed: too few recent answers), with about N new a week". `node impl/logic.test.js impl/arena.html` and `./check.sh` passed. Intervening commits since `a9c79d9` were `verify/` and `record/` only.
